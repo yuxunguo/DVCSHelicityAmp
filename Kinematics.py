@@ -1,6 +1,12 @@
 import numpy as np
 
-from Algebra import _validate_nonnegative_scalar, _validate_positive_scalar, mdot
+from Algebra import (
+    DEFAULT_TOL,
+    _validate_nonnegative_scalar,
+    _validate_positive_scalar,
+    _validate_scalar,
+    mdot,
+)
 
 
 # ============================================================
@@ -72,6 +78,156 @@ def momenta_user(pIn, pOut, qOut, th, ph, phOut, m):
         "pp": pp_user(pOut, m),
         "qout": qout_user(qOut, phOut),
     }
+
+
+# ============================================================
+# Scalar exclusive kinematics
+#
+# Eb is a beam-energy scalar that fixes s = m^2 + 2 m Eb.
+# The public wrapper below returns momenta in the initial e+p COM frame.
+# Independent variables: Eb, Q2, xB, t, phi.
+# y = Q2 / (2 m xB Eb) is derived, not independent.
+# ============================================================
+
+def _clip_physical_cosine(value, name, tol=1e-10):
+    if value < -1.0 - tol or value > 1.0 + tol:
+        raise ValueError(
+            f"{name}={value:.16g} is outside the physical range [-1, 1]."
+        )
+    return float(np.clip(value, -1.0, 1.0))
+
+
+def _kinematics_target_rest_from_beam_energy(Eb, Q2, xB, t, phi, m):
+    """
+    Build a target-rest event used as a scalar construction frame.
+
+    This helper is intentionally private; public scalar kinematics are exposed
+    in the initial e+p COM frame by kinematics_cm_from_beam_energy.
+    """
+    Eb = _validate_positive_scalar(Eb, "Eb")
+    Q2 = _validate_positive_scalar(Q2, "Q2")
+    xB = _validate_positive_scalar(xB, "xB")
+    t = _validate_scalar(t, "t")
+    phi = _validate_scalar(phi, "phi")
+    m = _validate_positive_scalar(m, "m")
+
+    if t >= -DEFAULT_TOL:
+        raise ValueError("t must be negative for spacelike momentum transfer.")
+
+    nu = Q2 / (2.0 * m * xB)
+    y = nu / Eb
+    kp_energy = Eb - nu
+    if kp_energy <= DEFAULT_TOL:
+        raise ValueError("Final electron energy is not positive for this kinematics.")
+
+    cos_lepton = 1.0 - Q2 / (2.0 * Eb * kp_energy)
+    cos_lepton = _clip_physical_cosine(cos_lepton, "cos(theta_e)")
+    sin_lepton = np.sqrt(max(0.0, 1.0 - cos_lepton**2))
+
+    k = np.array([Eb, 0.0, 0.0, Eb])
+    p = np.array([m, 0.0, 0.0, 0.0])
+    kp = np.array([
+        kp_energy,
+        kp_energy * sin_lepton,
+        0.0,
+        kp_energy * cos_lepton,
+    ])
+    q = k - kp
+    q_vec = q[1:4]
+    q_abs = np.linalg.norm(q_vec)
+    if q_abs <= DEFAULT_TOL:
+        raise ValueError("Virtual photon three-momentum is zero.")
+
+    pp_energy = m - t / (2.0 * m)
+    pp_abs2 = pp_energy**2 - m**2
+    if pp_abs2 < -DEFAULT_TOL:
+        raise ValueError("Final proton momentum is not real for this t.")
+    pp_abs = np.sqrt(max(0.0, pp_abs2))
+    if pp_abs <= DEFAULT_TOL:
+        raise ValueError("Final proton momentum is zero; phi is undefined.")
+
+    target_q_dot = m**2 + m * nu - 0.5 * Q2
+    cos_hadron = (
+        pp_energy * (m + nu) - target_q_dot
+    ) / (pp_abs * q_abs)
+    cos_hadron = _clip_physical_cosine(cos_hadron, "cos(theta_pq)")
+    sin_hadron = np.sqrt(max(0.0, 1.0 - cos_hadron**2))
+
+    e_zq = q_vec / q_abs
+    lepton_normal = np.cross(k[1:4], kp[1:4])
+    normal_abs = np.linalg.norm(lepton_normal)
+    if normal_abs <= DEFAULT_TOL:
+        raise ValueError("Lepton plane is undefined for this kinematics.")
+    e_y = lepton_normal / normal_abs
+    e_x = np.cross(e_y, e_zq)
+    e_x /= np.linalg.norm(e_x)
+
+    pp_vec = pp_abs * (
+        sin_hadron * np.cos(phi) * e_x
+        + sin_hadron * np.sin(phi) * e_y
+        + cos_hadron * e_zq
+    )
+    pp = np.concatenate([[pp_energy], pp_vec])
+    qout = p + q - pp
+    if qout[0] <= DEFAULT_TOL:
+        raise ValueError("Final photon energy is not positive for this kinematics.")
+
+    momenta = {
+        "k": k,
+        "p": p,
+        "kp": kp,
+        "pp": pp,
+        "qout": qout,
+        "q": q,
+    }
+    return {
+        "Eb": Eb,
+        "Q2": Q2,
+        "xB": xB,
+        "t": t,
+        "phi": phi,
+        "m": m,
+        "nu": nu,
+        "y": y,
+        "momenta": momenta,
+    }
+
+
+def _boost_z(v, beta):
+    gamma = 1.0 / np.sqrt(1.0 - beta**2)
+    boosted = np.array(v, dtype=float, copy=True)
+    boosted[0] = gamma * (v[0] - beta * v[3])
+    boosted[3] = gamma * (v[3] - beta * v[0])
+    return boosted
+
+
+def kinematics_cm_from_beam_energy(Eb, Q2, xB, t, phi, m):
+    """
+    Return exclusive electroproduction momenta in the initial e+p COM frame.
+
+    The scalar input set is (Eb, Q2, xB, t, phi). Eb fixes the invariant
+    s = m^2 + 2 m Eb; it is not returned as a target-rest-frame momentum.
+    """
+    kin = _kinematics_target_rest_from_beam_energy(Eb, Q2, xB, t, phi, m)
+    beta_cm = kin["Eb"] / (kin["Eb"] + kin["m"])
+    momenta = {
+        name: _boost_z(vec, beta_cm)
+        for name, vec in kin["momenta"].items()
+    }
+    s = kin["m"]**2 + 2.0 * kin["m"] * kin["Eb"]
+
+    return {
+        **kin,
+        "frame": "initial_ep_cm",
+        "s": s,
+        "sqrt_s": np.sqrt(s),
+        "beta_target_rest_to_cm": beta_cm,
+        "momenta": momenta,
+    }
+
+
+def momenta_cm_from_beam_energy(Eb, Q2, xB, t, phi, m):
+    return kinematics_cm_from_beam_energy(Eb, Q2, xB, t, phi, m)["momenta"]
 
 
 def energy_balance(pIn, pOut, qOut, th, ph, phOut, m):

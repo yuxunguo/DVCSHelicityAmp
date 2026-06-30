@@ -22,10 +22,9 @@ from Algebra import (
     spinor_bar,
 )
 from Kinematics import (
-    energy_balance,
+    kinematics_cm_from_beam_energy,
+    momenta_cm_from_beam_energy,
     momenta_user,
-    momentum_conservation_check,
-    onshell_check,
 )
 
 
@@ -194,6 +193,38 @@ def bh_unpolarized_squared_amplitude_user(
     )
 
 
+def bh_amplitude_cm_from_beam_energy(
+    Eb, Q2, xB, t, phi,
+    hIn, hOut,
+    sIn, sOut,
+    lam,
+    m, F1, F2,
+):
+    mom = momenta_cm_from_beam_energy(Eb, Q2, xB, t, phi, m)
+    return bh_amplitude_core(
+        mom["k"], mom["kp"], mom["qout"],
+        mom["p"], mom["pp"],
+        photon_pol(mom["qout"], lam),
+        hIn, hOut,
+        sIn, sOut,
+        m, F1, F2,
+    )
+
+
+def bh_unpolarized_squared_amplitude_cm_from_beam_energy(
+    Eb, Q2, xB, t, phi,
+    m, F1, F2,
+    average_initial=True,
+):
+    mom = momenta_cm_from_beam_energy(Eb, Q2, xB, t, phi, m)
+    return bh_unpolarized_squared_amplitude_core(
+        mom["k"], mom["kp"], mom["qout"],
+        mom["p"], mom["pp"],
+        m, F1, F2,
+        average_initial=average_initial,
+    )
+
+
 def bh_amplitude_same_electron_helicity(
     pIn, pOut, qOut, th, ph, phOut,
     h, sIn, sOut, lam,
@@ -208,8 +239,6 @@ def bh_amplitude_same_electron_helicity(
 
 def main():
     from pathlib import Path
-
-    from scipy.optimize import root_scalar
 
     def ascii_table(headers, rows):
         table_rows = [[str(item) for item in row] for row in rows]
@@ -234,6 +263,9 @@ def main():
 
     def rel_diff(value, reference):
         return value / reference if reference != 0.0 else float("nan")
+
+    def vector_row(name, vector):
+        return [name, *(fmt(component) for component in vector)]
 
     def analytic_ab_terms(mom):
         pbar = 0.5 * (mom["pp"] + mom["p"])
@@ -268,9 +300,8 @@ def main():
             + terms["B_BH"] * (F1 + F2) ** 2
         ) / t
 
-    pIn, pOut = 5.0, 1.2
-    th, ph, phOut = 0.6, 0.0, 0.0
     m = 0.938
+    Eb, Q2, xB, t_input, phi = 5.0, 2.0, 0.36, -0.4, 0.7
     form_factors = [
         (1.0, 0.0),
         (0.8, 0.0),
@@ -282,20 +313,25 @@ def main():
     ]
     log_path = Path("Output") / "BHHelicityAmp.log"
 
-    sol = root_scalar(
-        lambda q: energy_balance(pIn, pOut, q, th, ph, phOut, m),
-        bracket=[1e-6, 20.0],
-    )
-    if not sol.converged:
-        raise RuntimeError("qOut root solve did not converge.")
-
-    qOut = sol.root
     ref_F1, ref_F2 = 1.0, 0.0
-    mom = momenta_user(pIn, pOut, qOut, th, ph, phOut, m)
+    kin = kinematics_cm_from_beam_energy(Eb, Q2, xB, t_input, phi, m)
+    mom = kin["momenta"]
     analytic_terms = analytic_ab_terms(mom)
-    energy_residual = energy_balance(pIn, pOut, qOut, th, ph, phOut, m)
-    momentum_residual = momentum_conservation_check(pIn, pOut, qOut, th, ph, phOut, m)
-    onshell_values = onshell_check(pIn, pOut, qOut, th, ph, phOut, m)
+    energy_residual = (
+        mom["k"][0] + mom["p"][0]
+        - mom["kp"][0] - mom["pp"][0] - mom["qout"][0]
+    )
+    momentum_residual = (
+        mom["k"][1:4] + mom["p"][1:4]
+        - mom["kp"][1:4] - mom["pp"][1:4] - mom["qout"][1:4]
+    )
+    onshell_values = [
+        mdot(mom["k"], mom["k"]),
+        mdot(mom["kp"], mom["kp"]),
+        mdot(mom["qout"], mom["qout"]),
+        mdot(mom["p"], mom["p"]),
+        mdot(mom["pp"], mom["pp"]),
+    ]
 
     helicity_rows = []
     ref_photon_pols = {lam: photon_pol(mom["qout"], lam) for lam in HELICITIES}
@@ -339,18 +375,38 @@ def main():
         ["case", "F1", "F2", "unpol |M|^2", "analytic AB", "diff", "rel diff"],
         benchmark_rows,
     )
+    momenta_table = ascii_table(
+        ["vec", "E", "px", "py", "pz"],
+        [
+            vector_row("k", mom["k"]),
+            vector_row("p", mom["p"]),
+            vector_row("kp", mom["kp"]),
+            vector_row("pp", mom["pp"]),
+            vector_row("qout", mom["qout"]),
+            vector_row("q", mom["q"]),
+        ],
+    )
 
     lines = [
         "BH helicity-amplitude benchmark",
         "",
         "Kinematics",
-        f"  pIn = {pIn:.16g}",
-        f"  pOut = {pOut:.16g}",
-        f"  th = {th:.16g}",
-        f"  ph = {ph:.16g}",
-        f"  phOut = {phOut:.16g}",
+        "  Frame: initial electron-proton center of momentum",
+        "  Scalar inputs: Eb, Q2, xB, t, phi",
+        f"  Eb scalar = {kin['Eb']:.16g}",
+        f"  s = {kin['s']:.16g}",
+        f"  sqrt(s) = {kin['sqrt_s']:.16g}",
+        f"  Q2 = {kin['Q2']:.16g}",
+        f"  xB = {kin['xB']:.16g}",
+        f"  t = {kin['t']:.16g}",
+        f"  phi = {kin['phi']:.16g}",
         f"  m = {m:.16g}",
-        f"  qOut = {qOut:.16g}",
+        "  Derived variables",
+        f"  nu = {kin['nu']:.16g}",
+        f"  y = Q2/(2 m xB Eb) = {kin['y']:.16g}",
+        "",
+        "Four-momenta in initial e+p COM frame [E, px, py, pz]",
+        momenta_table,
         f"  energy_balance = {energy_residual:.16e}",
         f"  momentum_conservation = {momentum_residual}",
         f"  onshell_check = {onshell_values}",
