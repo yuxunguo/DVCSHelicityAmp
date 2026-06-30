@@ -2,6 +2,8 @@ import numpy as np
 
 from Algebra import (
     DEFAULT_TOL,
+    _as_four_vector,
+    _check_not_singular,
     _validate_nonnegative_scalar,
     _validate_positive_scalar,
     _validate_scalar,
@@ -228,6 +230,159 @@ def kinematics_cm_from_beam_energy(Eb, Q2, xB, t, phi, m):
 
 def momenta_cm_from_beam_energy(Eb, Q2, xB, t, phi, m):
     return kinematics_cm_from_beam_energy(Eb, Q2, xB, t, phi, m)["momenta"]
+
+
+def _normalize_angle(angle):
+    return float(angle % (2.0 * np.pi))
+
+
+def _mom_spatial(mom, name):
+    return _as_four_vector(mom[name], name, dtype=float)[1:4]
+
+
+def _rotation_to_user_frame(mom, target_phi_out=None):
+    pp_vec = _mom_spatial(mom, "pp")
+    qout_vec = _mom_spatial(mom, "qout")
+    pp_abs = np.linalg.norm(pp_vec)
+    qout_abs = np.linalg.norm(qout_vec)
+    if pp_abs <= DEFAULT_TOL or qout_abs <= DEFAULT_TOL:
+        raise ValueError("User-frame rotation needs nonzero pp and qout momenta.")
+
+    ey = pp_vec / pp_abs
+    qout_x_part = qout_vec - np.dot(qout_vec, ey) * ey
+    qout_x_abs = np.linalg.norm(qout_x_part)
+    if qout_x_abs <= DEFAULT_TOL:
+        raise ValueError("User-frame rotation is undefined when qout is parallel to pp.")
+
+    ex_sign = -1.0 if target_phi_out is not None and np.cos(target_phi_out) < 0.0 else 1.0
+    ex = ex_sign * qout_x_part / qout_x_abs
+    ez = np.cross(ex, ey)
+    ez /= np.linalg.norm(ez)
+    return np.vstack([ex, ey, ez])
+
+
+def _rotate_four_vector(v, rotation):
+    rotated = _as_four_vector(v, "v", dtype=float).copy()
+    rotated[1:4] = rotation @ rotated[1:4]
+    return rotated
+
+
+def _rotate_momenta(mom, rotation):
+    return {name: _rotate_four_vector(vector, rotation) for name, vector in mom.items()}
+
+
+def _pp_qout_spatial_cosine(mom):
+    pp_vec = _mom_spatial(mom, "pp")
+    qout_vec = _mom_spatial(mom, "qout")
+    den = np.linalg.norm(pp_vec) * np.linalg.norm(qout_vec)
+    _check_not_singular(den, "pp-qout spatial-angle denominator")
+    return float(np.dot(pp_vec, qout_vec) / den)
+
+
+def _solve_phi_hadron_for_phi_out(Eb, Q2, xB, t, target_phi_out, m, label=None):
+    target_sin = np.sin(target_phi_out)
+
+    def residual(phi_hadron):
+        kin = kinematics_cm_from_beam_energy(Eb, Q2, xB, t, phi_hadron, m)
+        return _pp_qout_spatial_cosine(kin["momenta"]) - target_sin
+
+    samples = np.linspace(0.0, 2.0 * np.pi, 721)
+    values = [residual(phi) for phi in samples]
+    best_index = int(np.argmin(np.abs(values)))
+    if abs(values[best_index]) <= 1e-11:
+        return _normalize_angle(samples[best_index])
+
+    brackets = []
+    for left_index in range(len(samples) - 1):
+        left_value = values[left_index]
+        right_value = values[left_index + 1]
+        if left_value == 0.0:
+            return _normalize_angle(samples[left_index])
+        if left_value * right_value < 0.0:
+            brackets.append((samples[left_index], samples[left_index + 1]))
+
+    if not brackets:
+        case_name = label if label is not None else "unknown case"
+        raise ValueError(
+            "phi_out is outside the physical range for this "
+            f"kinematics ({case_name}, target phi_out={target_phi_out:.8e} rad). "
+            f"Closest residual is {values[best_index]:.3e}."
+        )
+
+    left, right = brackets[0]
+    left_value = residual(left)
+    for _ in range(80):
+        mid = 0.5 * (left + right)
+        mid_value = residual(mid)
+        if abs(mid_value) <= 1e-13:
+            return _normalize_angle(mid)
+        if left_value * mid_value <= 0.0:
+            right = mid
+        else:
+            left = mid
+            left_value = mid_value
+    return _normalize_angle(0.5 * (left + right))
+
+
+def kinematics_user_from_scalar_inputs(
+    Eb, Q2, xB, t, phi, m, azimuth_input="phi_hadron", label=None
+):
+    """
+    Build scalar-input exclusive kinematics and return them in the user frame.
+
+    The scalar input set is still (Eb, Q2, xB, t, phi).  The azimuth_input
+    flag chooses whether phi is the hadron-plane azimuth used by the scalar
+    COM builder, or the user-frame final-photon azimuth phOut.
+    """
+    if azimuth_input == "phi_hadron":
+        phi_hadron = _normalize_angle(_validate_scalar(phi, "phi"))
+        target_phi_out = None
+    elif azimuth_input == "phi_out":
+        target_phi_out = _normalize_angle(_validate_scalar(phi, "phi"))
+        phi_hadron = _solve_phi_hadron_for_phi_out(
+            Eb, Q2, xB, t, target_phi_out, m, label=label
+        )
+    else:
+        raise ValueError("azimuth_input must be 'phi_hadron' or 'phi_out'.")
+
+    kin = kinematics_cm_from_beam_energy(Eb, Q2, xB, t, phi_hadron, m)
+    rotation = _rotation_to_user_frame(kin["momenta"], target_phi_out=target_phi_out)
+    rotated = _rotate_momenta(kin["momenta"], rotation)
+
+    p_vec = rotated["p"][1:4]
+    pIn = np.linalg.norm(p_vec)
+    _check_not_singular(pIn, "user backend pIn")
+    pOut = np.linalg.norm(rotated["pp"][1:4])
+    qOut = np.linalg.norm(rotated["qout"][1:4])
+    th = np.arccos(np.clip(p_vec[2] / pIn, -1.0, 1.0))
+    ph = np.arctan2(p_vec[1], p_vec[0])
+    phOut = np.arctan2(rotated["qout"][2], rotated["qout"][1])
+
+    mom = momenta_user(pIn, pOut, qOut, th, ph, phOut, kin["m"])
+    mom["q"] = mom["k"] - mom["kp"]
+    residual = max(
+        np.linalg.norm(mom[name] - rotated[name])
+        for name in ("k", "p", "kp", "pp", "qout", "q")
+    )
+
+    return {
+        **kin,
+        "frame": "user_kinematics_com",
+        "momenta": mom,
+        "azimuth_input": azimuth_input,
+        "input_azimuth": _normalize_angle(phi),
+        "phi_hadron": _normalize_angle(phi_hadron),
+        "phi_out": _normalize_angle(phOut),
+        "user_params": {
+            "pIn": pIn,
+            "pOut": pOut,
+            "qOut": qOut,
+            "th": _normalize_angle(th),
+            "ph": _normalize_angle(ph),
+            "phOut": _normalize_angle(phOut),
+        },
+        "user_rebuild_residual": residual,
+    }
 
 
 def energy_balance(pIn, pOut, qOut, th, ph, phOut, m):

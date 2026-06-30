@@ -1,4 +1,5 @@
 from itertools import product
+from textwrap import dedent
 
 import numpy as np
 
@@ -22,10 +23,12 @@ from Algebra import (
     spinor_bar,
 )
 from Kinematics import (
-    kinematics_cm_from_beam_energy,
+    kinematics_user_from_scalar_inputs,
     momenta_cm_from_beam_energy,
     momenta_user,
 )
+
+BENCHMARK_AZIMUTH_INPUT = "phi_hadron"  # Use "phi_hadron" or "phi_out".
 
 
 # ============================================================
@@ -240,7 +243,11 @@ def bh_amplitude_same_electron_helicity(
 def main():
     from pathlib import Path
 
-    def ascii_table(headers, rows):
+    azimuth_input = BENCHMARK_AZIMUTH_INPUT
+    if azimuth_input not in ("phi_hadron", "phi_out"):
+        raise ValueError("BENCHMARK_AZIMUTH_INPUT must be 'phi_hadron' or 'phi_out'.")
+
+    def ascii_table(headers, rows, group_by=None):
         table_rows = [[str(item) for item in row] for row in rows]
         widths = [
             max(len(str(header)), *(len(row[index]) for row in table_rows))
@@ -252,11 +259,19 @@ def main():
             + " | ".join(str(header).ljust(width) for header, width in zip(headers, widths))
             + " |"
         )
-        body_lines = [
-            "| " + " | ".join(item.rjust(width) for item, width in zip(row, widths)) + " |"
-            for row in table_rows
-        ]
-        return "\n".join([separator, header_line, separator, *body_lines, separator])
+        lines = [separator, header_line, separator]
+        previous_group = None
+        for row in table_rows:
+            if group_by is not None:
+                group = row[group_by]
+                if previous_group is not None and group != previous_group:
+                    lines.append(separator)
+                previous_group = group
+            lines.append(
+                "| " + " | ".join(item.rjust(width) for item, width in zip(row, widths)) + " |"
+            )
+        lines.append(separator)
+        return "\n".join(lines)
 
     def fmt(value, digits=8):
         return f"{value:.{digits}e}"
@@ -265,9 +280,123 @@ def main():
         return value / reference if reference != 0.0 else float("nan")
 
     def vector_row(name, vector):
-        return [name, *(fmt(component) for component in vector)]
+        phi = fmt(vector_azimuth(vector)) if name in ("k", "p", "qout") else "-"
+        return [name, *(fmt(component) for component in vector), phi]
 
-    def analytic_ab_terms(mom):
+    def initial_proton_spin_vector(p, m, spin):
+        p = _as_four_vector(p, "p", dtype=float)
+        spin = _validate_helicity(spin, "spin")
+        p_abs = np.linalg.norm(p[1:4])
+        if p_abs <= 1e-12:
+            raise ValueError("Longitudinal spin vector is undefined for p=0.")
+        return spin * np.concatenate([[p_abs / m], p[0] * p[1:4] / (m * p_abs)])
+
+    def fixed_initial_m2(mom, hIn, sIn, m, F1, F2):
+        photon_pols = {lam: photon_pol(mom["qout"], lam) for lam in HELICITIES}
+        total = 0.0
+        for hOut, sOut, lam in product(HELICITIES, repeat=3):
+            amp = bh_amplitude_core(
+                mom["k"], mom["kp"], mom["qout"],
+                mom["p"], mom["pp"],
+                photon_pols[lam],
+                hIn, hOut,
+                sIn, sOut,
+                m, F1, F2,
+            )
+            total += abs(amp) ** 2
+        return float(total)
+
+    def comparison_row(case_id, index, F1, F2, numerical, analytic):
+        diff = numerical - analytic
+        return [
+            case_id, index, f"{F1:.6g}", f"{F2:.6g}",
+            fmt(numerical), fmt(analytic),
+            f"{diff:.3e}", f"{rel_diff(diff, analytic):.3e}",
+        ]
+
+    def normalize_angle(angle):
+        return float(angle % (2.0 * np.pi))
+
+    def angular_diff(value, reference):
+        return float((value - reference + np.pi) % (2.0 * np.pi) - np.pi)
+
+    def vector_azimuth(vector):
+        vector = _as_four_vector(vector, "vector", dtype=float)
+        return normalize_angle(np.arctan2(vector[2], vector[1]))
+
+    def boost_to_rest_frame(v, beta):
+        v = _as_four_vector(v, "v", dtype=float)
+        beta = np.asarray(beta, dtype=float)
+        beta2 = float(np.dot(beta, beta))
+        if beta2 <= 1e-24:
+            return np.array(v, dtype=float, copy=True)
+        if beta2 >= 1.0:
+            raise ValueError("Boost velocity must be subluminal.")
+
+        gamma = 1.0 / np.sqrt(1.0 - beta2)
+        beta_dot_v = float(np.dot(beta, v[1:4]))
+        spatial = v[1:4] + (
+            (gamma - 1.0) * beta_dot_v / beta2 - gamma * v[0]
+        ) * beta
+        return np.concatenate([[gamma * (v[0] - beta_dot_v)], spatial])
+
+    def target_rest_momenta(mom):
+        beta = mom["p"][1:4] / mom["p"][0]
+        return {name: boost_to_rest_frame(vector, beta) for name, vector in mom.items()}
+
+    def reconstruct_phi(mom):
+        q_vec = mom["q"][1:4]
+        qhat = q_vec / np.linalg.norm(q_vec)
+        lepton_normal = np.cross(mom["k"][1:4], mom["kp"][1:4])
+        lepton_normal /= np.linalg.norm(lepton_normal)
+        ex = np.cross(lepton_normal, qhat)
+        ex /= np.linalg.norm(ex)
+        pp_transverse = mom["pp"][1:4] - np.dot(mom["pp"][1:4], qhat) * qhat
+        return normalize_angle(
+            np.arctan2(np.dot(pp_transverse, lepton_normal), np.dot(pp_transverse, ex))
+        )
+
+    def scalar_checks(case_id, kin):
+        mom = kin["momenta"]
+        m = kin["m"]
+        q = mom["k"] - mom["kp"]
+        rest_mom = target_rest_momenta(mom)
+        s_from_p4 = _real_scalar(mdot(mom["k"] + mom["p"], mom["k"] + mom["p"]), "s")
+        eb_from_p4 = (s_from_p4 - m**2) / (2.0 * m)
+        q2_from_p4 = -_real_scalar(mdot(q, q), "Q2")
+        xB_from_p4 = q2_from_p4 / (2.0 * _real_scalar(mdot(mom["p"], q), "p.q"))
+        t_from_p4 = _real_scalar(mdot(mom["pp"] - mom["p"], mom["pp"] - mom["p"]), "t")
+        phi_hadron_from_p4 = reconstruct_phi(rest_mom)
+        phi_out_from_p4 = vector_azimuth(mom["qout"])
+        conservation = mom["k"] + mom["p"] - mom["kp"] - mom["pp"] - mom["qout"]
+
+        def mass_shell(name, target):
+            value = _real_scalar(mdot(mom[name], mom[name]), f"{name}^2")
+            return (f"{name}^2", target, value, "GeV^2", False)
+
+        checks = [
+            ("Eb", kin["Eb"], eb_from_p4, "GeV", False),
+            ("Q2", kin["Q2"], q2_from_p4, "GeV^2", False),
+            ("xB", kin["xB"], xB_from_p4, "1", False),
+            ("t", kin["t"], t_from_p4, "GeV^2", False),
+            ("phi_hadron", kin["phi_hadron"], phi_hadron_from_p4, "rad", True),
+            ("phi_out", kin["phi_out"], phi_out_from_p4, "rad", True),
+            mass_shell("k", 0.0),
+            mass_shell("kp", 0.0),
+            mass_shell("qout", 0.0),
+            mass_shell("p", m**2),
+            mass_shell("pp", m**2),
+            ("energy balance", 0.0, conservation[0], "GeV", False),
+            ("|3-mom balance|", 0.0, np.linalg.norm(conservation[1:4]), "GeV", False),
+            ("user backend rebuild", 0.0, kin["user_rebuild_residual"], "GeV", False),
+        ]
+        rows = []
+        for name, target, value, unit, is_angle in checks:
+            diff = angular_diff(value, target) if is_angle else value - target
+            rows.append([case_id, name, fmt(target), fmt(value), f"{diff:.3e}", unit])
+        return rows
+
+    def analytic_bh_terms(mom, m, h=0, S=None):
         pbar = 0.5 * (mom["pp"] + mom["p"])
         delta = mom["pp"] - mom["p"]
         t = mdot(delta, delta)
@@ -277,71 +406,169 @@ def main():
         _check_not_singular(k_dot_qout, "analytic benchmark k.qout")
         _check_not_singular(kp_dot_qout, "analytic benchmark kp.qout")
 
-        delta_sum = mdot(mom["k"], delta) ** 2 + mdot(mom["kp"], delta) ** 2
-        pbar_sum = mdot(mom["k"], pbar) ** 2 + mdot(mom["kp"], pbar) ** 2
+        pbar2 = mdot(pbar, pbar)
+        k_delta = mdot(mom["k"], delta)
+        kp_delta = mdot(mom["kp"], delta)
+        k_pbar = mdot(mom["k"], pbar)
+        kp_pbar = mdot(mom["kp"], pbar)
+        delta_sum = k_delta**2 + kp_delta**2
+        pbar_sum = k_pbar**2 + kp_pbar**2
         a_bh = (
             -8.0
             / (t * k_dot_qout * kp_dot_qout)
-            * (mdot(pbar, pbar) * delta_sum + t * pbar_sum)
+            * (pbar2 * delta_sum + t * pbar_sum)
         )
         b_bh = -4.0 / (k_dot_qout * kp_dot_qout) * delta_sum
+        at_bh = 0.0
+        bt_bh = 0.0
+
+        if S is not None:
+            h = float(h)
+            if not np.isfinite(h):
+                raise ValueError("h must be finite.")
+            S = _as_four_vector(S, "S", dtype=float)
+            k_S = mdot(mom["k"], S)
+            kp_S = mdot(mom["kp"], S)
+            S_pbar = mdot(S, pbar)
+            S_delta = mdot(S, delta)
+
+            at_bh = (
+                16.0 * h
+                / (m * t * k_dot_qout * kp_dot_qout)
+                * (
+                    t * pbar2 * (kp_delta * kp_S - k_delta * k_S)
+                    + t * S_pbar * (k_delta * k_pbar - kp_delta * kp_pbar)
+                    + pbar2 * S_delta * (k_delta**2 - kp_delta**2)
+                )
+            )
+            bt_bh = (
+                16.0 * h * m
+                / (t * k_dot_qout * kp_dot_qout)
+                * (
+                    S_delta * (kp_delta**2 - k_delta**2)
+                    + t * (k_delta * k_S - kp_delta * kp_S)
+                )
+            )
 
         return {
             "t": _real_scalar(t, "t"),
             "A_BH": _real_scalar(a_bh, "A_BH"),
             "B_BH": _real_scalar(b_bh, "B_BH"),
+            "At_BH": _real_scalar(at_bh, "At_BH"),
+            "Bt_BH": _real_scalar(bt_bh, "Bt_BH"),
         }
 
-    def analytic_ab_m2(F1, F2, terms, m):
+    def analytic_bh_m2(F1, F2, terms, m, include_tilde):
         t = terms["t"]
         _check_not_singular(t, "analytic benchmark t")
-        return (
+        value = (
             terms["A_BH"] * (F1**2 - t * F2**2 / (4.0 * m**2))
             + terms["B_BH"] * (F1 + F2) ** 2
-        ) / t
+        )
+        if include_tilde:
+            value += (
+                terms["At_BH"] * (F1 * F2 + F2**2)
+                + terms["Bt_BH"] * (F1 + F2) ** 2
+            )
+        return value / t
 
-    m = 0.938
-    Eb, Q2, xB, t_input, phi = 5.0, 2.0, 0.36, -0.4, 0.7
-    form_factors = [
-        (1.0, 0.0),
-        (0.8, 0.0),
-        (1.2, 0.0),
-        (1.0, 0.2),
-        (1.0, -0.2),
-        (0.7, 0.5),
-        (0.0, 1.0),
+    input_keys = ("case", "Eb", "Q2", "xB", "t", "phi", "m")
+    kinematic_inputs = [
+        dict(zip(input_keys, row))
+        for row in (
+            ("K1", 5.0, 2.0, 0.36, -0.4, 0.7, 0.938),
+            ("K2", 6.0, 1.5, 0.20, -0.25, 1.2, 0.938),
+            ("K3", 10.0, 4.0, 0.30, -0.8, 2.1, 0.938),
+        )
     ]
+    form_factors = [(0.5, 0.0), (0.8, 0.0), (1.0, 0.2)]
+    form_factors += [(1.0, -0.2), (0.7, 0.5), (0.0, 1.0)]
     log_path = Path("Output") / "BHHelicityAmp.log"
 
     ref_F1, ref_F2 = 1.0, 0.0
-    kin = kinematics_cm_from_beam_energy(Eb, Q2, xB, t_input, phi, m)
-    mom = kin["momenta"]
-    analytic_terms = analytic_ab_terms(mom)
-    energy_residual = (
-        mom["k"][0] + mom["p"][0]
-        - mom["kp"][0] - mom["pp"][0] - mom["qout"][0]
+    pol_h_in, pol_s = +1, +1
+    pol_h_analytic = 0.5 * pol_h_in
+    azimuth_input_header = (
+        "phi_hadron input [rad]"
+        if azimuth_input == "phi_hadron"
+        else "phi_out input [rad]"
     )
-    momentum_residual = (
-        mom["k"][1:4] + mom["p"][1:4]
-        - mom["kp"][1:4] - mom["pp"][1:4] - mom["qout"][1:4]
-    )
-    onshell_values = [
-        mdot(mom["k"], mom["k"]),
-        mdot(mom["kp"], mom["kp"]),
-        mdot(mom["qout"], mom["qout"]),
-        mdot(mom["p"], mom["p"]),
-        mdot(mom["pp"], mom["pp"]),
-    ]
 
+    def build_case(inputs):
+        kin = kinematics_user_from_scalar_inputs(
+            inputs["Eb"], inputs["Q2"], inputs["xB"],
+            inputs["t"], inputs["phi"], inputs["m"],
+            azimuth_input=azimuth_input,
+            label=inputs["case"],
+        )
+        mom = kin["momenta"]
+        spin_vector = initial_proton_spin_vector(mom["p"], kin["m"], pol_s)
+        return {
+            "id": inputs["case"],
+            "input": inputs,
+            "kin": kin,
+            "mom": mom,
+            "S": spin_vector,
+        }
+
+    cases = [build_case(inputs) for inputs in kinematic_inputs]
+
+    def values_from(mapping, keys):
+        return [fmt(mapping[key]) for key in keys]
+
+    def row_from(case, source, keys):
+        return [case["id"], *values_from(case[source], keys)]
+
+    def backend_row(case):
+        params = case["kin"]["user_params"]
+        return [
+            case["id"],
+            *values_from(params, ("pIn", "pOut", "qOut", "th", "ph")),
+            fmt(case["kin"]["phi_hadron"]),
+            fmt(params["phOut"]),
+            fmt(case["kin"]["user_rebuild_residual"]),
+        ]
+
+    def spin_row(case):
+        S = case["S"]
+        return [
+            case["id"], *(fmt(component) for component in S),
+            fmt(_real_scalar(mdot(S, case["mom"]["p"]), "S.p")),
+            fmt(_real_scalar(mdot(S, S), "S^2")),
+        ]
+
+    independent_rows = [
+        row_from(case, "input", ("Eb", "Q2", "xB", "t", "phi", "m"))
+        for case in cases
+    ]
+    derived_rows = [
+        row_from(case, "kin", ("s", "sqrt_s", "nu", "y", "beta_target_rest_to_cm"))
+        for case in cases
+    ]
+    backend_rows = [backend_row(case) for case in cases]
+    momentum_rows = [
+        [case["id"], *vector_row(name, case["mom"][name])]
+        for case in cases
+        for name in ("k", "p", "kp", "pp", "qout", "q")
+    ]
+    scalar_rows = [
+        row
+        for case in cases
+        for row in scalar_checks(case["id"], case["kin"])
+    ]
+    spin_rows = [spin_row(case) for case in cases]
+
+    ref_case = cases[0]
+    ref_mom = ref_case["mom"]
     helicity_rows = []
-    ref_photon_pols = {lam: photon_pol(mom["qout"], lam) for lam in HELICITIES}
+    ref_photon_pols = {lam: photon_pol(ref_mom["qout"], lam) for lam in HELICITIES}
     for hIn, hOut, sIn, sOut, lam in product(HELICITIES, repeat=5):
         amp = bh_amplitude_core(
-            mom["k"], mom["kp"], mom["qout"],
-            mom["p"], mom["pp"],
+            ref_mom["k"], ref_mom["kp"], ref_mom["qout"],
+            ref_mom["p"], ref_mom["pp"],
             ref_photon_pols[lam],
             hIn, hOut, sIn, sOut,
-            m, ref_F1, ref_F2,
+            ref_case["kin"]["m"], ref_F1, ref_F2,
         )
         helicity_rows.append([
             hIn, hOut, sIn, sOut, lam,
@@ -349,106 +576,187 @@ def main():
         ])
 
     benchmark_rows = []
-    for index, (F1, F2) in enumerate(form_factors, start=1):
-        unpolarized_amp2 = bh_unpolarized_squared_amplitude_core(
-            mom["k"], mom["kp"], mom["qout"],
-            mom["p"], mom["pp"],
-            m, F1, F2,
+    polarized_rows = []
+    for case in cases:
+        terms = analytic_bh_terms(case["mom"], case["kin"]["m"])
+        pol_terms = analytic_bh_terms(
+            case["mom"], case["kin"]["m"],
+            h=pol_h_analytic,
+            S=case["S"],
         )
-        analytic_amp2 = analytic_ab_m2(F1, F2, analytic_terms, m)
-        diff = unpolarized_amp2 - analytic_amp2
-        benchmark_rows.append([
-            index,
-            f"{F1:.6g}",
-            f"{F2:.6g}",
-            fmt(unpolarized_amp2),
-            fmt(analytic_amp2),
-            f"{diff:.3e}",
-            f"{rel_diff(diff, analytic_amp2):.3e}",
-        ])
+        for index, (F1, F2) in enumerate(form_factors, start=1):
+            unpolarized_amp2 = bh_unpolarized_squared_amplitude_core(
+                case["mom"]["k"], case["mom"]["kp"], case["mom"]["qout"],
+                case["mom"]["p"], case["mom"]["pp"],
+                case["kin"]["m"], F1, F2,
+            )
+            analytic_amp2 = analytic_bh_m2(
+                F1, F2, terms, case["kin"]["m"],
+                include_tilde=False,
+            )
+            benchmark_rows.append(
+                comparison_row(case["id"], index, F1, F2, unpolarized_amp2, analytic_amp2)
+            )
 
-    helicity_table = ascii_table(
+            fixed_initial_amp2 = fixed_initial_m2(
+                case["mom"],
+                pol_h_in, pol_s,
+                case["kin"]["m"],
+                F1, F2,
+            )
+            polarized_analytic_amp2 = analytic_bh_m2(
+                F1, F2, pol_terms, case["kin"]["m"],
+                include_tilde=True,
+            )
+            polarized_rows.append(
+                comparison_row(
+                    case["id"],
+                    index,
+                    F1,
+                    F2,
+                    fixed_initial_amp2,
+                    polarized_analytic_amp2,
+                )
+            )
+
+    table_specs = {
+        "independent": (
+            ["case", "Eb [GeV]", "Q2 [GeV^2]", "xB", "t [GeV^2]",
+             azimuth_input_header, "m [GeV]"],
+            independent_rows,
+        ),
+        "derived": (
+            ["case", "s [GeV^2]", "sqrt(s) [GeV]", "nu [GeV]", "y", "beta_cm"],
+            derived_rows,
+        ),
+        "backend": (
+            ["case", "pIn [GeV]", "pOut [GeV]", "qOut [GeV]", "th [rad]",
+             "ph [rad]", "phi_hadron [rad]", "phOut [rad]", "rebuild diff [GeV]"],
+            backend_rows,
+        ),
+        "momenta": (
+            ["case", "vec", "E [GeV]", "px [GeV]", "py [GeV]", "pz [GeV]",
+             "phi_xy [rad]"],
+            momentum_rows,
+        ),
+        "scalar": (
+            ["case", "scalar", "target", "from 4-mom", "diff", "unit"],
+            scalar_rows,
+        ),
+        "spin": (["case", "S0", "Sx", "Sy", "Sz", "S.p", "S^2"], spin_rows),
+        "benchmark": (
+            ["kin", "ff", "F1", "F2", "unpol |M|^2", "analytic AB", "diff",
+             "rel diff"],
+            benchmark_rows,
+        ),
+        "polarized": (
+            ["kin", "ff", "F1", "F2", "fixed h,S |M|^2", "analytic full",
+             "diff", "rel diff"],
+            polarized_rows,
+        ),
+    }
+    tables = {
+        name: ascii_table(headers, rows, group_by=0)
+        for name, (headers, rows) in table_specs.items()
+    }
+    tables["helicity"] = ascii_table(
         ["hIn", "hOut", "sIn", "sOut", "lam", "Re M", "Im M", "|M|^2"],
         helicity_rows,
     )
-    benchmark_table = ascii_table(
-        ["case", "F1", "F2", "unpol |M|^2", "analytic AB", "diff", "rel diff"],
-        benchmark_rows,
-    )
-    momenta_table = ascii_table(
-        ["vec", "E", "px", "py", "pz"],
-        [
-            vector_row("k", mom["k"]),
-            vector_row("p", mom["p"]),
-            vector_row("kp", mom["kp"]),
-            vector_row("pp", mom["pp"]),
-            vector_row("qout", mom["qout"]),
-            vector_row("q", mom["q"]),
-        ],
-    )
+
+    intro = dedent(f"""\
+        BH helicity-amplitude benchmark
+
+        Kinematics and variables
+          Each K row is one independent scalar input point; these inputs are unchanged.
+          Eb: target-rest beam-energy scalar in GeV; it fixes s = m^2 + 2 m Eb.
+          Q2: -q^2 in GeV^2, with q = k - kp.
+          xB: Bjorken xB = Q2 / (2 p.q).
+          t: Delta^2 = (pp - p)^2 in GeV^2.
+          phi_hadron: hadron-plane azimuth around the virtual photon direction.
+          phi_out: user-backend outgoing-photon coordinate azimuth phOut.
+          Selected input azimuth convention: {azimuth_input}.
+          m: proton mass in GeV.
+          Backend: scalar inputs are converted to pIn, pOut, qOut, th, ph,
+          phOut, then rebuilt with momenta_user. Set BENCHMARK_AZIMUTH_INPUT =
+          'phi_out' to interpret the input phi column as phOut.
+          For fixed Eb, Q2, xB, and t, not every phi_out value is physical;
+          invalid phi_out choices raise a clear error before benchmarking.
+          Four-momenta are reported in the user-kinematics COM frame as
+          [E, px, py, pz] in GeV, with pp=(E,0,pOut,0) and
+          qout=qOut(1,cos(phOut),sin(phOut),0).
+          phi_xy: atan2(py, px) in radians, shown for k, p, and qout.
+          k, kp: incoming and outgoing electron momenta.
+          p, pp: incoming and outgoing proton momenta.
+          qout: outgoing real photon momentum.
+          Pbar = (pp + p) / 2, Delta = pp - p, and t = Delta^2.
+          S: initial-proton longitudinal spin four-vector, with S.p=0 and S^2=-1.
+          F1, F2: proton electromagnetic form factors used in Gamma_nu.
+          ff: form-factor row number for the chosen (F1, F2) pair.
+          hIn, hOut: incoming and outgoing electron spinor helicity labels.
+          sIn, sOut: incoming and outgoing proton helicity labels.
+          lam: final photon helicity.
+          unpol |M|^2: (1/4) sum over hIn,sIn,hOut,sOut,lambda.
+          The factor 1/4 averages the incoming electron and proton spins.
+          fixed h,S |M|^2: spinor hIn=+1, sIn=+1 initial state, summed
+          over final electron/proton/photon helicities.
+          analytic AB: analytic result using only A_BH and B_BH.
+          analytic full: analytic result including A_BH, B_BH, At_BH, and Bt_BH.
+          diff: numerical spinor result minus the corresponding analytic result.
+          rel diff: diff divided by the corresponding analytic result.
+          Re M and Im M in the final example table are one fixed-helicity
+          complex amplitude, not a spin sum.
+        """).strip()
+    analytic_note = dedent(f"""\
+        Analytic benchmark note
+          Pbar = (pp + p) / 2
+          Delta = pp - p
+          t = Delta^2
+          Unpolarized comparison uses only A_BH and B_BH.
+          Polarized comparison adds At_BH and Bt_BH for spinor hIn=+1,
+          sIn=+1, and the longitudinal initial-proton spin vector S shown below.
+          Code electron spinor labels are hIn=+/-1; the tilde formula uses
+          physical helicity h=hIn/2, so this benchmark uses h={pol_h_analytic:.1f}.
+        """).strip()
 
     lines = [
-        "BH helicity-amplitude benchmark",
+        intro,
         "",
-        "Kinematics",
-        "  Frame: initial electron-proton center of momentum",
-        "  Scalar inputs: Eb, Q2, xB, t, phi",
-        f"  Eb scalar = {kin['Eb']:.16g}",
-        f"  s = {kin['s']:.16g}",
-        f"  sqrt(s) = {kin['sqrt_s']:.16g}",
-        f"  Q2 = {kin['Q2']:.16g}",
-        f"  xB = {kin['xB']:.16g}",
-        f"  t = {kin['t']:.16g}",
-        f"  phi = {kin['phi']:.16g}",
-        f"  m = {m:.16g}",
-        "  Derived variables",
-        f"  nu = {kin['nu']:.16g}",
-        f"  y = Q2/(2 m xB Eb) = {kin['y']:.16g}",
-        "",
-        "Four-momenta in initial e+p COM frame [E, px, py, pz]",
-        momenta_table,
-        f"  energy_balance = {energy_residual:.16e}",
-        f"  momentum_conservation = {momentum_residual}",
-        f"  onshell_check = {onshell_values}",
-        "",
-        "Analytic benchmark note",
-        "  Pbar = (pp + p) / 2",
-        "  Delta = pp - p",
-        "  t = Delta^2",
-        f"  t = {analytic_terms['t']:.16e}",
-        f"  A_BH = {analytic_terms['A_BH']:.16e}",
-        f"  B_BH = {analytic_terms['B_BH']:.16e}",
-        "  Comparison uses the AB-only analytic expression; tilde terms are omitted.",
-        "",
-        f"Fixed-helicity amplitudes at F1={ref_F1:.6g}, F2={ref_F2:.6g}",
-        helicity_table,
-        "",
-        "Unpolarized analytic benchmark sweep",
-        benchmark_table,
-        "",
-        "Column meanings",
-        "  hIn, hOut: incoming and outgoing electron helicities.",
-        "  sIn, sOut: incoming and outgoing proton helicities.",
-        "  lam: final photon helicity.",
+        "Independent scalar inputs",
         (
-            "  Re M, Im M: one fixed-helicity amplitude for the listed "
-            "helicity row. It is a complex amplitude, not a spin sum."
+            "  The numeric input rows are kept unchanged; the phi column label "
+            "shows how those numbers are interpreted in this run."
         ),
+        tables["independent"],
+        "",
+        "Derived scalar kinematics",
+        tables["derived"],
+        "",
+        "Derived user-kinematics backend variables",
+        tables["backend"],
+        "",
+        "Four-momenta from momenta_user backend",
+        tables["momenta"],
+        "",
+        "Four-momentum scalar and backend reproduction checks",
+        tables["scalar"],
+        "",
+        analytic_note,
+        "",
+        "Initial-proton polarization vector used in polarized benchmark",
+        tables["spin"],
+        "",
+        "Unpolarized analytic benchmark sweep over kinematics and form factors",
+        tables["benchmark"],
+        "",
+        "Polarized analytic benchmark sweep over kinematics and form factors",
+        tables["polarized"],
+        "",
         (
-            "  |M|^2: squared magnitude of one fixed-helicity amplitude; "
-            "it is not summed or averaged over spins."
+            f"Example fixed-helicity amplitudes for {ref_case['id']} "
+            f"at F1={ref_F1:.6g}, F2={ref_F2:.6g}"
         ),
-        "  case: row number for the chosen (F1, F2) pair.",
-        "  F1, F2: proton electromagnetic form factors used in Gamma_nu.",
-        (
-            "  unpol |M|^2: unpolarized squared amplitude, "
-            "(1/4) sum_{hIn,sIn,hOut,sOut,lambda} |M|^2. The factor 1/4 "
-            "averages over the two incoming electron and proton helicities; "
-            "the final electron, proton, and photon helicities are summed."
-        ),
-        "  analytic AB: AB-only analytic result from the supplied A_BH and B_BH.",
-        "  diff: unpol |M|^2 minus analytic AB.",
-        "  rel diff: diff divided by analytic AB.",
+        tables["helicity"],
     ]
     log_text = "\n".join(lines) + "\n"
 
