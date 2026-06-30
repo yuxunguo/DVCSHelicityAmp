@@ -1,0 +1,28 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+_joblib_cache_
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+
+# Jupyter notebook files
+.ipynb_checkpoints/
+*.ipynb
+
+# VS Code files
+.vscode/
+
+# Mac OS files
+.DS_Store
+
+# PyPI dist files
+dist/
+
+# Other local files
+.venv/
+docs/
+
+# Local agents and codex directories
+.agents/
+.codex/
