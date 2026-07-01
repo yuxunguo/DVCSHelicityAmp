@@ -1,3 +1,22 @@
+"""Spin-density matrix scans and three-qubit entanglement observables.
+
+The outgoing spin basis is ordered as ``(hOut, sOut, lambda)``:
+
+* particle 1 is the outgoing electron helicity ``hOut``;
+* particle 2 is the outgoing proton spin/helicity ``sOut``;
+* particle 3 is the outgoing real-photon helicity ``lambda``.
+
+For each scalar kinematic point, this module builds the ``4 x 8`` table of
+Bethe-Heitler amplitudes over incoming and outgoing spin labels, converts it
+into an ``8 x 8`` final-state spin-density matrix, normalizes it by the
+corresponding squared amplitude when requested, and computes the two-body and
+one-to-rest concurrence observables plus ``F3`` from arXiv:2310.01477v2.
+
+Running this file as a script regenerates the SpinDensityMat output directory:
+the NPZ scan, a summary entanglement CSV/PDF, per-kinematic-point matrix
+CSVs/PDFs, and ``Output/SpinDensityMat.log``.
+"""
+
 from itertools import product
 import csv
 import os
@@ -73,7 +92,12 @@ def initial_spin_states():
 
 
 def amplitude_table(mom, m, F1, F2):
-    """Return A[in_state, out_state] for BH amplitudes."""
+    """Return ``A[in_state, out_state]`` for all BH helicity amplitudes.
+
+    ``in_state`` spans incoming electron/proton labels ``(hIn, sIn)`` and
+    ``out_state`` spans outgoing electron/proton/photon labels
+    ``(hOut, sOut, lambda)``. The result has shape ``(4, 8)``.
+    """
     in_states = initial_spin_states()
     out_states = outgoing_spin_states()
     photon_pols = {lam: photon_pol(mom["qout"], lam) for lam in HELICITIES}
@@ -100,6 +124,12 @@ def amplitude_table(mom, m, F1, F2):
 
 
 def density_matrix_from_amplitudes(amplitudes, average_initial=False):
+    """Build the outgoing spin-density matrix from an amplitude table.
+
+    The convention is ``rho_ij = sum_initial A_initial,i conj(A_initial,j)``.
+    The returned squared amplitude is ``sum |A|^2`` with the same optional
+    initial-spin averaging as ``rho``.
+    """
     rho = amplitudes.T @ np.conjugate(amplitudes)
     squared_amplitude = float(np.sum(np.abs(amplitudes) ** 2))
     if average_initial:
@@ -109,6 +139,13 @@ def density_matrix_from_amplitudes(amplitudes, average_initial=False):
 
 
 def normalized_final_state(amplitudes, initial_state=ENTANGLEMENT_INITIAL_STATE):
+    """Return the normalized outgoing pure state for one incoming spin pair.
+
+    The concurrence formulae used here are pure-state formulae. This helper
+    selects one row of the amplitude table, corresponding to
+    ``initial_state=(hIn, sIn)``, and normalizes it as an eight-component
+    three-qubit state in the outgoing basis.
+    """
     in_states = initial_spin_states()
     if initial_state not in in_states:
         raise ValueError(f"Unknown initial spin state: {initial_state}")
@@ -123,6 +160,7 @@ def normalized_final_state(amplitudes, initial_state=ENTANGLEMENT_INITIAL_STATE)
 
 
 def trace_value(rho):
+    """Return ``Tr(rho)`` as a real float after checking numerical hermiticity."""
     trace = np.trace(rho)
     if abs(trace.imag) > 1e-10 * max(1.0, abs(trace.real)):
         raise ValueError(f"Density-matrix trace has a non-negligible imaginary part: {trace}")
@@ -130,6 +168,7 @@ def trace_value(rho):
 
 
 def normalized_density_matrix(rho):
+    """Return a Hermitian density matrix normalized to unit trace."""
     rho = np.asarray(rho, dtype=complex)
     rho = 0.5 * (rho + rho.conj().T)
     trace = trace_value(rho)
@@ -139,11 +178,23 @@ def normalized_density_matrix(rho):
 
 
 def pure_density_matrix(state):
+    """Return ``|state><state|`` for an already normalized state vector."""
     state = np.asarray(state, dtype=complex)
     return np.outer(state, state.conj())
 
 
 def reduced_density_matrix(rho, keep):
+    """Trace out unwanted qubits from an ``8 x 8`` three-qubit density matrix.
+
+    Parameters
+    ----------
+    rho : array-like
+        Three-qubit density matrix in the outgoing basis
+        ``(hOut, sOut, lambda)``.
+    keep : iterable of int
+        Subsystem indices to keep: ``0`` for particle 1, ``1`` for particle 2,
+        and ``2`` for particle 3.
+    """
     keep = tuple(keep)
     if any(index not in (0, 1, 2) for index in keep):
         raise ValueError("Three-qubit subsystem indices must be 0, 1, or 2.")
@@ -188,6 +239,13 @@ def f3_from_one_to_rest(c1_23, c2_13, c3_12):
 
 
 def entanglement_measures_from_state(state):
+    """Compute concurrence observables and monogamy residuals.
+
+    The returned dictionary contains two-body concurrences ``C12``, ``C13``,
+    ``C23``; one-to-rest concurrences ``C1_23``, ``C2_13``, ``C3_12``; the
+    concurrence-triangle measure ``F3``; and CKW monogamy residuals ``M1``,
+    ``M2``, and ``M3``.
+    """
     rho = pure_density_matrix(state)
     c12 = two_qubit_concurrence(reduced_density_matrix(rho, (0, 1)))
     c13 = two_qubit_concurrence(reduced_density_matrix(rho, (0, 2)))
@@ -223,6 +281,7 @@ def build_scan_point(
     normalize_trace=NORMALIZE_TRACE,
     entanglement_initial_state=ENTANGLEMENT_INITIAL_STATE,
 ):
+    """Evaluate all spin-density and entanglement data for one kinematic point."""
     kin = kinematics_user_from_scalar_inputs(
         Eb,
         Q2,
@@ -266,6 +325,12 @@ def scan_spin_density_grid(
     normalize_trace=NORMALIZE_TRACE,
     entanglement_initial_state=ENTANGLEMENT_INITIAL_STATE,
 ):
+    """Scan a rectangular ``(t, Q2)`` grid of spin-density matrices.
+
+    Returns a dictionary containing the complex density-matrix grid, per-point
+    squared amplitudes and traces, concurrence/F3 grids, validity mask,
+    failures, axis values, basis labels, and normalization metadata.
+    """
     out_states = outgoing_spin_states()
     shape = (len(t_values), len(Q2_values))
     rho_grid = np.full((*shape, len(out_states), len(out_states)), np.nan + 1j * np.nan)
@@ -334,6 +399,7 @@ def benchmark_spin_density_trace(
     average_initial=AVERAGE_INITIAL_SPINS,
     tol=TRACE_BENCHMARK_TOL,
 ):
+    """Check that selected benchmark density matrices normalize to trace one."""
     rows = []
     for item in kinematic_inputs:
         if len(item) == 6:
@@ -403,6 +469,7 @@ def benchmark_spin_density_trace(
 
 
 def clean_generated_outputs():
+    """Remove files generated by this script before creating fresh outputs."""
     for path in (
         LOG_PATH,
         SCAN_NPZ_PATH,
@@ -418,6 +485,7 @@ def clean_generated_outputs():
 
 
 def _require_matplotlib():
+    """Import matplotlib in headless mode with a writable cache directory."""
     cache_dir = Path(tempfile.gettempdir()) / "dvcs_helicity_amp_cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("MPLCONFIGDIR", str(cache_dir / "matplotlib"))
@@ -433,11 +501,13 @@ def _require_matplotlib():
 
 
 def _safe_float_for_filename(name, value):
+    """Format a floating-point value as a filesystem-safe filename token."""
     text = f"{value:.6f}".replace("-", "m").replace(".", "p")
     return f"{name}_{text}"
 
 
 def _scan_point_stem(Q2, t):
+    """Return the shared filename stem for a single ``(Q2, t)`` scan point."""
     return (
         "spin_density_"
         f"{_safe_float_for_filename('Q2', Q2)}_"
@@ -446,6 +516,7 @@ def _scan_point_stem(Q2, t):
 
 
 def _plot_scan_page(ax, data, Q2_values, t_values, title, cmap, vmin=None, vmax=None):
+    """Draw one kinematic-grid heatmap page and return the image artist."""
     image = ax.imshow(
         np.ma.masked_invalid(data),
         origin="lower",
@@ -463,6 +534,7 @@ def _plot_scan_page(ax, data, Q2_values, t_values, title, cmap, vmin=None, vmax=
 
 
 def save_entanglement_plot(scan, output_path=ENTANGLEMENT_PLOT_PATH):
+    """Save heatmap pages for concurrence observables and ``F3``."""
     plt, PdfPages = _require_matplotlib()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -496,6 +568,7 @@ def save_entanglement_plot(scan, output_path=ENTANGLEMENT_PLOT_PATH):
 
 
 def save_scan_npz(scan, path=SCAN_NPZ_PATH):
+    """Persist the full scan arrays to an NPZ archive."""
     path.parent.mkdir(parents=True, exist_ok=True)
     entanglement_arrays = {
         f"entanglement_{name}": values
@@ -519,6 +592,7 @@ def save_scan_npz(scan, path=SCAN_NPZ_PATH):
 
 
 def _matrix_headers(include_matrix_indices):
+    """Return CSV headers for summary or per-matrix rows."""
     headers = [
         "Q2",
         "t",
@@ -548,6 +622,7 @@ def _matrix_headers(include_matrix_indices):
 
 
 def _metadata_row(scan, t_index, Q2_index):
+    """Return common scalar and entanglement columns for one scan point."""
     return [
         f"{scan['Q2_values'][Q2_index]:.16e}",
         f"{scan['t_values'][t_index]:.16e}",
@@ -563,6 +638,7 @@ def _metadata_row(scan, t_index, Q2_index):
 
 
 def save_entanglement_csv(scan, path=ENTANGLEMENT_CSV_PATH):
+    """Save one summary row per valid kinematic point."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
@@ -575,6 +651,7 @@ def save_entanglement_csv(scan, path=ENTANGLEMENT_CSV_PATH):
 
 
 def save_scan_csv_files(scan, output_dir=SCAN_POINT_DIR):
+    """Save one long-form ``8 x 8`` density-matrix CSV per valid point."""
     output_dir.mkdir(parents=True, exist_ok=True)
     paths = []
     headers = _matrix_headers(include_matrix_indices=True)
@@ -609,6 +686,7 @@ def save_scan_csv_files(scan, output_dir=SCAN_POINT_DIR):
 
 
 def _state_tick_labels(out_states):
+    """Return compact labels for the eight outgoing basis states."""
     return [
         f"{index}: h'={state[0]:+d}, s'={state[1]:+d}, lam={state[2]:+d}"
         for index, state in enumerate(out_states)
@@ -625,6 +703,7 @@ def _plot_matrix_heatmap(
     vmin=None,
     vmax=None,
 ):
+    """Draw an ``8 x 8`` matrix heatmap with outgoing-state index ticks."""
     image = ax.imshow(
         matrix,
         origin="upper",
@@ -646,6 +725,7 @@ def _plot_matrix_heatmap(
 
 
 def save_point_matrix_plots(scan, output_dir=SCAN_POINT_DIR):
+    """Save norm and phase ``8 x 8`` matrix plots for every valid point."""
     plt, _PdfPages = _require_matplotlib()
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -710,6 +790,7 @@ def save_point_matrix_plots(scan, output_dir=SCAN_POINT_DIR):
 
 
 def format_trace_benchmark_rows(rows):
+    """Format trace benchmark rows as a fixed-width text table."""
     headers = (
         "case",
         "Q2",
@@ -749,6 +830,7 @@ def format_trace_benchmark_rows(rows):
 
 
 def build_report(scan, trace_benchmark_rows, paths):
+    """Build the text report printed to console and written to the log file."""
     lines = [
         "Spin-density matrix scan",
         f"  outgoing basis size: {len(scan['out_states'])}",
@@ -781,6 +863,7 @@ def build_report(scan, trace_benchmark_rows, paths):
 
 
 def main():
+    """Regenerate all SpinDensityMat outputs from the current settings."""
     clean_generated_outputs()
     trace_benchmark_rows = benchmark_spin_density_trace()
     scan = scan_spin_density_grid(Q2_VALUES, T_VALUES)

@@ -1,3 +1,18 @@
+"""Kinematic builders and validation checks for exclusive electroproduction.
+
+The repository uses two related momentum parameterizations:
+
+* A direct "user" COM-frame backend specified by ``pIn``, ``pOut``,
+  ``qOut``, ``th``, ``ph``, and ``phOut``.
+* A scalar exclusive input set ``(Eb, Q2, xB, t, phi)`` that is first
+  constructed in the target rest frame, boosted to the initial ``e+p`` COM
+  frame, and finally rotated into the user backend frame.
+
+All four-vectors are contravariant arrays in ``[E, px, py, pz]`` order. The
+massless external electron and photon are placed on shell by construction, and
+the proton mass is supplied explicitly as ``m``.
+"""
+
 import numpy as np
 
 from Algebra import (
@@ -25,6 +40,12 @@ from Algebra import (
 # ============================================================
 
 def k_user(pIn, th, ph):
+    """Return the incoming electron four-momentum in the user frame.
+
+    ``pIn`` is the common incoming three-momentum magnitude in the COM frame.
+    The electron is massless and points opposite to the incoming proton
+    direction defined by polar angle ``th`` and azimuth ``ph``.
+    """
     pIn = _validate_nonnegative_scalar(pIn, "pIn")
     return pIn * np.array([
         1.0,
@@ -35,6 +56,7 @@ def k_user(pIn, th, ph):
 
 
 def p_user(pIn, th, ph, m):
+    """Return the incoming proton four-momentum in the user frame."""
     pIn = _validate_nonnegative_scalar(pIn, "pIn")
     m = _validate_positive_scalar(m, "m")
     return np.array([
@@ -46,6 +68,11 @@ def p_user(pIn, th, ph, m):
 
 
 def pp_user(pOut, m):
+    """Return the outgoing proton four-momentum in the user frame.
+
+    The user frame fixes the outgoing proton spatial momentum along the
+    positive y axis, ``pp = (E, 0, pOut, 0)``.
+    """
     pOut = _validate_nonnegative_scalar(pOut, "pOut")
     m = _validate_positive_scalar(m, "m")
     return np.array([
@@ -57,11 +84,17 @@ def pp_user(pOut, m):
 
 
 def qout_user(qOut, phOut):
+    """Return the outgoing real-photon four-momentum in the user frame."""
     qOut = _validate_nonnegative_scalar(qOut, "qOut")
     return qOut * np.array([1.0, np.cos(phOut), np.sin(phOut), 0.0])
 
 
 def kp_user(pOut, qOut, phOut):
+    """Return the outgoing electron four-momentum from momentum conservation.
+
+    The spatial momentum is fixed by ``k + p = kp + pp + qout`` in the user
+    frame, and the energy is the norm of the massless electron three-momentum.
+    """
     pOut = _validate_nonnegative_scalar(pOut, "pOut")
     qOut = _validate_nonnegative_scalar(qOut, "qOut")
     kp3 = np.array([
@@ -73,6 +106,12 @@ def kp_user(pOut, qOut, phOut):
 
 
 def momenta_user(pIn, pOut, qOut, th, ph, phOut, m):
+    """Return all user-frame external momenta as a dictionary.
+
+    The returned keys are ``k`` (incoming electron), ``p`` (incoming proton),
+    ``kp`` (outgoing electron), ``pp`` (outgoing proton), and ``qout``
+    (outgoing real photon).
+    """
     return {
         "k": k_user(pIn, th, ph),
         "p": p_user(pIn, th, ph, m),
@@ -92,6 +131,7 @@ def momenta_user(pIn, pOut, qOut, th, ph, phOut, m):
 # ============================================================
 
 def _clip_physical_cosine(value, name, tol=1e-10):
+    """Clip a cosine value to ``[-1, 1]`` after a physical-range check."""
     if value < -1.0 - tol or value > 1.0 + tol:
         raise ValueError(
             f"{name}={value:.16g} is outside the physical range [-1, 1]."
@@ -104,7 +144,12 @@ def _kinematics_target_rest_from_beam_energy(Eb, Q2, xB, t, phi, m):
     Build a target-rest event used as a scalar construction frame.
 
     This helper is intentionally private; public scalar kinematics are exposed
-    in the initial e+p COM frame by kinematics_cm_from_beam_energy.
+    in the initial e+p COM frame by :func:`kinematics_cm_from_beam_energy`.
+    The independent inputs are target-rest beam energy ``Eb``, photon
+    virtuality ``Q2``, Bjorken ``xB``, spacelike momentum transfer ``t``, and
+    the hadron-plane azimuth ``phi``. The output dictionary includes derived
+    ``nu`` and ``y`` values plus momenta for ``k``, ``p``, ``kp``, ``pp``,
+    ``qout``, and ``q``.
     """
     Eb = _validate_positive_scalar(Eb, "Eb")
     Q2 = _validate_positive_scalar(Q2, "Q2")
@@ -196,6 +241,7 @@ def _kinematics_target_rest_from_beam_energy(Eb, Q2, xB, t, phi, m):
 
 
 def _boost_z(v, beta):
+    """Boost a four-vector along z by velocity ``beta``."""
     gamma = 1.0 / np.sqrt(1.0 - beta**2)
     boosted = np.array(v, dtype=float, copy=True)
     boosted[0] = gamma * (v[0] - beta * v[3])
@@ -209,6 +255,9 @@ def kinematics_cm_from_beam_energy(Eb, Q2, xB, t, phi, m):
 
     The scalar input set is (Eb, Q2, xB, t, phi). Eb fixes the invariant
     s = m^2 + 2 m Eb; it is not returned as a target-rest-frame momentum.
+    The returned dictionary preserves the scalar inputs and derived target-rest
+    variables, adds ``s``, ``sqrt_s``, and ``beta_target_rest_to_cm``, and
+    stores the boosted momenta under ``momenta``.
     """
     kin = _kinematics_target_rest_from_beam_energy(Eb, Q2, xB, t, phi, m)
     beta_cm = kin["Eb"] / (kin["Eb"] + kin["m"])
@@ -229,18 +278,27 @@ def kinematics_cm_from_beam_energy(Eb, Q2, xB, t, phi, m):
 
 
 def momenta_cm_from_beam_energy(Eb, Q2, xB, t, phi, m):
+    """Return only the COM-frame momenta from scalar exclusive inputs."""
     return kinematics_cm_from_beam_energy(Eb, Q2, xB, t, phi, m)["momenta"]
 
 
 def _normalize_angle(angle):
+    """Normalize an angle to the interval ``[0, 2*pi)``."""
     return float(angle % (2.0 * np.pi))
 
 
 def _mom_spatial(mom, name):
+    """Return the spatial part of momentum ``mom[name]``."""
     return _as_four_vector(mom[name], name, dtype=float)[1:4]
 
 
 def _rotation_to_user_frame(mom, target_phi_out=None):
+    """Return a rotation matrix that maps COM momenta into the user frame.
+
+    The user frame is defined by placing the outgoing proton along ``+y`` and
+    the outgoing photon in the ``xy`` plane. If ``target_phi_out`` is supplied,
+    the sign of the x axis is selected to match the requested photon azimuth.
+    """
     pp_vec = _mom_spatial(mom, "pp")
     qout_vec = _mom_spatial(mom, "qout")
     pp_abs = np.linalg.norm(pp_vec)
@@ -262,16 +320,19 @@ def _rotation_to_user_frame(mom, target_phi_out=None):
 
 
 def _rotate_four_vector(v, rotation):
+    """Apply a three-dimensional rotation to the spatial part of a four-vector."""
     rotated = _as_four_vector(v, "v", dtype=float).copy()
     rotated[1:4] = rotation @ rotated[1:4]
     return rotated
 
 
 def _rotate_momenta(mom, rotation):
+    """Rotate every four-vector in a momentum dictionary."""
     return {name: _rotate_four_vector(vector, rotation) for name, vector in mom.items()}
 
 
 def _pp_qout_spatial_cosine(mom):
+    """Return the spatial cosine between outgoing proton and photon momenta."""
     pp_vec = _mom_spatial(mom, "pp")
     qout_vec = _mom_spatial(mom, "qout")
     den = np.linalg.norm(pp_vec) * np.linalg.norm(qout_vec)
@@ -280,6 +341,12 @@ def _pp_qout_spatial_cosine(mom):
 
 
 def _solve_phi_hadron_for_phi_out(Eb, Q2, xB, t, target_phi_out, m, label=None):
+    """Find the hadron-plane azimuth that realizes a requested user ``phOut``.
+
+    The scalar builder naturally uses the hadron-plane azimuth. This helper
+    scans and bisects the periodic angle to invert that mapping when the user
+    instead supplies the final-photon user-frame azimuth.
+    """
     target_sin = np.sin(target_phi_out)
 
     def residual(phi_hadron):
@@ -333,6 +400,14 @@ def kinematics_user_from_scalar_inputs(
     The scalar input set is still (Eb, Q2, xB, t, phi).  The azimuth_input
     flag chooses whether phi is the hadron-plane azimuth used by the scalar
     COM builder, or the user-frame final-photon azimuth phOut.
+
+    Returns
+    -------
+    dict
+        A kinematics dictionary with rotated user-frame momenta, original and
+        derived scalar variables, ``phi_hadron``, ``phi_out``, backend
+        ``user_params``, and a ``user_rebuild_residual`` measuring how closely
+        the explicit user-frame constructor reproduces the rotated momenta.
     """
     if azimuth_input == "phi_hadron":
         phi_hadron = _normalize_angle(_validate_scalar(phi, "phi"))
@@ -392,6 +467,7 @@ def energy_balance(pIn, pOut, qOut, th, ph, phOut, m):
 
 
 def momentum_conservation_check(pIn, pOut, qOut, th, ph, phOut, m):
+    """Return the residual three-momentum balance vector."""
     mom = momenta_user(pIn, pOut, qOut, th, ph, phOut, m)
     return (
         mom["k"][1:4] + mom["p"][1:4]
@@ -400,6 +476,7 @@ def momentum_conservation_check(pIn, pOut, qOut, th, ph, phOut, m):
 
 
 def onshell_check(pIn, pOut, qOut, th, ph, phOut, m):
+    """Return mass-shell values for ``k``, ``kp``, ``qout``, ``p``, and ``pp``."""
     mom = momenta_user(pIn, pOut, qOut, th, ph, phOut, m)
     return [
         mdot(mom["k"], mom["k"]),

@@ -1,3 +1,17 @@
+"""Bethe-Heitler helicity amplitudes and analytic benchmark output.
+
+This module evaluates the Bethe-Heitler contribution to exclusive
+electroproduction in the conventions provided by :mod:`Algebra` and
+:mod:`Kinematics`. It exposes low-level routines that operate directly on
+four-momenta, convenience wrappers for the user and scalar kinematic
+parameterizations, and a script entry point that writes a detailed comparison
+against analytic benchmark formulae to ``Output/BHHelicityAmp.log``.
+
+Helicity labels are doubled helicities ``+1`` and ``-1``. The final photon
+polarization vector is generated from its four-momentum and contracted as
+``epsilon*_mu`` inside the amplitude.
+"""
+
 from itertools import product
 from textwrap import dedent
 
@@ -40,6 +54,23 @@ BENCHMARK_AZIMUTH_INPUT = "phi_hadron"  # Use "phi_hadron" or "phi_out".
 # ============================================================
 
 def lepton_kernel(mu, nu, k, kp, qout):
+    """Return the leptonic Bethe-Heitler kernel ``L^{mu nu}``.
+
+    Parameters
+    ----------
+    mu, nu : int
+        Lorentz indices in ``0..3``. ``mu`` contracts with the real-photon
+        polarization and ``nu`` contracts with the proton electromagnetic
+        vertex.
+    k, kp, qout : array-like
+        Incoming electron, outgoing electron, and outgoing real-photon
+        four-momenta.
+
+    Returns
+    -------
+    numpy.ndarray
+        A ``4 x 4`` Dirac matrix acting on the electron spinors.
+    """
     mu = _validate_lorentz_index(mu, "mu")
     nu = _validate_lorentz_index(nu, "nu")
     k = _as_four_vector(k, "k")
@@ -65,6 +96,11 @@ def lepton_kernel(mu, nu, k, kp, qout):
 # ============================================================
 
 def proton_vertex_lower(nu, p, pp, m, F1, F2):
+    """Return the lower-index proton electromagnetic vertex ``Gamma_nu``.
+
+    The vertex convention is
+    ``Gamma_nu = gamma_nu (F1 + F2) - (p + p')_nu F2 / (2m)``.
+    """
     nu = _validate_lorentz_index(nu, "nu")
     m = _validate_positive_scalar(m, "m")
     p = _as_four_vector(p, "p")
@@ -93,6 +129,19 @@ def bh_amplitude_core(
     sIn, sOut,
     m, F1, F2,
 ):
+    """Evaluate a fixed-helicity Bethe-Heitler amplitude.
+
+    This is the lowest-level public amplitude routine. All momenta are supplied
+    directly, and the photon polarization vector ``epsU`` is already chosen by
+    the caller. The returned complex amplitude is
+
+    ``eps*_mu ubar(k',hOut) L^{mu nu} u(k,hIn) / t
+    * ubar(p',sOut) Gamma_nu u(p,sIn)``.
+
+    Parameters are validated for four-vector shape, finite entries, positive
+    proton mass, and helicity labels ``+/-1``. Singular propagator or
+    momentum-transfer denominators raise ``ZeroDivisionError``.
+    """
     hIn = _validate_helicity(hIn, "hIn")
     hOut = _validate_helicity(hOut, "hOut")
     sIn = _validate_helicity(sIn, "sIn")
@@ -171,6 +220,12 @@ def bh_amplitude_user(
     lam,
     m, F1, F2,
 ):
+    """Evaluate a fixed-helicity amplitude from user-frame variables.
+
+    The variables ``pIn``, ``pOut``, ``qOut``, ``th``, ``ph``, and ``phOut``
+    are converted with :func:`Kinematics.momenta_user`; photon polarization is
+    then built from the resulting ``qout`` momentum.
+    """
     mom = momenta_user(pIn, pOut, qOut, th, ph, phOut, m)
     return bh_amplitude_core(
         mom["k"], mom["kp"], mom["qout"],
@@ -187,6 +242,7 @@ def bh_unpolarized_squared_amplitude_user(
     m, F1, F2,
     average_initial=True,
 ):
+    """Return the unpolarized squared amplitude from user-frame variables."""
     mom = momenta_user(pIn, pOut, qOut, th, ph, phOut, m)
     return bh_unpolarized_squared_amplitude_core(
         mom["k"], mom["kp"], mom["qout"],
@@ -203,6 +259,7 @@ def bh_amplitude_cm_from_beam_energy(
     lam,
     m, F1, F2,
 ):
+    """Evaluate a fixed-helicity amplitude from scalar COM kinematics."""
     mom = momenta_cm_from_beam_energy(Eb, Q2, xB, t, phi, m)
     return bh_amplitude_core(
         mom["k"], mom["kp"], mom["qout"],
@@ -219,6 +276,7 @@ def bh_unpolarized_squared_amplitude_cm_from_beam_energy(
     m, F1, F2,
     average_initial=True,
 ):
+    """Return the unpolarized squared amplitude from scalar COM kinematics."""
     mom = momenta_cm_from_beam_energy(Eb, Q2, xB, t, phi, m)
     return bh_unpolarized_squared_amplitude_core(
         mom["k"], mom["kp"], mom["qout"],
@@ -233,6 +291,7 @@ def bh_amplitude_same_electron_helicity(
     h, sIn, sOut, lam,
     m, F1, F2,
 ):
+    """Evaluate a user-frame amplitude with ``hIn == hOut == h``."""
     return bh_amplitude_user(
         pIn, pOut, qOut, th, ph, phOut,
         h, h, sIn, sOut, lam,
@@ -241,6 +300,13 @@ def bh_amplitude_same_electron_helicity(
 
 
 def main():
+    """Run the analytic benchmark sweep and write ``Output/BHHelicityAmp.log``.
+
+    The benchmark constructs several scalar kinematic points, converts them
+    into the user backend frame, checks scalar reconstruction, and compares
+    numerical spinor sums with analytic Bethe-Heitler expressions for multiple
+    ``(F1, F2)`` form-factor choices.
+    """
     from pathlib import Path
 
     azimuth_input = BENCHMARK_AZIMUTH_INPUT

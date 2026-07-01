@@ -1,3 +1,17 @@
+"""Linear-algebra building blocks for helicity-amplitude calculations.
+
+This module centralizes the numerical conventions used throughout the
+repository. Four-vectors are contravariant arrays ordered as
+``[E, px, py, pz]`` and are contracted with the mostly-minus metric
+``diag(1, -1, -1, -1)``. Helicity labels are integer doubled-helicity values
+``+1`` and ``-1``. The electron is treated as massless, while proton spinors
+carry an explicit mass argument.
+
+The functions are intentionally small and validation-heavy because they form
+the lowest layer used by both the Bethe-Heitler amplitude and spin-density
+matrix scans.
+"""
+
 import numpy as np
 
 # ============================================================
@@ -14,6 +28,23 @@ eta = np.array([1.0, -1.0, -1.0, -1.0])
 
 
 def _as_four_vector(v, name, dtype=complex):
+    """Validate and return ``v`` as a finite four-vector.
+
+    Parameters
+    ----------
+    v : array-like
+        Candidate vector in ``[E, px, py, pz]`` order.
+    name : str
+        Name used in validation error messages.
+    dtype : data-type, optional
+        Numpy dtype used for conversion. Complex is the default because many
+        algebraic objects may carry phases.
+
+    Returns
+    -------
+    numpy.ndarray
+        A shape ``(4,)`` array with finite entries.
+    """
     arr = np.asarray(v, dtype=dtype)
     if arr.shape != (4,):
         raise ValueError(f"{name} must be a four-vector with shape (4,).")
@@ -23,6 +54,7 @@ def _as_four_vector(v, name, dtype=complex):
 
 
 def _as_three_vector(v, name):
+    """Validate and return ``v`` as a finite Euclidean three-vector."""
     arr = np.asarray(v, dtype=float)
     if arr.shape != (3,):
         raise ValueError(f"{name} must be a three-vector with shape (3,).")
@@ -32,18 +64,26 @@ def _as_three_vector(v, name):
 
 
 def _validate_helicity(value, name):
+    """Return a checked helicity label.
+
+    The code uses doubled helicities, so the only valid labels are ``+1`` and
+    ``-1``. The return value is an ``int`` for convenient use in dictionaries
+    and loop indices.
+    """
     if value not in (-1, 1):
         raise ValueError(f"{name} must be +1 or -1.")
     return int(value)
 
 
 def _validate_lorentz_index(value, name):
+    """Return a checked Lorentz index in the range ``0`` through ``3``."""
     if value not in (0, 1, 2, 3):
         raise ValueError(f"{name} must be one of 0, 1, 2, or 3.")
     return int(value)
 
 
 def _validate_scalar(value, name):
+    """Return ``value`` as a finite float."""
     value = float(value)
     if not np.isfinite(value):
         raise ValueError(f"{name} must be finite.")
@@ -51,6 +91,7 @@ def _validate_scalar(value, name):
 
 
 def _validate_nonnegative_scalar(value, name):
+    """Return ``value`` as a finite float constrained to be non-negative."""
     value = _validate_scalar(value, name)
     if value < 0.0:
         raise ValueError(f"{name} must be non-negative.")
@@ -58,6 +99,12 @@ def _validate_nonnegative_scalar(value, name):
 
 
 def _validate_positive_scalar(value, name, tol=DEFAULT_TOL):
+    """Return ``value`` as a finite float constrained to be positive.
+
+    Values below or equal to ``tol`` are rejected. The tolerance avoids
+    accepting numerically zero masses, energies, or denominators as physical
+    positive inputs.
+    """
     value = _validate_scalar(value, name)
     if value <= tol:
         raise ValueError(f"{name} must be positive.")
@@ -65,11 +112,13 @@ def _validate_positive_scalar(value, name, tol=DEFAULT_TOL):
 
 
 def _check_not_singular(value, name, tol=DEFAULT_TOL):
+    """Raise ``ZeroDivisionError`` if ``value`` is numerically singular."""
     if abs(value) <= tol:
         raise ZeroDivisionError(f"{name} is singular for this kinematics.")
 
 
 def _real_scalar(value, name, tol=1e-10):
+    """Return a complex scalar as float when its imaginary part is negligible."""
     value = complex(value)
     scale = max(1.0, abs(value.real))
     if abs(value.imag) > tol * scale:
@@ -90,6 +139,7 @@ def cov(v):
 
 
 def spatial(v):
+    """Return the spatial three-vector ``[px, py, pz]`` from a four-vector."""
     return _as_four_vector(v, "v", dtype=float)[1:4]
 
 
@@ -113,11 +163,13 @@ gamma = [
 
 
 def gammaU(mu):
+    """Return the contravariant Dirac gamma matrix ``gamma^mu``."""
     mu = _validate_lorentz_index(mu, "mu")
     return gamma[mu]
 
 
 def gammaL(mu):
+    """Return the covariant Dirac gamma matrix ``gamma_mu``."""
     mu = _validate_lorentz_index(mu, "mu")
     return eta[mu] * gamma[mu]
 
@@ -146,6 +198,24 @@ def spinor_bar(u):
 # ============================================================
 
 def chi_helicity(p3, h, patch="auto", tol=DEFAULT_TOL):
+    """Return a two-component helicity eigenspinor.
+
+    The spinor satisfies ``sigma.p chi_h = h |p| chi_h`` with ``h = +/-1``.
+    The standard spherical-coordinate expression is split into north and south
+    coordinate patches to avoid singularities at the poles; ``patch="auto"``
+    selects a nonsingular patch from the momentum direction.
+
+    Parameters
+    ----------
+    p3 : array-like
+        Spatial momentum ``[px, py, pz]``.
+    h : int
+        Doubled helicity label, either ``+1`` or ``-1``.
+    patch : {"auto", "north", "south"}
+        Coordinate patch used for the spinor representative.
+    tol : float
+        Zero-momentum and patch-singularity tolerance.
+    """
     h = _validate_helicity(h, "h")
     p3 = _as_three_vector(p3, "p3")
     px, py, pz = p3
@@ -189,6 +259,17 @@ def chi_helicity(p3, h, patch="auto", tol=DEFAULT_TOL):
 # ============================================================
 
 def electron_spinor(k, h, patch="auto"):
+    """Return a massless Dirac spinor for an external electron.
+
+    Parameters
+    ----------
+    k : array-like
+        Electron four-momentum. The energy must be positive.
+    h : int
+        Electron doubled-helicity label, ``+1`` or ``-1``.
+    patch : str
+        Patch selector passed to :func:`chi_helicity`.
+    """
     h = _validate_helicity(h, "h")
     k = _as_four_vector(k, "k", dtype=float)
     E = k[0]
@@ -200,6 +281,19 @@ def electron_spinor(k, h, patch="auto"):
 
 
 def proton_spinor(p, s, m, patch="auto"):
+    """Return a massive Dirac spinor for an external proton.
+
+    Parameters
+    ----------
+    p : array-like
+        Proton four-momentum.
+    s : int
+        Proton spin/helicity label, ``+1`` or ``-1``.
+    m : float
+        Proton mass. Must be positive.
+    patch : str
+        Patch selector passed to :func:`chi_helicity`.
+    """
     s = _validate_helicity(s, "s")
     m = _validate_positive_scalar(m, "m")
     p = _as_four_vector(p, "p", dtype=float)
@@ -218,6 +312,12 @@ def proton_spinor(p, s, m, patch="auto"):
 # ============================================================
 
 def photon_pol(q, lam, tol=DEFAULT_TOL):
+    """Return a transverse real-photon helicity polarization vector.
+
+    The convention is ``epsilon^mu(q, lambda) =
+    (0, (e_theta + i lambda e_phi) / sqrt(2))`` with ``lambda = +/-1``.
+    The returned vector is contravariant and has a zero time component.
+    """
     lam = _validate_helicity(lam, "lam")
     q = _as_four_vector(q, "q", dtype=float)
     q3 = q[1:4]
@@ -239,4 +339,5 @@ def photon_pol(q, lam, tol=DEFAULT_TOL):
 
 
 def photon_pol_cov_star(epsU):
+    """Return the covariant complex-conjugate photon polarization vector."""
     return cov(np.conjugate(epsU))
