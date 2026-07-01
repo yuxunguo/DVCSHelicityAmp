@@ -35,16 +35,18 @@ from Kinematics import kinematics_user_from_scalar_inputs
 # Scan and output settings
 # ============================================================
 
-EB = 5.0
+EB = 11.0
 XB = 0.36
 PHI = 0.7
+FIXED_T_FOR_PHI_SCAN = -0.4
 M = 0.938
 F1 = 1.0
 F2 = 0.0
 AZIMUTH_INPUT = "phi_hadron"
 
-Q2_VALUES = np.linspace(1.0, 3.0, 9)
-T_VALUES = np.linspace(-0.8, -0.2, 9)
+Q2_VALUES = np.linspace(1.0, 6.0, 11)
+T_VALUES = np.linspace(-1.2, -0.2, 11)
+PHI_VALUES = np.linspace(0.0, 2.0 * np.pi, 12, endpoint=False)
 
 AVERAGE_INITIAL_SPINS = False
 NORMALIZE_TRACE = True
@@ -71,10 +73,6 @@ BENCHMARK_KINEMATIC_INPUTS = (
 
 OUTPUT_DIR = Path("Output") / "SpinDensityMat"
 LOG_PATH = Path("Output") / "SpinDensityMat.log"
-SCAN_POINT_DIR = OUTPUT_DIR / "SpinDensityScan"
-SCAN_NPZ_PATH = OUTPUT_DIR / "spin_density_scan.npz"
-ENTANGLEMENT_CSV_PATH = OUTPUT_DIR / "spin_entanglement_scan.csv"
-ENTANGLEMENT_PLOT_PATH = OUTPUT_DIR / "spin_entanglement_scan.pdf"
 REMOVED_COEFFICIENT_PLOTS = (
     OUTPUT_DIR / "spin_density_norm_by_coefficient.pdf",
     OUTPUT_DIR / "spin_density_phase_by_coefficient.pdf",
@@ -313,10 +311,12 @@ def build_scan_point(
 
 def scan_spin_density_grid(
     Q2_values,
-    t_values,
+    y_values,
+    y_name="t",
     Eb=EB,
     xB=XB,
-    phi=PHI,
+    fixed_t=FIXED_T_FOR_PHI_SCAN,
+    fixed_phi=PHI,
     m=M,
     F1=F1,
     F2=F2,
@@ -325,17 +325,24 @@ def scan_spin_density_grid(
     normalize_trace=NORMALIZE_TRACE,
     entanglement_initial_state=ENTANGLEMENT_INITIAL_STATE,
 ):
-    """Scan a rectangular ``(t, Q2)`` grid of spin-density matrices.
+    """Scan a rectangular kinematic grid of spin-density matrices.
 
     Returns a dictionary containing the complex density-matrix grid, per-point
     squared amplitudes and traces, concurrence/F3 grids, validity mask,
-    failures, axis values, basis labels, and normalization metadata.
+    failures, axis values, basis labels, and normalization metadata. The
+    second scan axis is selected by ``y_name``: either ``"t"`` at fixed
+    ``phi`` or ``"phi"`` at fixed ``t``.
     """
+    if y_name not in ("t", "phi"):
+        raise ValueError("y_name must be 't' or 'phi'.")
+
     out_states = outgoing_spin_states()
-    shape = (len(t_values), len(Q2_values))
+    shape = (len(y_values), len(Q2_values))
     rho_grid = np.full((*shape, len(out_states), len(out_states)), np.nan + 1j * np.nan)
     squared_amplitude_grid = np.full(shape, np.nan, dtype=float)
     trace_grid = np.full(shape, np.nan, dtype=float)
+    t_grid = np.full(shape, np.nan, dtype=float)
+    phi_grid = np.full(shape, np.nan, dtype=float)
     valid = np.zeros(shape, dtype=bool)
     entanglement_grid = {
         name: np.full(shape, np.nan, dtype=float)
@@ -343,8 +350,10 @@ def scan_spin_density_grid(
     }
     failures = []
 
-    for t_index, t in enumerate(t_values):
+    for y_index, y_value in enumerate(y_values):
         for Q2_index, Q2 in enumerate(Q2_values):
+            t = y_value if y_name == "t" else fixed_t
+            phi = fixed_phi if y_name == "t" else y_value
             try:
                 point = build_scan_point(
                     Eb,
@@ -361,26 +370,37 @@ def scan_spin_density_grid(
                     entanglement_initial_state=entanglement_initial_state,
                 )
             except Exception as exc:
-                failures.append((Q2, t, str(exc)))
+                failures.append((Q2, t, phi, str(exc)))
                 continue
 
-            rho_grid[t_index, Q2_index] = point["rho"]
-            squared_amplitude_grid[t_index, Q2_index] = point["squared_amplitude"]
-            trace_grid[t_index, Q2_index] = point["trace"]
+            rho_grid[y_index, Q2_index] = point["rho"]
+            squared_amplitude_grid[y_index, Q2_index] = point["squared_amplitude"]
+            trace_grid[y_index, Q2_index] = point["trace"]
+            t_grid[y_index, Q2_index] = t
+            phi_grid[y_index, Q2_index] = phi
             for name, value in point["entanglement"].items():
-                entanglement_grid[name][t_index, Q2_index] = value
-            valid[t_index, Q2_index] = True
+                entanglement_grid[name][y_index, Q2_index] = value
+            valid[y_index, Q2_index] = True
 
     return {
         "rho": rho_grid,
         "squared_amplitude": squared_amplitude_grid,
         "trace": trace_grid,
+        "t_grid": t_grid,
+        "phi_grid": phi_grid,
         "entanglement": entanglement_grid,
         "entanglement_names": ENTANGLEMENT_NAMES,
         "valid": valid,
         "failures": failures,
+        "label": f"Q2_{y_name}",
+        "x_name": "Q2",
+        "y_name": y_name,
         "Q2_values": np.asarray(Q2_values, dtype=float),
-        "t_values": np.asarray(t_values, dtype=float),
+        "y_values": np.asarray(y_values, dtype=float),
+        "fixed_t": fixed_t,
+        "fixed_phi": fixed_phi,
+        "Eb": Eb,
+        "xB": xB,
         "out_states": out_states,
         "normalized_by_squared_amplitude": normalize_trace,
         "entanglement_initial_state": entanglement_initial_state,
@@ -470,14 +490,7 @@ def benchmark_spin_density_trace(
 
 def clean_generated_outputs():
     """Remove files generated by this script before creating fresh outputs."""
-    for path in (
-        LOG_PATH,
-        SCAN_NPZ_PATH,
-        ENTANGLEMENT_CSV_PATH,
-        ENTANGLEMENT_PLOT_PATH,
-        SCAN_POINT_DIR,
-        *REMOVED_COEFFICIENT_PLOTS,
-    ):
+    for path in (LOG_PATH, OUTPUT_DIR, *REMOVED_COEFFICIENT_PLOTS):
         if path.is_dir():
             shutil.rmtree(path)
         elif path.exists():
@@ -506,21 +519,33 @@ def _safe_float_for_filename(name, value):
     return f"{name}_{text}"
 
 
-def _scan_point_stem(Q2, t):
-    """Return the shared filename stem for a single ``(Q2, t)`` scan point."""
+def scan_output_dir(scan):
+    """Return the output directory for a scan dictionary."""
+    return OUTPUT_DIR / scan["label"]
+
+
+def scan_point_dir(scan):
+    """Return the per-point output directory for a scan dictionary."""
+    return scan_output_dir(scan) / "SpinDensityScan"
+
+
+def _scan_point_stem_from_indices(scan, y_index, Q2_index):
+    """Return a filename stem identifying one scan point."""
+    Q2 = scan["Q2_values"][Q2_index]
+    y_value = scan["y_values"][y_index]
     return (
         "spin_density_"
         f"{_safe_float_for_filename('Q2', Q2)}_"
-        f"{_safe_float_for_filename('t', t)}"
+        f"{_safe_float_for_filename(scan['y_name'], y_value)}"
     )
 
 
-def _plot_scan_page(ax, data, Q2_values, t_values, title, cmap, vmin=None, vmax=None):
+def _plot_scan_page(ax, data, Q2_values, y_values, y_name, title, cmap, vmin=None, vmax=None):
     """Draw one kinematic-grid heatmap page and return the image artist."""
     image = ax.imshow(
         np.ma.masked_invalid(data),
         origin="lower",
-        extent=[Q2_values[0], Q2_values[-1], t_values[0], t_values[-1]],
+        extent=[Q2_values[0], Q2_values[-1], y_values[0], y_values[-1]],
         aspect="auto",
         interpolation="nearest",
         cmap=cmap,
@@ -529,13 +554,15 @@ def _plot_scan_page(ax, data, Q2_values, t_values, title, cmap, vmin=None, vmax=
     )
     ax.set_title(title)
     ax.set_xlabel(r"$Q^2$ [GeV$^2$]")
-    ax.set_ylabel(r"$t$ [GeV$^2$]")
+    ax.set_ylabel(r"$t$ [GeV$^2$]" if y_name == "t" else r"$\phi$ [rad]")
     return image
 
 
-def save_entanglement_plot(scan, output_path=ENTANGLEMENT_PLOT_PATH):
+def save_entanglement_plot(scan, output_path=None):
     """Save heatmap pages for concurrence observables and ``F3``."""
     plt, PdfPages = _require_matplotlib()
+    if output_path is None:
+        output_path = scan_output_dir(scan) / f"spin_entanglement_scan_{scan['label']}.pdf"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     plot_specs = (
@@ -555,7 +582,8 @@ def save_entanglement_plot(scan, output_path=ENTANGLEMENT_PLOT_PATH):
                 ax,
                 scan["entanglement"][name],
                 scan["Q2_values"],
-                scan["t_values"],
+                scan["y_values"],
+                scan["y_name"],
                 label,
                 cmap="viridis",
                 vmin=0.0,
@@ -567,8 +595,10 @@ def save_entanglement_plot(scan, output_path=ENTANGLEMENT_PLOT_PATH):
     return output_path
 
 
-def save_scan_npz(scan, path=SCAN_NPZ_PATH):
+def save_scan_npz(scan, path=None):
     """Persist the full scan arrays to an NPZ archive."""
+    if path is None:
+        path = scan_output_dir(scan) / f"spin_density_scan_{scan['label']}.npz"
     path.parent.mkdir(parents=True, exist_ok=True)
     entanglement_arrays = {
         f"entanglement_{name}": values
@@ -581,7 +611,15 @@ def save_scan_npz(scan, path=SCAN_NPZ_PATH):
         trace=scan["trace"],
         valid=scan["valid"],
         Q2_values=scan["Q2_values"],
-        t_values=scan["t_values"],
+        y_values=scan["y_values"],
+        t_grid=scan["t_grid"],
+        phi_grid=scan["phi_grid"],
+        scan_label=scan["label"],
+        y_name=scan["y_name"],
+        fixed_t=scan["fixed_t"],
+        fixed_phi=scan["fixed_phi"],
+        Eb=scan["Eb"],
+        xB=scan["xB"],
         out_states=np.asarray(scan["out_states"], dtype=int),
         normalized_by_squared_amplitude=scan["normalized_by_squared_amplitude"],
         entanglement_names=np.asarray(scan["entanglement_names"], dtype=str),
@@ -596,6 +634,7 @@ def _matrix_headers(include_matrix_indices):
     headers = [
         "Q2",
         "t",
+        "phi",
         "squared_amplitude_M2",
         "trace",
         "normalized_by_squared_amplitude",
@@ -625,7 +664,8 @@ def _metadata_row(scan, t_index, Q2_index):
     """Return common scalar and entanglement columns for one scan point."""
     return [
         f"{scan['Q2_values'][Q2_index]:.16e}",
-        f"{scan['t_values'][t_index]:.16e}",
+        f"{scan['t_grid'][t_index, Q2_index]:.16e}",
+        f"{scan['phi_grid'][t_index, Q2_index]:.16e}",
         f"{scan['squared_amplitude'][t_index, Q2_index]:.16e}",
         f"{scan['trace'][t_index, Q2_index]:.16e}",
         scan["normalized_by_squared_amplitude"],
@@ -637,31 +677,35 @@ def _metadata_row(scan, t_index, Q2_index):
     ]
 
 
-def save_entanglement_csv(scan, path=ENTANGLEMENT_CSV_PATH):
+def save_entanglement_csv(scan, path=None):
     """Save one summary row per valid kinematic point."""
+    if path is None:
+        path = scan_output_dir(scan) / f"spin_entanglement_scan_{scan['label']}.csv"
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow(_matrix_headers(include_matrix_indices=False))
-        for t_index, _t in enumerate(scan["t_values"]):
+        for t_index, _y in enumerate(scan["y_values"]):
             for Q2_index, _Q2 in enumerate(scan["Q2_values"]):
                 if scan["valid"][t_index, Q2_index]:
                     writer.writerow(_metadata_row(scan, t_index, Q2_index))
     return path
 
 
-def save_scan_csv_files(scan, output_dir=SCAN_POINT_DIR):
+def save_scan_csv_files(scan, output_dir=None):
     """Save one long-form ``8 x 8`` density-matrix CSV per valid point."""
+    if output_dir is None:
+        output_dir = scan_point_dir(scan)
     output_dir.mkdir(parents=True, exist_ok=True)
     paths = []
     headers = _matrix_headers(include_matrix_indices=True)
 
-    for t_index, t in enumerate(scan["t_values"]):
+    for t_index, _y in enumerate(scan["y_values"]):
         for Q2_index, Q2 in enumerate(scan["Q2_values"]):
             if not scan["valid"][t_index, Q2_index]:
                 continue
 
-            path = output_dir / f"{_scan_point_stem(Q2, t)}.csv"
+            path = output_dir / f"{_scan_point_stem_from_indices(scan, t_index, Q2_index)}.csv"
             matrix = scan["rho"][t_index, Q2_index]
             metadata = _metadata_row(scan, t_index, Q2_index)
             with path.open("w", newline="", encoding="utf-8") as handle:
@@ -724,23 +768,25 @@ def _plot_matrix_heatmap(
     return image
 
 
-def save_point_matrix_plots(scan, output_dir=SCAN_POINT_DIR):
+def save_point_matrix_plots(scan, output_dir=None):
     """Save norm and phase ``8 x 8`` matrix plots for every valid point."""
     plt, _PdfPages = _require_matplotlib()
+    if output_dir is None:
+        output_dir = scan_point_dir(scan)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     rho_symbol = r"\rho/M^2" if scan["normalized_by_squared_amplitude"] else r"\rho"
     state_key = "\n".join(_state_tick_labels(scan["out_states"]))
     paths = []
 
-    for t_index, t in enumerate(scan["t_values"]):
+    for t_index, y_value in enumerate(scan["y_values"]):
         for Q2_index, Q2 in enumerate(scan["Q2_values"]):
             if not scan["valid"][t_index, Q2_index]:
                 continue
 
-            stem = _scan_point_stem(Q2, t)
+            stem = _scan_point_stem_from_indices(scan, t_index, Q2_index)
             matrix = scan["rho"][t_index, Q2_index]
-            title_suffix = f"Q2={Q2:.6g}, t={t:.6g}"
+            title_suffix = f"Q2={Q2:.6g}, {scan['y_name']}={y_value:.6g}"
 
             for suffix, data, title, cmap, label, vmin, vmax in (
                 (
@@ -829,15 +875,25 @@ def format_trace_benchmark_rows(rows):
     return "\n".join(lines)
 
 
-def build_report(scan, trace_benchmark_rows, paths):
-    """Build the text report printed to console and written to the log file."""
+def build_scan_report(scan, paths):
+    """Build the report block for one completed scan."""
+    y_values = scan["y_values"]
+    fixed_line = (
+        f"  fixed phi: {scan['fixed_phi']:.6g}"
+        if scan["y_name"] == "t"
+        else f"  fixed t: {scan['fixed_t']:.6g}"
+    )
+    point_dir = scan_point_dir(scan)
     lines = [
-        "Spin-density matrix scan",
+        f"Scan {scan['label']}",
         f"  outgoing basis size: {len(scan['out_states'])}",
         "  particle map: 1 = outgoing electron hOut, 2 = outgoing proton sOut, 3 = outgoing photon lambda",
         f"  entanglement observables: {', '.join(scan['entanglement_names'])}",
-        f"  Q2 grid: {Q2_VALUES[0]:.6g} to {Q2_VALUES[-1]:.6g}",
-        f"  t grid: {T_VALUES[0]:.6g} to {T_VALUES[-1]:.6g}",
+        f"  Eb: {scan['Eb']:.6g}",
+        f"  xB: {scan['xB']:.6g}",
+        f"  Q2 grid: {scan['Q2_values'][0]:.6g} to {scan['Q2_values'][-1]:.6g}",
+        f"  {scan['y_name']} grid: {y_values[0]:.6g} to {y_values[-1]:.6g}",
+        fixed_line,
         f"  valid points: {int(scan['valid'].sum())}/{scan['valid'].size}",
         f"  initial spins averaged: {AVERAGE_INITIAL_SPINS}",
         f"  normalized by M^2: {scan['normalized_by_squared_amplitude']}",
@@ -846,36 +902,64 @@ def build_report(scan, trace_benchmark_rows, paths):
             f"hIn={scan['entanglement_initial_state'][0]:+d}, "
             f"sIn={scan['entanglement_initial_state'][1]:+d}"
         ),
-        "  trace benchmark: passed",
-        format_trace_benchmark_rows(trace_benchmark_rows),
         f"  saved data: {paths['npz']}",
         f"  saved entanglement csv: {paths['entanglement_csv']}",
         f"  saved entanglement plots: {paths['entanglement_plot']}",
-        f"  saved matrix csv files: {len(paths['matrix_csv'])} in {SCAN_POINT_DIR}",
-        f"  saved matrix plot files: {len(paths['matrix_plots'])} in {SCAN_POINT_DIR}",
-        f"  saved log: {LOG_PATH}",
+        f"  saved matrix csv files: {len(paths['matrix_csv'])} in {point_dir}",
+        f"  saved matrix plot files: {len(paths['matrix_plots'])} in {point_dir}",
     ]
     if scan["failures"]:
         lines.append("  invalid grid points:")
-        for Q2, t, message in scan["failures"]:
-            lines.append(f"    Q2={Q2:.8g}, t={t:.8g}: {message}")
-    return "\n".join(lines) + "\n"
+        for Q2, t, phi, message in scan["failures"]:
+            lines.append(f"    Q2={Q2:.8g}, t={t:.8g}, phi={phi:.8g}: {message}")
+    return "\n".join(lines)
+
+
+def build_report(scan_results, trace_benchmark_rows):
+    """Build the text report printed to console and written to the log file."""
+    lines = [
+        "Spin-density matrix scans",
+        "  trace benchmark: passed",
+        format_trace_benchmark_rows(trace_benchmark_rows),
+        "",
+    ]
+    for scan, paths in scan_results:
+        lines.append(build_scan_report(scan, paths))
+        lines.append("")
+    lines.append(f"Saved log: {LOG_PATH}")
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def main():
     """Regenerate all SpinDensityMat outputs from the current settings."""
     clean_generated_outputs()
     trace_benchmark_rows = benchmark_spin_density_trace()
-    scan = scan_spin_density_grid(Q2_VALUES, T_VALUES)
-    paths = {
-        "npz": save_scan_npz(scan),
-        "entanglement_csv": save_entanglement_csv(scan),
-        "entanglement_plot": save_entanglement_plot(scan),
-        "matrix_csv": save_scan_csv_files(scan),
-        "matrix_plots": save_point_matrix_plots(scan),
-    }
+    scans = [
+        scan_spin_density_grid(
+            Q2_VALUES,
+            T_VALUES,
+            y_name="t",
+            fixed_phi=PHI,
+        ),
+        scan_spin_density_grid(
+            Q2_VALUES,
+            PHI_VALUES,
+            y_name="phi",
+            fixed_t=FIXED_T_FOR_PHI_SCAN,
+        ),
+    ]
+    scan_results = []
+    for scan in scans:
+        paths = {
+            "npz": save_scan_npz(scan),
+            "entanglement_csv": save_entanglement_csv(scan),
+            "entanglement_plot": save_entanglement_plot(scan),
+            "matrix_csv": save_scan_csv_files(scan),
+            "matrix_plots": save_point_matrix_plots(scan),
+        }
+        scan_results.append((scan, paths))
 
-    log_text = build_report(scan, trace_benchmark_rows, paths)
+    log_text = build_report(scan_results, trace_benchmark_rows)
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     LOG_PATH.write_text(log_text, encoding="utf-8")
     print(log_text, end="")

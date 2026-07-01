@@ -1,22 +1,47 @@
-Spin-density matrix scan
-  outgoing basis size: 8
-  particle map: 1 = outgoing electron hOut, 2 = outgoing proton sOut, 3 = outgoing photon lambda
-  entanglement observables: C12, C13, C23, C1_23, C2_13, C3_12, F3, M1, M2, M3
-  Q2 grid: 1 to 3
-  t grid: -0.8 to -0.2
-  valid points: 81/81
-  initial spins averaged: False
-  normalized by M^2: True
-  entanglement initial state: hIn=+1, sIn=+1
+Spin-density matrix scans
   trace benchmark: passed
   case  Q2   t      raw Tr(rho)     |M|^2           normalized  Tr(rho_norm)    error    
   ----  ---  -----  --------------  --------------  ----------  --------------  ---------
     K1    2   -0.4  3.07644295e+02  3.07644295e+02        True  1.00000000e+00  0.000e+00
     K2  1.5  -0.25  3.76712281e+03  3.76712281e+03        True  1.00000000e+00  2.220e-16
     K3    4   -0.8  2.35473938e+03  2.35473938e+03        True  1.00000000e+00  1.110e-16
-  saved data: Output\SpinDensityMat\spin_density_scan.npz
-  saved entanglement csv: Output\SpinDensityMat\spin_entanglement_scan.csv
-  saved entanglement plots: Output\SpinDensityMat\spin_entanglement_scan.pdf
-  saved matrix csv files: 81 in Output\SpinDensityMat\SpinDensityScan
-  saved matrix plot files: 162 in Output\SpinDensityMat\SpinDensityScan
-  saved log: Output\SpinDensityMat.log
+
+Scan Q2_t
+  outgoing basis size: 8
+  particle map: 1 = outgoing electron hOut, 2 = outgoing proton sOut, 3 = outgoing photon lambda
+  entanglement observables: C12, C13, C23, C1_23, C2_13, C3_12, F3, M1, M2, M3
+  Eb: 11
+  xB: 0.36
+  Q2 grid: 1 to 6
+  t grid: -1.2 to -0.2
+  fixed phi: 0.7
+  valid points: 121/121
+  initial spins averaged: False
+  normalized by M^2: True
+  entanglement initial state: hIn=+1, sIn=+1
+  saved data: Output\SpinDensityMat\Q2_t\spin_density_scan_Q2_t.npz
+  saved entanglement csv: Output\SpinDensityMat\Q2_t\spin_entanglement_scan_Q2_t.csv
+  saved entanglement plots: Output\SpinDensityMat\Q2_t\spin_entanglement_scan_Q2_t.pdf
+  saved matrix csv files: 121 in Output\SpinDensityMat\Q2_t\SpinDensityScan
+  saved matrix plot files: 242 in Output\SpinDensityMat\Q2_t\SpinDensityScan
+
+Scan Q2_phi
+  outgoing basis size: 8
+  particle map: 1 = outgoing electron hOut, 2 = outgoing proton sOut, 3 = outgoing photon lambda
+  entanglement observables: C12, C13, C23, C1_23, C2_13, C3_12, F3, M1, M2, M3
+  Eb: 11
+  xB: 0.36
+  Q2 grid: 1 to 6
+  phi grid: 0 to 5.75959
+  fixed t: -0.4
+  valid points: 132/132
+  initial spins averaged: False
+  normalized by M^2: True
+  entanglement initial state: hIn=+1, sIn=+1
+  saved data: Output\SpinDensityMat\Q2_phi\spin_density_scan_Q2_phi.npz
+  saved entanglement csv: Output\SpinDensityMat\Q2_phi\spin_entanglement_scan_Q2_phi.csv
+  saved entanglement plots: Output\SpinDensityMat\Q2_phi\spin_entanglement_scan_Q2_phi.pdf
+  saved matrix csv files: 132 in Output\SpinDensityMat\Q2_phi\SpinDensityScan
+  saved matrix plot files: 264 in Output\SpinDensityMat\Q2_phi\SpinDensityScan
+
+Saved log: Output\SpinDensityMat.log
