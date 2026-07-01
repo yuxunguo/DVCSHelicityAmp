@@ -325,24 +325,3 @@ col_h_out,col_s_out,col_lambda,rho_real,rho_imag,rho_abs,rho_phase
 
 `rho_abs` is the matrix-entry norm after `rho/M^2` normalization. `rho_phase`
 is the complex phase in radians.
-
-## Development Notes
-
-Keep benchmark and scan behavior in the executable modules:
-
-```text
-BHHelicityAmp.py
-SpinDensityMat.py
-```
-
-The generated logs are part of the deliverable when the scripts are changed.
-If scan settings, normalization, particle labels, or output paths change,
-rerun the relevant script and confirm the corresponding log file reflects the
-new behavior.
-
-Recommended local check before handing off changes:
-
-```powershell
-py -m py_compile Algebra.py Kinematics.py BHHelicityAmp.py SpinDensityMat.py
-C:\Users\sFerm\AppData\Local\Python\bin\python.exe SpinDensityMat.py
-```
