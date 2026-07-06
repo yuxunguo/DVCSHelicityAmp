@@ -1,0 +1,37 @@
+Final electron-photon alignment phase-space scan
+  angle cut: theta(e', gamma) <= 10 deg
+  Q2 grid: 0.5 to 6
+  xB grid: 0.1 to 0.6
+  t grid: -2.5 to -0.1
+  phi grid: 0 to 5.75959
+  valid points: 7836
+  aligned points: 25
+  amplitude normalization: M / sqrt(M^2_unpol)
+  theta range: 0.48141 to 179.903 deg
+  aligned <hOut*lambda> range: 0.0164932 to 0.523019
+  saved full csv: Output/AlignmentScan/electron_photon_spin_correlation_phase_space.csv
+  saved aligned csv: Output/AlignmentScan/electron_photon_spin_correlation_aligned.csv
+  saved density matrix full csv: Output/AlignmentScan/DensityMatScan/electron_photon_reduced_density_phase_space.csv
+  saved density matrix aligned csv: Output/AlignmentScan/DensityMatScan/electron_photon_reduced_density_aligned.csv
+  saved amplitude full csv: Output/AlignmentScan/AmplitudeScan/electron_photon_amplitude_phase_space.csv
+  saved amplitude aligned csv: Output/AlignmentScan/AmplitudeScan/electron_photon_amplitude_aligned.csv
+  saved concurrence full csv: Output/AlignmentScan/ConcurrenceScan/electron_photon_concurrence_phase_space.csv
+  saved concurrence aligned csv: Output/AlignmentScan/ConcurrenceScan/electron_photon_concurrence_aligned.csv
+  saved unpolarized amplitude magnitude plot: Output/AlignmentScan/AmplitudeScan/electron_photon_amplitude_unpolarized_matrix_abs.pdf
+  saved unpolarized amplitude phase plot: Output/AlignmentScan/AmplitudeScan/electron_photon_amplitude_unpolarized_matrix_phase.pdf
+  saved unpolarized reduced density magnitude plot: Output/AlignmentScan/DensityMatScan/electron_photon_reduced_density_unpolarized_phase_space_matrix_abs.pdf
+  saved unpolarized reduced density phase plot: Output/AlignmentScan/DensityMatScan/electron_photon_reduced_density_unpolarized_phase_space_matrix_phase.pdf
+  saved unpolarized concurrence plot: Output/AlignmentScan/ConcurrenceScan/concurrence_scan_unpolarized.pdf
+  saved longitudinal polarized amplitude magnitude plot: Output/AlignmentScan/AmplitudeScan/electron_photon_amplitude_longitudinal_polarized_matrix_abs.pdf
+  saved longitudinal polarized amplitude phase plot: Output/AlignmentScan/AmplitudeScan/electron_photon_amplitude_longitudinal_polarized_matrix_phase.pdf
+  saved longitudinal polarized reduced density magnitude plot: Output/AlignmentScan/DensityMatScan/electron_photon_reduced_density_longitudinal_polarized_phase_space_matrix_abs.pdf
+  saved longitudinal polarized reduced density phase plot: Output/AlignmentScan/DensityMatScan/electron_photon_reduced_density_longitudinal_polarized_phase_space_matrix_phase.pdf
+  saved longitudinal polarized concurrence plot: Output/AlignmentScan/ConcurrenceScan/concurrence_scan_longitudinal_polarized.pdf
+  saved transverse polarized amplitude magnitude plot: Output/AlignmentScan/AmplitudeScan/electron_photon_amplitude_transverse_polarized_matrix_abs.pdf
+  saved transverse polarized amplitude phase plot: Output/AlignmentScan/AmplitudeScan/electron_photon_amplitude_transverse_polarized_matrix_phase.pdf
+  saved transverse polarized reduced density magnitude plot: Output/AlignmentScan/DensityMatScan/electron_photon_reduced_density_transverse_polarized_phase_space_matrix_abs.pdf
+  saved transverse polarized reduced density phase plot: Output/AlignmentScan/DensityMatScan/electron_photon_reduced_density_transverse_polarized_phase_space_matrix_phase.pdf
+  saved transverse polarized concurrence plot: Output/AlignmentScan/ConcurrenceScan/concurrence_scan_transverse_polarized.pdf
+  invalid phase-space points: 3396
+
+Saved log: Output/AlignmentScan/AlignmentScan.log

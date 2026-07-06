@@ -78,10 +78,7 @@ BENCHMARK_KINEMATIC_INPUTS = (
 
 OUTPUT_DIR = Path("Output") / "SpinDensityMat"
 LOG_PATH = Path("Output") / "SpinDensityMat.log"
-REMOVED_COEFFICIENT_PLOTS = (
-    OUTPUT_DIR / "spin_density_norm_by_coefficient.pdf",
-    OUTPUT_DIR / "spin_density_phase_by_coefficient.pdf",
-)
+
 
 
 def outgoing_spin_states():
@@ -645,7 +642,6 @@ def clean_generated_outputs():
         OUTPUT_DIR / SPIN_CASE_TRANSVERSE,
         OUTPUT_DIR / "Q2_t",
         OUTPUT_DIR / "Q2_phi",
-        *REMOVED_COEFFICIENT_PLOTS,
     )
     for path in generated_paths:
         if path.is_dir():

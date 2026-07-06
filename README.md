@@ -319,17 +319,22 @@ The spin labels used in filenames are `unpolarized`,
 Running `AlignmentScan.py` cleans and regenerates:
 
 ```text
-Output/SpinDensityMat/AlignmentScan/AlignmentScan.log
-Output/SpinDensityMat/AlignmentScan/electron_photon_spin_correlation_phase_space.csv
-Output/SpinDensityMat/AlignmentScan/electron_photon_spin_correlation_aligned.csv
-Output/SpinDensityMat/AlignmentScan/electron_photon_spin_correlation_unpolarized.pdf
-Output/SpinDensityMat/AlignmentScan/electron_photon_spin_correlation_polarized.pdf
+Output/AlignmentScan/AlignmentScan.log
+Output/AlignmentScan/electron_photon_spin_correlation_phase_space.csv
+Output/AlignmentScan/electron_photon_spin_correlation_aligned.csv
+Output/AlignmentScan/DensityMatScan/
+Output/AlignmentScan/AmplitudeScan/
+Output/AlignmentScan/ConcurrenceScan/
 ```
 
 The alignment scan records the opening angle theta(e', gamma) over Q2, xB,
-t, and phi, and computes final electron-photon spin correlations for points
-inside the configured small-angle cut. The unpolarized and polarized PDFs are
-separate binned theta-vs-kinematics temperature-map documents.
+t, and phi, and computes final electron-photon spin correlations for all valid
+phase-space points. The `DensityMatScan` folder stores reduced 4 by 4
+electron-photon density-matrix CSVs and magnitude/phase PDFs. The
+`AmplitudeScan` folder stores 2 by 2 complex electron-photon amplitude CSVs
+and magnitude/phase PDFs. The `ConcurrenceScan` folder stores concurrence CSVs
+and PDFs. The density-matrix and concurrence folders cover unpolarized,
+longitudinal polarized, and transverse polarized incoming-electron spin cases.
 
 For the current grids, each spin case generates these per-point artifact
 counts:
@@ -405,8 +410,51 @@ The alignment-scan CSV files include:
 
 ```text
 Q2,xB,t,phi,theta_e_gamma_rad,theta_e_gamma_deg,aligned,
-squared_amplitude_M2,unpolarized_trace,unpolarized_h_out_mean,
-unpolarized_lambda_mean,unpolarized_h_lambda,
-unpolarized_h_lambda_connected,unpolarized_C13,polarized_trace,
-polarized_spin_signal_M2,polarized_h_lambda,polarized_delta_C13
+squared_amplitude_M2,
+<spin_case>_trace,<spin_case>_spin_signal_M2,
+<spin_case>_h_out_mean,<spin_case>_lambda_mean,
+<spin_case>_h_lambda,<spin_case>_h_lambda_connected
 ```
+
+The `DensityMatScan` CSV files add:
+
+```text
+<spin_case>_rho_ep_r0_c0_real,<spin_case>_rho_ep_r0_c0_imag,
+...
+<spin_case>_rho_ep_r3_c3_real,<spin_case>_rho_ep_r3_c3_imag
+```
+
+The `AmplitudeScan` CSV files add:
+
+```text
+amplitude_normalization_sqrt_M2,
+<spin_case>_amp_ep_norm_r0_c0_real,<spin_case>_amp_ep_norm_r0_c0_imag,
+...
+<spin_case>_amp_ep_norm_r1_c1_real,<spin_case>_amp_ep_norm_r1_c1_imag
+```
+
+The `ConcurrenceScan` CSV files add concurrence observables for each spin case:
+
+```text
+<spin_case>_C12,<spin_case>_C13,<spin_case>_C23,
+<spin_case>_C1_23,<spin_case>_C2_13,<spin_case>_C3_12,
+<spin_case>_F3,<spin_case>_M1,<spin_case>_M2,<spin_case>_M3
+```
+
+The `<spin_case>` prefixes are `unpolarized`, `longitudinal_polarized`, and
+`transverse_polarized`. The `rho_ep_r*_c*` columns are the proton-traced
+4 by 4 electron-photon reduced density matrix entries, stored as real and
+imaginary parts. The reduced basis is ordered as
+`(hOut, lambda) = (-1,-1), (-1,+1), (+1,-1), (+1,+1)`. The reduced-density
+PDFs show all 16 matrix entries as 4 by 4 grids across the full valid
+kinematic scan, with separate magnitude and phase files.
+
+The `AmplitudeScan` matrices are ordered by outgoing electron helicity rows
+`hOut = -1,+1` and photon helicity columns `lambda = -1,+1`, and coherently
+sum over the outgoing proton spin. The unpolarized amplitude uses an equal
+incoming-spin superposition, the longitudinal-polarized amplitude uses the
+`hIn=+1` minus `hIn=-1` combination at the configured proton spin, and the
+transverse-polarized amplitude uses the `hIn=+1` plus `hIn=-1` combination at
+the configured proton spin. The stored and plotted entries are normalized as
+`M / sqrt(M^2_unpol)`, where `M^2_unpol` is the `squared_amplitude_M2` value in
+the same row.
