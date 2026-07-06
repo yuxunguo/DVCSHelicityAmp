@@ -290,27 +290,31 @@ Output/SpinDensityMat/transverse/Q2_phi/
 Each scan folder contains:
 
 ```text
-spin_density_scan_<scan>.npz
+spin_density_scan_<spin-label>_<scan>.npz
     Numpy archive with the full scan arrays, kinematic grids, density
     matrices, squared amplitudes, traces, validity masks, and entanglement
     measures.
 
-spin_entanglement_scan_<scan>.csv
+spin_entanglement_scan_<spin-label>_<scan>.csv
     Summary CSV containing one row per valid kinematic point. The unpolarized
     folders contain pure-initial-state observables; the polarized folders
     contain hIn=+1 minus hIn=-1 entanglement differences at the configured
     incoming proton spin; the transverse folders contain observables for
     (hIn=-1 + hIn=+1)/sqrt(2) at the configured incoming proton spin.
 
-spin_entanglement_scan_<scan>.pdf
+spin_entanglement_scan_<spin-label>_<scan>.pdf
     Multi-page PDF heatmaps for the concurrence observables and F3. Polarized
     plots use a signed color scale for the helicity-difference observables.
 
 SpinDensityScan/
     Per-kinematic-point CSV files and two matrix plots per valid point:
     one for the amplitude-normalized density-matrix norm and one for phase.
+    Filenames begin with spin_density_<spin-label>_Q2_...
 
 ```
+
+The spin labels used in filenames are `unpolarized`,
+`longitudinal_polarized`, and `transverse`.
 
 Running `AlignmentScan.py` cleans and regenerates:
 

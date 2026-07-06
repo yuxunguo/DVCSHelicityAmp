@@ -21,9 +21,9 @@ Scan unpolarized/Q2_t
   normalized by M^2: True
   incoming spin weights: [1.0, 1.0, 1.0, 1.0] for ((-1, -1), (-1, 1), (1, -1), (1, 1))
   entanglement initial state: hIn=+1, sIn=+1
-  saved data: Output/SpinDensityMat/unpolarized/Q2_t/spin_density_scan_Q2_t.npz
-  saved entanglement csv: Output/SpinDensityMat/unpolarized/Q2_t/spin_entanglement_scan_Q2_t.csv
-  saved entanglement plots: Output/SpinDensityMat/unpolarized/Q2_t/spin_entanglement_scan_Q2_t.pdf
+  saved data: Output/SpinDensityMat/unpolarized/Q2_t/spin_density_scan_unpolarized_Q2_t.npz
+  saved entanglement csv: Output/SpinDensityMat/unpolarized/Q2_t/spin_entanglement_scan_unpolarized_Q2_t.csv
+  saved entanglement plots: Output/SpinDensityMat/unpolarized/Q2_t/spin_entanglement_scan_unpolarized_Q2_t.pdf
   saved matrix csv files: 121 in Output/SpinDensityMat/unpolarized/Q2_t/SpinDensityScan
   saved matrix plot files: 242 in Output/SpinDensityMat/unpolarized/Q2_t/SpinDensityScan
 
@@ -42,9 +42,9 @@ Scan unpolarized/Q2_phi
   normalized by M^2: True
   incoming spin weights: [1.0, 1.0, 1.0, 1.0] for ((-1, -1), (-1, 1), (1, -1), (1, 1))
   entanglement initial state: hIn=+1, sIn=+1
-  saved data: Output/SpinDensityMat/unpolarized/Q2_phi/spin_density_scan_Q2_phi.npz
-  saved entanglement csv: Output/SpinDensityMat/unpolarized/Q2_phi/spin_entanglement_scan_Q2_phi.csv
-  saved entanglement plots: Output/SpinDensityMat/unpolarized/Q2_phi/spin_entanglement_scan_Q2_phi.pdf
+  saved data: Output/SpinDensityMat/unpolarized/Q2_phi/spin_density_scan_unpolarized_Q2_phi.npz
+  saved entanglement csv: Output/SpinDensityMat/unpolarized/Q2_phi/spin_entanglement_scan_unpolarized_Q2_phi.csv
+  saved entanglement plots: Output/SpinDensityMat/unpolarized/Q2_phi/spin_entanglement_scan_unpolarized_Q2_phi.pdf
   saved matrix csv files: 132 in Output/SpinDensityMat/unpolarized/Q2_phi/SpinDensityScan
   saved matrix plot files: 264 in Output/SpinDensityMat/unpolarized/Q2_phi/SpinDensityScan
 
@@ -64,9 +64,9 @@ Scan polarized/Q2_t
   incoming spin weights: [-1.0, -1.0, 1.0, 1.0] for ((-1, -1), (-1, 1), (1, -1), (1, 1))
   polarized convention: sum_sIn rho(hIn=+1,sIn) - sum_sIn rho(hIn=-1,sIn)
   polarized entanglement: E(hIn=+1, sIn=+1) - E(hIn=-1, sIn=+1)
-  saved data: Output/SpinDensityMat/polarized/Q2_t/spin_density_scan_Q2_t.npz
-  saved entanglement csv: Output/SpinDensityMat/polarized/Q2_t/spin_entanglement_scan_Q2_t.csv
-  saved entanglement plots: Output/SpinDensityMat/polarized/Q2_t/spin_entanglement_scan_Q2_t.pdf
+  saved data: Output/SpinDensityMat/polarized/Q2_t/spin_density_scan_longitudinal_polarized_Q2_t.npz
+  saved entanglement csv: Output/SpinDensityMat/polarized/Q2_t/spin_entanglement_scan_longitudinal_polarized_Q2_t.csv
+  saved entanglement plots: Output/SpinDensityMat/polarized/Q2_t/spin_entanglement_scan_longitudinal_polarized_Q2_t.pdf
   saved matrix csv files: 121 in Output/SpinDensityMat/polarized/Q2_t/SpinDensityScan
   saved matrix plot files: 242 in Output/SpinDensityMat/polarized/Q2_t/SpinDensityScan
 
@@ -86,9 +86,9 @@ Scan polarized/Q2_phi
   incoming spin weights: [-1.0, -1.0, 1.0, 1.0] for ((-1, -1), (-1, 1), (1, -1), (1, 1))
   polarized convention: sum_sIn rho(hIn=+1,sIn) - sum_sIn rho(hIn=-1,sIn)
   polarized entanglement: E(hIn=+1, sIn=+1) - E(hIn=-1, sIn=+1)
-  saved data: Output/SpinDensityMat/polarized/Q2_phi/spin_density_scan_Q2_phi.npz
-  saved entanglement csv: Output/SpinDensityMat/polarized/Q2_phi/spin_entanglement_scan_Q2_phi.csv
-  saved entanglement plots: Output/SpinDensityMat/polarized/Q2_phi/spin_entanglement_scan_Q2_phi.pdf
+  saved data: Output/SpinDensityMat/polarized/Q2_phi/spin_density_scan_longitudinal_polarized_Q2_phi.npz
+  saved entanglement csv: Output/SpinDensityMat/polarized/Q2_phi/spin_entanglement_scan_longitudinal_polarized_Q2_phi.csv
+  saved entanglement plots: Output/SpinDensityMat/polarized/Q2_phi/spin_entanglement_scan_longitudinal_polarized_Q2_phi.pdf
   saved matrix csv files: 132 in Output/SpinDensityMat/polarized/Q2_phi/SpinDensityScan
   saved matrix plot files: 264 in Output/SpinDensityMat/polarized/Q2_phi/SpinDensityScan
 
@@ -108,9 +108,9 @@ Scan transverse/Q2_t
   incoming spin weights: [0.5, 0.5, 0.5, 0.5] for ((-1, -1), (-1, 1), (1, -1), (1, 1))
   transverse convention: sum_sIn rho((hIn=-1 + hIn=+1)/sqrt(2), sIn)
   transverse entanglement: E((hIn=-1 + hIn=+1)/sqrt(2), sIn=+1)
-  saved data: Output/SpinDensityMat/transverse/Q2_t/spin_density_scan_Q2_t.npz
-  saved entanglement csv: Output/SpinDensityMat/transverse/Q2_t/spin_entanglement_scan_Q2_t.csv
-  saved entanglement plots: Output/SpinDensityMat/transverse/Q2_t/spin_entanglement_scan_Q2_t.pdf
+  saved data: Output/SpinDensityMat/transverse/Q2_t/spin_density_scan_transverse_Q2_t.npz
+  saved entanglement csv: Output/SpinDensityMat/transverse/Q2_t/spin_entanglement_scan_transverse_Q2_t.csv
+  saved entanglement plots: Output/SpinDensityMat/transverse/Q2_t/spin_entanglement_scan_transverse_Q2_t.pdf
   saved matrix csv files: 121 in Output/SpinDensityMat/transverse/Q2_t/SpinDensityScan
   saved matrix plot files: 242 in Output/SpinDensityMat/transverse/Q2_t/SpinDensityScan
 
@@ -130,9 +130,9 @@ Scan transverse/Q2_phi
   incoming spin weights: [0.5, 0.5, 0.5, 0.5] for ((-1, -1), (-1, 1), (1, -1), (1, 1))
   transverse convention: sum_sIn rho((hIn=-1 + hIn=+1)/sqrt(2), sIn)
   transverse entanglement: E((hIn=-1 + hIn=+1)/sqrt(2), sIn=+1)
-  saved data: Output/SpinDensityMat/transverse/Q2_phi/spin_density_scan_Q2_phi.npz
-  saved entanglement csv: Output/SpinDensityMat/transverse/Q2_phi/spin_entanglement_scan_Q2_phi.csv
-  saved entanglement plots: Output/SpinDensityMat/transverse/Q2_phi/spin_entanglement_scan_Q2_phi.pdf
+  saved data: Output/SpinDensityMat/transverse/Q2_phi/spin_density_scan_transverse_Q2_phi.npz
+  saved entanglement csv: Output/SpinDensityMat/transverse/Q2_phi/spin_entanglement_scan_transverse_Q2_phi.csv
+  saved entanglement plots: Output/SpinDensityMat/transverse/Q2_phi/spin_entanglement_scan_transverse_Q2_phi.pdf
   saved matrix csv files: 132 in Output/SpinDensityMat/transverse/Q2_phi/SpinDensityScan
   saved matrix plot files: 264 in Output/SpinDensityMat/transverse/Q2_phi/SpinDensityScan
 

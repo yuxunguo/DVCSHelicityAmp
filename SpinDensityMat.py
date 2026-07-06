@@ -686,12 +686,24 @@ def scan_point_dir(scan):
     return scan_output_dir(scan) / "SpinDensityScan"
 
 
+def spin_case_filename_label(spin_case):
+    """Return the spin-case label used in generated filenames."""
+    if spin_case == SPIN_CASE_UNPOLARIZED:
+        return "unpolarized"
+    if spin_case == SPIN_CASE_POLARIZED:
+        return "longitudinal_polarized"
+    if spin_case == SPIN_CASE_TRANSVERSE:
+        return "transverse"
+    raise ValueError(f"Unknown spin density case: {spin_case}")
+
+
 def _scan_point_stem_from_indices(scan, y_index, Q2_index):
     """Return a filename stem identifying one scan point."""
     Q2 = scan["Q2_values"][Q2_index]
     y_value = scan["y_values"][y_index]
+    spin_label = spin_case_filename_label(scan["spin_case"])
     return (
-        "spin_density_"
+        f"spin_density_{spin_label}_"
         f"{_safe_float_for_filename('Q2', Q2)}_"
         f"{_safe_float_for_filename(scan['y_name'], y_value)}"
     )
@@ -719,7 +731,11 @@ def save_entanglement_plot(scan, output_path=None):
     """Save heatmap pages for concurrence observables and ``F3``."""
     plt, PdfPages = _require_matplotlib()
     if output_path is None:
-        output_path = scan_output_dir(scan) / f"spin_entanglement_scan_{scan['label']}.pdf"
+        spin_label = spin_case_filename_label(scan["spin_case"])
+        output_path = (
+            scan_output_dir(scan)
+            / f"spin_entanglement_scan_{spin_label}_{scan['label']}.pdf"
+        )
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     plot_specs = (
@@ -760,7 +776,8 @@ def save_entanglement_plot(scan, output_path=None):
 def save_scan_npz(scan, path=None):
     """Persist the full scan arrays to an NPZ archive."""
     if path is None:
-        path = scan_output_dir(scan) / f"spin_density_scan_{scan['label']}.npz"
+        spin_label = spin_case_filename_label(scan["spin_case"])
+        path = scan_output_dir(scan) / f"spin_density_scan_{spin_label}_{scan['label']}.npz"
     path.parent.mkdir(parents=True, exist_ok=True)
     entanglement_arrays = {
         f"entanglement_{name}": values
@@ -858,7 +875,11 @@ def _metadata_row(scan, t_index, Q2_index):
 def save_entanglement_csv(scan, path=None):
     """Save one summary row per valid kinematic point."""
     if path is None:
-        path = scan_output_dir(scan) / f"spin_entanglement_scan_{scan['label']}.csv"
+        spin_label = spin_case_filename_label(scan["spin_case"])
+        path = (
+            scan_output_dir(scan)
+            / f"spin_entanglement_scan_{spin_label}_{scan['label']}.csv"
+        )
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
