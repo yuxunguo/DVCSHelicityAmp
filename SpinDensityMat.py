@@ -13,8 +13,9 @@ corresponding squared amplitude when requested, and computes the two-body and
 one-to-rest concurrence observables plus ``F3`` from arXiv:2310.01477v2.
 
 Running this file as a script regenerates the SpinDensityMat output directory:
-the NPZ scan, a summary entanglement CSV/PDF, per-kinematic-point matrix
-CSVs/PDFs, and ``Output/SpinDensityMat.log``.
+unpolarized, incoming-electron-polarized, and transverse incoming-electron
+scan folders with NPZ scans, summary entanglement CSV/PDFs where defined,
+per-kinematic-point matrix CSVs/PDFs, and ``Output/SpinDensityMat.log``.
 """
 
 from itertools import product
@@ -51,6 +52,10 @@ PHI_VALUES = np.linspace(0.0, 2.0 * np.pi, 12, endpoint=False)
 AVERAGE_INITIAL_SPINS = False
 NORMALIZE_TRACE = True
 TRACE_BENCHMARK_TOL = 1e-10
+SPIN_CASE_UNPOLARIZED = "unpolarized"
+SPIN_CASE_POLARIZED = "polarized"
+SPIN_CASE_TRANSVERSE = "transverse"
+SPIN_CASES = (SPIN_CASE_UNPOLARIZED, SPIN_CASE_POLARIZED, SPIN_CASE_TRANSVERSE)
 ENTANGLEMENT_INITIAL_STATE = (+1, +1)
 ENTANGLEMENT_NAMES = (
     "C12",
@@ -89,6 +94,33 @@ def initial_spin_states():
     return tuple(product(HELICITIES, repeat=2))
 
 
+def incoming_spin_weights(spin_case=SPIN_CASE_UNPOLARIZED):
+    """Return initial-state diagonal weights for a configured spin scan.
+
+    The polarized case is the incoming-electron helicity difference
+    ``hIn=+1`` minus ``hIn=-1``, with the incoming proton spin summed in both
+    terms. The transverse case stores only the diagonal populations here; its
+    coherent interference terms are handled by
+    :func:`density_matrix_from_amplitudes`.
+    """
+    if spin_case == SPIN_CASE_UNPOLARIZED:
+        return np.ones(len(initial_spin_states()), dtype=float)
+    if spin_case == SPIN_CASE_POLARIZED:
+        return np.asarray(
+            [1.0 if h_in == 1 else -1.0 for h_in, _s_in in initial_spin_states()],
+            dtype=float,
+        )
+    if spin_case == SPIN_CASE_TRANSVERSE:
+        return np.full(len(initial_spin_states()), 0.5, dtype=float)
+    raise ValueError(f"Unknown spin density case: {spin_case}")
+
+
+def transverse_electron_coefficients():
+    """Return coefficients for ``(|h=-1> + |h=+1>)/sqrt(2)``."""
+    coefficient = 1.0 / np.sqrt(2.0)
+    return {-1: coefficient, +1: coefficient}
+
+
 def amplitude_table(mom, m, F1, F2):
     """Return ``A[in_state, out_state]`` for all BH helicity amplitudes.
 
@@ -121,19 +153,54 @@ def amplitude_table(mom, m, F1, F2):
     return amplitudes
 
 
-def density_matrix_from_amplitudes(amplitudes, average_initial=False):
+def density_matrix_from_amplitudes(
+    amplitudes,
+    average_initial=False,
+    spin_case=SPIN_CASE_UNPOLARIZED,
+):
     """Build the outgoing spin-density matrix from an amplitude table.
 
-    The convention is ``rho_ij = sum_initial A_initial,i conj(A_initial,j)``.
-    The returned squared amplitude is ``sum |A|^2`` with the same optional
-    initial-spin averaging as ``rho``.
+    For the unpolarized case, the convention is
+    ``rho_ij = sum_initial A_initial,i conj(A_initial,j)``. For the polarized
+    case, the incoming electron helicity weights are ``+1`` for ``hIn=+1`` and
+    ``-1`` for ``hIn=-1``. For the transverse case, the incoming electron is
+    the coherent state ``(|h=-1> + |h=+1>)/sqrt(2)`` and the incoming proton
+    spin is summed.
+
+    The returned tuple is ``(rho, spin_signal, squared_amplitude)``. The
+    ``spin_signal`` is the weighted trace numerator, while
+    ``squared_amplitude`` is the unpolarized ``sum |A|^2`` normalization
+    denominator.
     """
-    rho = amplitudes.T @ np.conjugate(amplitudes)
-    squared_amplitude = float(np.sum(np.abs(amplitudes) ** 2))
+    in_states = initial_spin_states()
+    if amplitudes.shape[0] != len(in_states):
+        raise ValueError(
+            "Amplitude table first axis does not match the incoming spin basis."
+        )
+
+    amplitude_norms = np.sum(np.abs(amplitudes) ** 2, axis=1)
+    squared_amplitude = float(np.sum(amplitude_norms))
+    if spin_case == SPIN_CASE_TRANSVERSE:
+        coefficients = transverse_electron_coefficients()
+        rho = np.zeros((amplitudes.shape[1], amplitudes.shape[1]), dtype=complex)
+        spin_signal = 0.0
+        for s_in in HELICITIES:
+            state = sum(
+                coefficients[h_in] * amplitudes[in_states.index((h_in, s_in))]
+                for h_in in HELICITIES
+            )
+            rho += np.outer(state, state.conj())
+            spin_signal += float(np.sum(np.abs(state) ** 2))
+    else:
+        weights = incoming_spin_weights(spin_case)
+        weighted_amplitudes = weights[:, np.newaxis] * amplitudes
+        rho = weighted_amplitudes.T @ np.conjugate(amplitudes)
+        spin_signal = float(np.sum(weights * amplitude_norms))
     if average_initial:
         rho /= amplitudes.shape[0]
+        spin_signal /= amplitudes.shape[0]
         squared_amplitude /= amplitudes.shape[0]
-    return rho, squared_amplitude
+    return rho, spin_signal, squared_amplitude
 
 
 def normalized_final_state(amplitudes, initial_state=ENTANGLEMENT_INITIAL_STATE):
@@ -153,6 +220,26 @@ def normalized_final_state(amplitudes, initial_state=ENTANGLEMENT_INITIAL_STATE)
     if norm <= 1e-14:
         raise ZeroDivisionError(
             f"Cannot normalize a zero final-state amplitude for initial state {initial_state}."
+        )
+    return state / norm
+
+
+def normalized_transverse_final_state(amplitudes, proton_spin):
+    """Return the normalized final state for transverse incoming electron spin."""
+    in_states = initial_spin_states()
+    if proton_spin not in HELICITIES:
+        raise ValueError(f"Unknown incoming proton spin: {proton_spin}")
+
+    coefficients = transverse_electron_coefficients()
+    state = sum(
+        coefficients[h_in] * amplitudes[in_states.index((h_in, proton_spin))]
+        for h_in in HELICITIES
+    )
+    norm = np.sqrt(np.sum(np.abs(state) ** 2))
+    if norm <= 1e-14:
+        raise ZeroDivisionError(
+            "Cannot normalize a zero final-state amplitude for transverse "
+            f"incoming electron and sIn={proton_spin}."
         )
     return state / norm
 
@@ -265,6 +352,25 @@ def entanglement_measures_from_state(state):
     }
 
 
+def entanglement_measures_from_amplitudes(amplitudes, initial_state):
+    """Compute entanglement observables for one incoming spin state."""
+    state = normalized_final_state(amplitudes, initial_state=initial_state)
+    return entanglement_measures_from_state(state)
+
+
+def polarized_entanglement_difference(amplitudes, proton_spin):
+    """Return hIn=+1 minus hIn=-1 entanglement observables at fixed sIn."""
+    plus = entanglement_measures_from_amplitudes(amplitudes, (+1, proton_spin))
+    minus = entanglement_measures_from_amplitudes(amplitudes, (-1, proton_spin))
+    return {name: plus[name] - minus[name] for name in ENTANGLEMENT_NAMES}
+
+
+def transverse_entanglement_measures(amplitudes, proton_spin):
+    """Return entanglement observables for the transverse incoming electron state."""
+    state = normalized_transverse_final_state(amplitudes, proton_spin)
+    return entanglement_measures_from_state(state)
+
+
 def build_scan_point(
     Eb,
     Q2,
@@ -278,6 +384,7 @@ def build_scan_point(
     average_initial=AVERAGE_INITIAL_SPINS,
     normalize_trace=NORMALIZE_TRACE,
     entanglement_initial_state=ENTANGLEMENT_INITIAL_STATE,
+    spin_case=SPIN_CASE_UNPOLARIZED,
 ):
     """Evaluate all spin-density and entanglement data for one kinematic point."""
     kin = kinematics_user_from_scalar_inputs(
@@ -291,21 +398,40 @@ def build_scan_point(
         label=f"Q2={Q2:.6g}, t={t:.6g}",
     )
     amplitudes = amplitude_table(kin["momenta"], kin["m"], F1, F2)
-    rho, squared_amplitude = density_matrix_from_amplitudes(
+    rho, spin_signal, squared_amplitude = density_matrix_from_amplitudes(
         amplitudes,
         average_initial=average_initial,
+        spin_case=spin_case,
     )
     if normalize_trace:
         if squared_amplitude <= 1e-14:
             raise ZeroDivisionError("Cannot trace-normalize a zero density matrix.")
         rho /= squared_amplitude
 
-    state = normalized_final_state(amplitudes, initial_state=entanglement_initial_state)
+    if spin_case == SPIN_CASE_UNPOLARIZED:
+        entanglement = entanglement_measures_from_amplitudes(
+            amplitudes,
+            entanglement_initial_state,
+        )
+    elif spin_case == SPIN_CASE_POLARIZED:
+        entanglement = polarized_entanglement_difference(
+            amplitudes,
+            entanglement_initial_state[1],
+        )
+    elif spin_case == SPIN_CASE_TRANSVERSE:
+        entanglement = transverse_entanglement_measures(
+            amplitudes,
+            entanglement_initial_state[1],
+        )
+    else:
+        raise ValueError(f"Unknown spin density case: {spin_case}")
+
     return {
         "rho": rho,
         "squared_amplitude": squared_amplitude,
+        "spin_signal": spin_signal,
         "trace": trace_value(rho),
-        "entanglement": entanglement_measures_from_state(state),
+        "entanglement": entanglement,
     }
 
 
@@ -324,6 +450,7 @@ def scan_spin_density_grid(
     average_initial=AVERAGE_INITIAL_SPINS,
     normalize_trace=NORMALIZE_TRACE,
     entanglement_initial_state=ENTANGLEMENT_INITIAL_STATE,
+    spin_case=SPIN_CASE_UNPOLARIZED,
 ):
     """Scan a rectangular kinematic grid of spin-density matrices.
 
@@ -340,6 +467,7 @@ def scan_spin_density_grid(
     shape = (len(y_values), len(Q2_values))
     rho_grid = np.full((*shape, len(out_states), len(out_states)), np.nan + 1j * np.nan)
     squared_amplitude_grid = np.full(shape, np.nan, dtype=float)
+    spin_signal_grid = np.full(shape, np.nan, dtype=float)
     trace_grid = np.full(shape, np.nan, dtype=float)
     t_grid = np.full(shape, np.nan, dtype=float)
     phi_grid = np.full(shape, np.nan, dtype=float)
@@ -368,6 +496,7 @@ def scan_spin_density_grid(
                     average_initial=average_initial,
                     normalize_trace=normalize_trace,
                     entanglement_initial_state=entanglement_initial_state,
+                    spin_case=spin_case,
                 )
             except Exception as exc:
                 failures.append((Q2, t, phi, str(exc)))
@@ -375,6 +504,7 @@ def scan_spin_density_grid(
 
             rho_grid[y_index, Q2_index] = point["rho"]
             squared_amplitude_grid[y_index, Q2_index] = point["squared_amplitude"]
+            spin_signal_grid[y_index, Q2_index] = point["spin_signal"]
             trace_grid[y_index, Q2_index] = point["trace"]
             t_grid[y_index, Q2_index] = t
             phi_grid[y_index, Q2_index] = phi
@@ -385,6 +515,7 @@ def scan_spin_density_grid(
     return {
         "rho": rho_grid,
         "squared_amplitude": squared_amplitude_grid,
+        "spin_signal": spin_signal_grid,
         "trace": trace_grid,
         "t_grid": t_grid,
         "phi_grid": phi_grid,
@@ -402,9 +533,25 @@ def scan_spin_density_grid(
         "Eb": Eb,
         "xB": xB,
         "out_states": out_states,
+        "initial_states": initial_spin_states(),
+        "incoming_spin_weights": incoming_spin_weights(spin_case),
         "normalized_by_squared_amplitude": normalize_trace,
         "entanglement_initial_state": entanglement_initial_state,
+        "entanglement_defined": True,
+        "entanglement_mode": entanglement_mode(spin_case),
+        "spin_case": spin_case,
     }
+
+
+def entanglement_mode(spin_case):
+    """Return a stable label for the scan entanglement convention."""
+    if spin_case == SPIN_CASE_UNPOLARIZED:
+        return "pure_initial_state"
+    if spin_case == SPIN_CASE_POLARIZED:
+        return "h_in_plus_minus_h_in_minus"
+    if spin_case == SPIN_CASE_TRANSVERSE:
+        return "h_in_minus_plus_h_in_plus_over_sqrt2"
+    raise ValueError(f"Unknown spin density case: {spin_case}")
 
 
 def benchmark_spin_density_trace(
@@ -450,9 +597,10 @@ def benchmark_spin_density_trace(
             label=f"trace benchmark {case_id}",
         )
         amplitudes = amplitude_table(kin["momenta"], kin["m"], F1, F2)
-        rho, squared_amplitude = density_matrix_from_amplitudes(
+        rho, _spin_signal, squared_amplitude = density_matrix_from_amplitudes(
             amplitudes,
             average_initial=average_initial,
+            spin_case=SPIN_CASE_UNPOLARIZED,
         )
         if squared_amplitude <= 1e-14:
             raise ZeroDivisionError(
@@ -490,7 +638,16 @@ def benchmark_spin_density_trace(
 
 def clean_generated_outputs():
     """Remove files generated by this script before creating fresh outputs."""
-    for path in (LOG_PATH, OUTPUT_DIR, *REMOVED_COEFFICIENT_PLOTS):
+    generated_paths = (
+        LOG_PATH,
+        OUTPUT_DIR / SPIN_CASE_UNPOLARIZED,
+        OUTPUT_DIR / SPIN_CASE_POLARIZED,
+        OUTPUT_DIR / SPIN_CASE_TRANSVERSE,
+        OUTPUT_DIR / "Q2_t",
+        OUTPUT_DIR / "Q2_phi",
+        *REMOVED_COEFFICIENT_PLOTS,
+    )
+    for path in generated_paths:
         if path.is_dir():
             shutil.rmtree(path)
         elif path.exists():
@@ -521,7 +678,7 @@ def _safe_float_for_filename(name, value):
 
 def scan_output_dir(scan):
     """Return the output directory for a scan dictionary."""
-    return OUTPUT_DIR / scan["label"]
+    return OUTPUT_DIR / scan["spin_case"] / scan["label"]
 
 
 def scan_point_dir(scan):
@@ -574,6 +731,11 @@ def save_entanglement_plot(scan, output_path=None):
         ("C3_12", r"$C_{3(12)}$"),
         ("F3", r"$F_3$"),
     )
+    is_polarized_difference = scan["entanglement_mode"] == "h_in_plus_minus_h_in_minus"
+    cmap = "coolwarm" if is_polarized_difference else "viridis"
+    vmin = -1.0 if is_polarized_difference else 0.0
+    vmax = 1.0
+    title_prefix = r"$\Delta_h$ " if is_polarized_difference else ""
 
     with PdfPages(output_path) as pdf:
         for name, label in plot_specs:
@@ -584,12 +746,12 @@ def save_entanglement_plot(scan, output_path=None):
                 scan["Q2_values"],
                 scan["y_values"],
                 scan["y_name"],
-                label,
-                cmap="viridis",
-                vmin=0.0,
-                vmax=1.0,
+                f"{title_prefix}{label}",
+                cmap=cmap,
+                vmin=vmin,
+                vmax=vmax,
             )
-            fig.colorbar(image, ax=ax, label=label)
+            fig.colorbar(image, ax=ax, label=f"{title_prefix}{label}")
             pdf.savefig(fig)
             plt.close(fig)
     return output_path
@@ -608,6 +770,7 @@ def save_scan_npz(scan, path=None):
         path,
         rho=scan["rho"],
         squared_amplitude=scan["squared_amplitude"],
+        spin_signal=scan["spin_signal"],
         trace=scan["trace"],
         valid=scan["valid"],
         Q2_values=scan["Q2_values"],
@@ -621,9 +784,18 @@ def save_scan_npz(scan, path=None):
         Eb=scan["Eb"],
         xB=scan["xB"],
         out_states=np.asarray(scan["out_states"], dtype=int),
+        initial_states=np.asarray(scan["initial_states"], dtype=int),
+        incoming_spin_weights=scan["incoming_spin_weights"],
+        transverse_electron_coefficients=np.asarray(
+            [transverse_electron_coefficients()[h_in] for h_in in HELICITIES],
+            dtype=float,
+        ),
         normalized_by_squared_amplitude=scan["normalized_by_squared_amplitude"],
         entanglement_names=np.asarray(scan["entanglement_names"], dtype=str),
         entanglement_initial_state=np.asarray(scan["entanglement_initial_state"], dtype=int),
+        entanglement_defined=scan["entanglement_defined"],
+        entanglement_mode=scan["entanglement_mode"],
+        spin_case=scan["spin_case"],
         **entanglement_arrays,
     )
     return path
@@ -632,10 +804,13 @@ def save_scan_npz(scan, path=None):
 def _matrix_headers(include_matrix_indices):
     """Return CSV headers for summary or per-matrix rows."""
     headers = [
+        "spin_case",
+        "entanglement_mode",
         "Q2",
         "t",
         "phi",
         "squared_amplitude_M2",
+        "spin_signal_M2",
         "trace",
         "normalized_by_squared_amplitude",
         "entanglement_h_in",
@@ -663,10 +838,13 @@ def _matrix_headers(include_matrix_indices):
 def _metadata_row(scan, t_index, Q2_index):
     """Return common scalar and entanglement columns for one scan point."""
     return [
+        scan["spin_case"],
+        scan["entanglement_mode"],
         f"{scan['Q2_values'][Q2_index]:.16e}",
         f"{scan['t_grid'][t_index, Q2_index]:.16e}",
         f"{scan['phi_grid'][t_index, Q2_index]:.16e}",
         f"{scan['squared_amplitude'][t_index, Q2_index]:.16e}",
+        f"{scan['spin_signal'][t_index, Q2_index]:.16e}",
         f"{scan['trace'][t_index, Q2_index]:.16e}",
         scan["normalized_by_squared_amplitude"],
         *scan["entanglement_initial_state"],
@@ -775,7 +953,12 @@ def save_point_matrix_plots(scan, output_dir=None):
         output_dir = scan_point_dir(scan)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    rho_symbol = r"\rho/M^2" if scan["normalized_by_squared_amplitude"] else r"\rho"
+    if scan["spin_case"] == SPIN_CASE_POLARIZED:
+        rho_symbol = r"\Delta\rho_h/M^2_{\rm unpol}" if scan["normalized_by_squared_amplitude"] else r"\Delta\rho_h"
+    elif scan["spin_case"] == SPIN_CASE_TRANSVERSE:
+        rho_symbol = r"\rho_T/M^2_{\rm unpol}" if scan["normalized_by_squared_amplitude"] else r"\rho_T"
+    else:
+        rho_symbol = r"\rho/M^2" if scan["normalized_by_squared_amplitude"] else r"\rho"
     state_key = "\n".join(_state_tick_labels(scan["out_states"]))
     paths = []
 
@@ -786,7 +969,10 @@ def save_point_matrix_plots(scan, output_dir=None):
 
             stem = _scan_point_stem_from_indices(scan, t_index, Q2_index)
             matrix = scan["rho"][t_index, Q2_index]
-            title_suffix = f"Q2={Q2:.6g}, {scan['y_name']}={y_value:.6g}"
+            title_suffix = (
+                f"{scan['spin_case']}, Q2={Q2:.6g}, "
+                f"{scan['y_name']}={y_value:.6g}"
+            )
 
             for suffix, data, title, cmap, label, vmin, vmax in (
                 (
@@ -885,10 +1071,11 @@ def build_scan_report(scan, paths):
     )
     point_dir = scan_point_dir(scan)
     lines = [
-        f"Scan {scan['label']}",
+        f"Scan {scan['spin_case']}/{scan['label']}",
         f"  outgoing basis size: {len(scan['out_states'])}",
         "  particle map: 1 = outgoing electron hOut, 2 = outgoing proton sOut, 3 = outgoing photon lambda",
         f"  entanglement observables: {', '.join(scan['entanglement_names'])}",
+        f"  entanglement mode: {scan['entanglement_mode']}",
         f"  Eb: {scan['Eb']:.6g}",
         f"  xB: {scan['xB']:.6g}",
         f"  Q2 grid: {scan['Q2_values'][0]:.6g} to {scan['Q2_values'][-1]:.6g}",
@@ -897,17 +1084,50 @@ def build_scan_report(scan, paths):
         f"  valid points: {int(scan['valid'].sum())}/{scan['valid'].size}",
         f"  initial spins averaged: {AVERAGE_INITIAL_SPINS}",
         f"  normalized by M^2: {scan['normalized_by_squared_amplitude']}",
-        (
+        f"  incoming spin weights: {scan['incoming_spin_weights'].tolist()} for {scan['initial_states']}",
+    ]
+    if scan["spin_case"] == SPIN_CASE_UNPOLARIZED:
+        lines.append(
             "  entanglement initial state: "
             f"hIn={scan['entanglement_initial_state'][0]:+d}, "
             f"sIn={scan['entanglement_initial_state'][1]:+d}"
-        ),
+        )
+    elif scan["spin_case"] == SPIN_CASE_POLARIZED:
+        lines.append(
+            "  polarized convention: sum_sIn rho(hIn=+1,sIn) - "
+            "sum_sIn rho(hIn=-1,sIn)"
+        )
+        lines.append(
+            "  polarized entanglement: "
+            f"E(hIn=+1, sIn={scan['entanglement_initial_state'][1]:+d}) - "
+            f"E(hIn=-1, sIn={scan['entanglement_initial_state'][1]:+d})"
+        )
+    elif scan["spin_case"] == SPIN_CASE_TRANSVERSE:
+        lines.append(
+            "  transverse convention: sum_sIn rho((hIn=-1 + hIn=+1)/sqrt(2), sIn)"
+        )
+        lines.append(
+            "  transverse entanglement: "
+            "E((hIn=-1 + hIn=+1)/sqrt(2), "
+            f"sIn={scan['entanglement_initial_state'][1]:+d})"
+        )
+    else:
+        raise ValueError(f"Unknown spin density case: {scan['spin_case']}")
+    lines.extend([
         f"  saved data: {paths['npz']}",
-        f"  saved entanglement csv: {paths['entanglement_csv']}",
-        f"  saved entanglement plots: {paths['entanglement_plot']}",
+        (
+            f"  saved entanglement csv: {paths['entanglement_csv']}"
+            if paths["entanglement_csv"] is not None
+            else "  saved entanglement csv: not generated"
+        ),
+        (
+            f"  saved entanglement plots: {paths['entanglement_plot']}"
+            if paths["entanglement_plot"] is not None
+            else "  saved entanglement plots: not generated"
+        ),
         f"  saved matrix csv files: {len(paths['matrix_csv'])} in {point_dir}",
         f"  saved matrix plot files: {len(paths['matrix_plots'])} in {point_dir}",
-    ]
+    ])
     if scan["failures"]:
         lines.append("  invalid grid points:")
         for Q2, t, phi, message in scan["failures"]:
@@ -934,20 +1154,24 @@ def main():
     """Regenerate all SpinDensityMat outputs from the current settings."""
     clean_generated_outputs()
     trace_benchmark_rows = benchmark_spin_density_trace()
-    scans = [
-        scan_spin_density_grid(
-            Q2_VALUES,
-            T_VALUES,
-            y_name="t",
-            fixed_phi=PHI,
-        ),
-        scan_spin_density_grid(
-            Q2_VALUES,
-            PHI_VALUES,
-            y_name="phi",
-            fixed_t=FIXED_T_FOR_PHI_SCAN,
-        ),
-    ]
+    scans = []
+    for spin_case in SPIN_CASES:
+        scans.extend([
+            scan_spin_density_grid(
+                Q2_VALUES,
+                T_VALUES,
+                y_name="t",
+                fixed_phi=PHI,
+                spin_case=spin_case,
+            ),
+            scan_spin_density_grid(
+                Q2_VALUES,
+                PHI_VALUES,
+                y_name="phi",
+                fixed_t=FIXED_T_FOR_PHI_SCAN,
+                spin_case=spin_case,
+            ),
+        ])
     scan_results = []
     for scan in scans:
         paths = {

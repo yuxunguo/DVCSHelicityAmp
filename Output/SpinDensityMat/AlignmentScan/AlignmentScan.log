@@ -1,0 +1,17 @@
+Final electron-photon alignment phase-space scan
+  angle cut: theta(e', gamma) <= 10 deg
+  Q2 grid: 0.5 to 6
+  xB grid: 0.1 to 0.6
+  t grid: -2.5 to -0.1
+  phi grid: 0 to 5.75959
+  valid points: 7836
+  aligned points: 25
+  theta range: 0.48141 to 179.903 deg
+  aligned <hOut*lambda> range: 0.0164932 to 0.523019
+  saved full csv: Output/SpinDensityMat/AlignmentScan/electron_photon_spin_correlation_phase_space.csv
+  saved aligned csv: Output/SpinDensityMat/AlignmentScan/electron_photon_spin_correlation_aligned.csv
+  saved unpolarized plots: Output/SpinDensityMat/AlignmentScan/electron_photon_spin_correlation_unpolarized.pdf
+  saved polarized plots: Output/SpinDensityMat/AlignmentScan/electron_photon_spin_correlation_polarized.pdf
+  invalid phase-space points: 3396
+
+Saved log: Output/SpinDensityMat/AlignmentScan/AlignmentScan.log

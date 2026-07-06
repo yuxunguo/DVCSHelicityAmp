@@ -16,6 +16,7 @@ Algebra.py         Dirac algebra, spinors, photon polarization vectors.
 Kinematics.py     Four-momentum builders and kinematic validation checks.
 BHHelicityAmp.py  Bethe-Heitler amplitudes and benchmark log generation.
 SpinDensityMat.py Spin-density matrix scans and entanglement observables.
+AlignmentScan.py  Final electron-photon alignment phase-space scan.
 Output/           Generated logs, scan data, CSV files, and plots.
 ```
 
@@ -56,10 +57,16 @@ Run the spin-density matrix scans:
 C:\Users\sFerm\AppData\Local\Python\bin\python.exe SpinDensityMat.py
 ```
 
+Run the final electron-photon alignment scan:
+
+```powershell
+C:\Users\sFerm\AppData\Local\Python\bin\python.exe AlignmentScan.py
+```
+
 Syntax-check all source files:
 
 ```powershell
-py -m py_compile Algebra.py Kinematics.py BHHelicityAmp.py SpinDensityMat.py
+py -m py_compile Algebra.py Kinematics.py BHHelicityAmp.py SpinDensityMat.py AlignmentScan.py
 ```
 
 ## Physics And Index Conventions
@@ -264,13 +271,20 @@ photon against the other two.
 
 ## Generated Output
 
-Running `SpinDensityMat.py` cleans and regenerates the spin-density output
-tree. Current output paths are:
+Running `SpinDensityMat.py` cleans and regenerates the spin-density scan
+outputs. The current unpolarized density-matrix scans are written under
+`unpolarized`, the incoming-electron polarized helicity-difference scans are
+written under `polarized`, and the coherent transverse incoming-electron scans
+are written under `transverse`:
 
 ```text
 Output/SpinDensityMat.log
-Output/SpinDensityMat/Q2_t/
-Output/SpinDensityMat/Q2_phi/
+Output/SpinDensityMat/unpolarized/Q2_t/
+Output/SpinDensityMat/unpolarized/Q2_phi/
+Output/SpinDensityMat/polarized/Q2_t/
+Output/SpinDensityMat/polarized/Q2_phi/
+Output/SpinDensityMat/transverse/Q2_t/
+Output/SpinDensityMat/transverse/Q2_phi/
 ```
 
 Each scan folder contains:
@@ -282,17 +296,39 @@ spin_density_scan_<scan>.npz
     measures.
 
 spin_entanglement_scan_<scan>.csv
-    Summary CSV containing one row per valid kinematic point.
+    Summary CSV containing one row per valid kinematic point. The unpolarized
+    folders contain pure-initial-state observables; the polarized folders
+    contain hIn=+1 minus hIn=-1 entanglement differences at the configured
+    incoming proton spin; the transverse folders contain observables for
+    (hIn=-1 + hIn=+1)/sqrt(2) at the configured incoming proton spin.
 
 spin_entanglement_scan_<scan>.pdf
-    Multi-page PDF heatmaps for the concurrence observables and F3.
+    Multi-page PDF heatmaps for the concurrence observables and F3. Polarized
+    plots use a signed color scale for the helicity-difference observables.
 
 SpinDensityScan/
     Per-kinematic-point CSV files and two matrix plots per valid point:
     one for the amplitude-normalized density-matrix norm and one for phase.
+
 ```
 
-For the current grids, the generated per-point artifact counts are:
+Running `AlignmentScan.py` cleans and regenerates:
+
+```text
+Output/SpinDensityMat/AlignmentScan/AlignmentScan.log
+Output/SpinDensityMat/AlignmentScan/electron_photon_spin_correlation_phase_space.csv
+Output/SpinDensityMat/AlignmentScan/electron_photon_spin_correlation_aligned.csv
+Output/SpinDensityMat/AlignmentScan/electron_photon_spin_correlation_unpolarized.pdf
+Output/SpinDensityMat/AlignmentScan/electron_photon_spin_correlation_polarized.pdf
+```
+
+The alignment scan records the opening angle theta(e', gamma) over Q2, xB,
+t, and phi, and computes final electron-photon spin correlations for points
+inside the configured small-angle cut. The unpolarized and polarized PDFs are
+separate binned theta-vs-kinematics temperature-map documents.
+
+For the current grids, each spin case generates these per-point artifact
+counts:
 
 ```text
 Q2_t    121 CSV files, 242 matrix PDFs
@@ -303,13 +339,44 @@ The top-level spin-density log records the scan settings, particle map, trace
 benchmark, normalization convention, saved paths, and invalid kinematic
 points if any occur.
 
+The polarized scan matrix is
+`sum_sIn rho(hIn=+1,sIn) - sum_sIn rho(hIn=-1,sIn)`. When trace
+normalization is enabled, this helicity-difference matrix is divided by the
+unpolarized squared amplitude `M^2`, so the matrix output remains available
+even when the helicity-difference trace is zero.
+
+The polarized entanglement scan is
+`E(hIn=+1,sIn) - E(hIn=-1,sIn)` for each concurrence/F3 observable, using
+the configured `ENTANGLEMENT_INITIAL_STATE` proton spin.
+
+The transverse scan matrix is
+`sum_sIn rho((hIn=-1 + hIn=+1)/sqrt(2),sIn)`, including the coherent
+interference between incoming electron helicities. When trace normalization is
+enabled, it is divided by the unpolarized squared amplitude `M^2`.
+
+The transverse entanglement scan uses
+`E((hIn=-1 + hIn=+1)/sqrt(2),sIn)` at the configured
+`ENTANGLEMENT_INITIAL_STATE` proton spin.
+
+The final electron-photon alignment scan uses `ALIGNMENT_ANGLE_MAX_DEG`
+in `AlignmentScan.py` as its small-angle cut. Its main spin-correlation observable is
+`<hOut * lambda>`, where `hOut` is the outgoing electron helicity label and
+`lambda` is the final real-photon helicity label. The full phase-space CSV
+contains all valid angle points; correlation columns are filled for aligned
+points where the amplitude table is evaluated.
+
+The alignment PDFs plot observables as binned heatmaps with `theta(e', gamma)`
+on the horizontal axis and `Q2`, `xB`, `t`, or `phi` on the vertical axis.
+Marker rings on the heatmap pages show occupied bins.
+
 ## CSV Structure
 
 The entanglement summary CSV files include kinematic metadata and observable
 columns:
 
 ```text
-Q2,t,phi,squared_amplitude_M2,trace,normalized_by_squared_amplitude,
+spin_case,entanglement_mode,Q2,t,phi,squared_amplitude_M2,spin_signal_M2,
+trace,normalized_by_squared_amplitude,
 entanglement_h_in,entanglement_s_in,C12,C13,C23,C1_23,C2_13,C3_12,
 F3,M1,M2,M3
 ```
@@ -317,11 +384,25 @@ F3,M1,M2,M3
 The per-point density-matrix CSV files include:
 
 ```text
-Q2,t,phi,squared_amplitude_M2,trace,normalized_by_squared_amplitude,
+spin_case,entanglement_mode,Q2,t,phi,squared_amplitude_M2,spin_signal_M2,
+trace,normalized_by_squared_amplitude,
 entanglement_h_in,entanglement_s_in,C12,C13,C23,C1_23,C2_13,C3_12,
 F3,M1,M2,M3,row_index,row_h_out,row_s_out,row_lambda,col_index,
 col_h_out,col_s_out,col_lambda,rho_real,rho_imag,rho_abs,rho_phase
 ```
 
-`rho_abs` is the matrix-entry norm after `rho/M^2` normalization. `rho_phase`
-is the complex phase in radians.
+`spin_signal_M2` is the same as `squared_amplitude_M2` for unpolarized scans,
+the signed helicity-difference trace numerator for polarized scans, and the
+transverse trace numerator for transverse scans.
+`rho_abs` is the matrix-entry norm after the configured `M^2` normalization.
+`rho_phase` is the complex phase in radians.
+
+The alignment-scan CSV files include:
+
+```text
+Q2,xB,t,phi,theta_e_gamma_rad,theta_e_gamma_deg,aligned,
+squared_amplitude_M2,unpolarized_trace,unpolarized_h_out_mean,
+unpolarized_lambda_mean,unpolarized_h_lambda,
+unpolarized_h_lambda_connected,unpolarized_C13,polarized_trace,
+polarized_spin_signal_M2,polarized_h_lambda,polarized_delta_C13
+```
