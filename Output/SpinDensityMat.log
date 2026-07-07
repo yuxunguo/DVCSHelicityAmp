@@ -1,139 +1,169 @@
 Spin-density matrix scans
   trace benchmark: passed
-  case  Q2   t      raw Tr(rho)     |M|^2           normalized  Tr(rho_norm)    error    
-  ----  ---  -----  --------------  --------------  ----------  --------------  ---------
-    K1    2   -0.4  3.07644295e+02  3.07644295e+02        True  1.00000000e+00  0.000e+00
-    K2  1.5  -0.25  3.76712281e+03  3.76712281e+03        True  1.00000000e+00  2.220e-16
-    K3    4   -0.8  2.35473938e+03  2.35473938e+03        True  1.00000000e+00  0.000e+00
+  case  s        theta_in  qOut  raw Tr(rho)     |M|^2           normalized  Tr(rho_norm)    error    
+  ----  -------  --------  ----  --------------  --------------  ----------  --------------  ---------
+    U1  21.5158       1.3  0.85  2.15379928e+03  2.15379928e+03        True  1.00000000e+00  1.110e-16
+    U2  19.3643      0.85   0.6  3.88483698e+02  3.88483698e+02        True  1.00000000e+00  2.220e-16
+    U3  24.7432       2.2   1.1  2.32355231e+02  2.32355231e+02        True  1.00000000e+00  2.220e-16
 
-Scan unpolarized/Q2_t
+Scan unpolarized/user_s_qOut
   outgoing basis size: 8
   particle map: 1 = outgoing electron hOut, 2 = outgoing proton sOut, 3 = outgoing photon lambda
   entanglement observables: C12, C13, C23, C1_23, C2_13, C3_12, F3, M1, M2, M3
   entanglement mode: pure_initial_state
-  Eb: 11
-  xB: 0.36
-  Q2 grid: 1 to 6
-  t grid: -1.2 to -0.2
-  fixed phi: 0.7
-  valid points: 121/121
+  scan parameterization: user_frame_independent
+  s grid: 15.4914 to 25.819
+  qOut grid: 0.3 to 1.55
+  fixed user vars: theta_in=1.3, phi_in=0, phiOut=3.14159
+  valid points: 80/81
   initial spins averaged: False
   normalized by M^2: True
   incoming spin weights: [1.0, 1.0, 1.0, 1.0] for ((-1, -1), (-1, 1), (1, -1), (1, 1))
   entanglement initial state: hIn=+1, sIn=+1
-  saved data: Output/SpinDensityMat/unpolarized/Q2_t/spin_density_scan_unpolarized_Q2_t.npz
-  saved entanglement csv: Output/SpinDensityMat/unpolarized/Q2_t/spin_entanglement_scan_unpolarized_Q2_t.csv
-  saved entanglement plots: Output/SpinDensityMat/unpolarized/Q2_t/spin_entanglement_scan_unpolarized_Q2_t.pdf
-  saved matrix csv files: 121 in Output/SpinDensityMat/unpolarized/Q2_t/SpinDensityScan
-  saved matrix plot files: 242 in Output/SpinDensityMat/unpolarized/Q2_t/SpinDensityScan
+  saved data: Output\SpinDensityMat\unpolarized\user_s_qOut\spin_density_scan_unpolarized_user_s_qOut.npz
+  saved entanglement csv: Output\SpinDensityMat\unpolarized\user_s_qOut\spin_entanglement_scan_unpolarized_user_s_qOut.csv
+  saved entanglement plots: Output\SpinDensityMat\unpolarized\user_s_qOut\spin_entanglement_scan_unpolarized_user_s_qOut.pdf
+  saved matrix csv files: 80 in Output\SpinDensityMat\unpolarized\user_s_qOut\SpinDensityScan
+  saved matrix plot files: 160 in Output\SpinDensityMat\unpolarized\user_s_qOut\SpinDensityScan
+  invalid grid points:
+    s=15.491408, theta_in=1.3, phi_in=0, qOut=1.55, phiOut=3.1415927: No physical pOut: photon energy is too large for this s and phOut.
 
-Scan unpolarized/Q2_phi
+Scan unpolarized/user_theta_in_phiOut
   outgoing basis size: 8
   particle map: 1 = outgoing electron hOut, 2 = outgoing proton sOut, 3 = outgoing photon lambda
   entanglement observables: C12, C13, C23, C1_23, C2_13, C3_12, F3, M1, M2, M3
   entanglement mode: pure_initial_state
-  Eb: 11
-  xB: 0.36
-  Q2 grid: 1 to 6
-  phi grid: 0 to 5.75959
-  fixed t: -0.4
-  valid points: 132/132
+  scan parameterization: user_frame_independent
+  theta_in grid: 0.35 to 2.8
+  phiOut grid: 0 to 5.75959
+  fixed user vars: s=21.5158, phi_in=0, qOut=0.85
+  valid points: 99/108
   initial spins averaged: False
   normalized by M^2: True
   incoming spin weights: [1.0, 1.0, 1.0, 1.0] for ((-1, -1), (-1, 1), (1, -1), (1, 1))
   entanglement initial state: hIn=+1, sIn=+1
-  saved data: Output/SpinDensityMat/unpolarized/Q2_phi/spin_density_scan_unpolarized_Q2_phi.npz
-  saved entanglement csv: Output/SpinDensityMat/unpolarized/Q2_phi/spin_entanglement_scan_unpolarized_Q2_phi.csv
-  saved entanglement plots: Output/SpinDensityMat/unpolarized/Q2_phi/spin_entanglement_scan_unpolarized_Q2_phi.pdf
-  saved matrix csv files: 132 in Output/SpinDensityMat/unpolarized/Q2_phi/SpinDensityScan
-  saved matrix plot files: 264 in Output/SpinDensityMat/unpolarized/Q2_phi/SpinDensityScan
+  saved data: Output\SpinDensityMat\unpolarized\user_theta_in_phiOut\spin_density_scan_unpolarized_user_theta_in_phiOut.npz
+  saved entanglement csv: Output\SpinDensityMat\unpolarized\user_theta_in_phiOut\spin_entanglement_scan_unpolarized_user_theta_in_phiOut.csv
+  saved entanglement plots: Output\SpinDensityMat\unpolarized\user_theta_in_phiOut\spin_entanglement_scan_unpolarized_user_theta_in_phiOut.pdf
+  saved matrix csv files: 99 in Output\SpinDensityMat\unpolarized\user_theta_in_phiOut\SpinDensityScan
+  saved matrix plot files: 198 in Output\SpinDensityMat\unpolarized\user_theta_in_phiOut\SpinDensityScan
+  invalid grid points:
+    s=21.515844, theta_in=0.35, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=0.65625, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=0.9625, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=1.26875, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=1.575, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=1.88125, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=2.1875, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=2.49375, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=2.8, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
 
-Scan polarized/Q2_t
+Scan polarized/user_s_qOut
   outgoing basis size: 8
   particle map: 1 = outgoing electron hOut, 2 = outgoing proton sOut, 3 = outgoing photon lambda
   entanglement observables: C12, C13, C23, C1_23, C2_13, C3_12, F3, M1, M2, M3
   entanglement mode: h_in_plus_minus_h_in_minus
-  Eb: 11
-  xB: 0.36
-  Q2 grid: 1 to 6
-  t grid: -1.2 to -0.2
-  fixed phi: 0.7
-  valid points: 121/121
+  scan parameterization: user_frame_independent
+  s grid: 15.4914 to 25.819
+  qOut grid: 0.3 to 1.55
+  fixed user vars: theta_in=1.3, phi_in=0, phiOut=3.14159
+  valid points: 80/81
   initial spins averaged: False
   normalized by M^2: True
   incoming spin weights: [-1.0, -1.0, 1.0, 1.0] for ((-1, -1), (-1, 1), (1, -1), (1, 1))
   polarized convention: sum_sIn rho(hIn=+1,sIn) - sum_sIn rho(hIn=-1,sIn)
   polarized entanglement: E(hIn=+1, sIn=+1) - E(hIn=-1, sIn=+1)
-  saved data: Output/SpinDensityMat/polarized/Q2_t/spin_density_scan_longitudinal_polarized_Q2_t.npz
-  saved entanglement csv: Output/SpinDensityMat/polarized/Q2_t/spin_entanglement_scan_longitudinal_polarized_Q2_t.csv
-  saved entanglement plots: Output/SpinDensityMat/polarized/Q2_t/spin_entanglement_scan_longitudinal_polarized_Q2_t.pdf
-  saved matrix csv files: 121 in Output/SpinDensityMat/polarized/Q2_t/SpinDensityScan
-  saved matrix plot files: 242 in Output/SpinDensityMat/polarized/Q2_t/SpinDensityScan
+  saved data: Output\SpinDensityMat\polarized\user_s_qOut\spin_density_scan_longitudinal_polarized_user_s_qOut.npz
+  saved entanglement csv: Output\SpinDensityMat\polarized\user_s_qOut\spin_entanglement_scan_longitudinal_polarized_user_s_qOut.csv
+  saved entanglement plots: Output\SpinDensityMat\polarized\user_s_qOut\spin_entanglement_scan_longitudinal_polarized_user_s_qOut.pdf
+  saved matrix csv files: 80 in Output\SpinDensityMat\polarized\user_s_qOut\SpinDensityScan
+  saved matrix plot files: 160 in Output\SpinDensityMat\polarized\user_s_qOut\SpinDensityScan
+  invalid grid points:
+    s=15.491408, theta_in=1.3, phi_in=0, qOut=1.55, phiOut=3.1415927: No physical pOut: photon energy is too large for this s and phOut.
 
-Scan polarized/Q2_phi
+Scan polarized/user_theta_in_phiOut
   outgoing basis size: 8
   particle map: 1 = outgoing electron hOut, 2 = outgoing proton sOut, 3 = outgoing photon lambda
   entanglement observables: C12, C13, C23, C1_23, C2_13, C3_12, F3, M1, M2, M3
   entanglement mode: h_in_plus_minus_h_in_minus
-  Eb: 11
-  xB: 0.36
-  Q2 grid: 1 to 6
-  phi grid: 0 to 5.75959
-  fixed t: -0.4
-  valid points: 132/132
+  scan parameterization: user_frame_independent
+  theta_in grid: 0.35 to 2.8
+  phiOut grid: 0 to 5.75959
+  fixed user vars: s=21.5158, phi_in=0, qOut=0.85
+  valid points: 99/108
   initial spins averaged: False
   normalized by M^2: True
   incoming spin weights: [-1.0, -1.0, 1.0, 1.0] for ((-1, -1), (-1, 1), (1, -1), (1, 1))
   polarized convention: sum_sIn rho(hIn=+1,sIn) - sum_sIn rho(hIn=-1,sIn)
   polarized entanglement: E(hIn=+1, sIn=+1) - E(hIn=-1, sIn=+1)
-  saved data: Output/SpinDensityMat/polarized/Q2_phi/spin_density_scan_longitudinal_polarized_Q2_phi.npz
-  saved entanglement csv: Output/SpinDensityMat/polarized/Q2_phi/spin_entanglement_scan_longitudinal_polarized_Q2_phi.csv
-  saved entanglement plots: Output/SpinDensityMat/polarized/Q2_phi/spin_entanglement_scan_longitudinal_polarized_Q2_phi.pdf
-  saved matrix csv files: 132 in Output/SpinDensityMat/polarized/Q2_phi/SpinDensityScan
-  saved matrix plot files: 264 in Output/SpinDensityMat/polarized/Q2_phi/SpinDensityScan
+  saved data: Output\SpinDensityMat\polarized\user_theta_in_phiOut\spin_density_scan_longitudinal_polarized_user_theta_in_phiOut.npz
+  saved entanglement csv: Output\SpinDensityMat\polarized\user_theta_in_phiOut\spin_entanglement_scan_longitudinal_polarized_user_theta_in_phiOut.csv
+  saved entanglement plots: Output\SpinDensityMat\polarized\user_theta_in_phiOut\spin_entanglement_scan_longitudinal_polarized_user_theta_in_phiOut.pdf
+  saved matrix csv files: 99 in Output\SpinDensityMat\polarized\user_theta_in_phiOut\SpinDensityScan
+  saved matrix plot files: 198 in Output\SpinDensityMat\polarized\user_theta_in_phiOut\SpinDensityScan
+  invalid grid points:
+    s=21.515844, theta_in=0.35, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=0.65625, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=0.9625, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=1.26875, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=1.575, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=1.88125, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=2.1875, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=2.49375, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=2.8, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
 
-Scan transverse/Q2_t
+Scan transverse/user_s_qOut
   outgoing basis size: 8
   particle map: 1 = outgoing electron hOut, 2 = outgoing proton sOut, 3 = outgoing photon lambda
   entanglement observables: C12, C13, C23, C1_23, C2_13, C3_12, F3, M1, M2, M3
   entanglement mode: h_in_minus_plus_h_in_plus_over_sqrt2
-  Eb: 11
-  xB: 0.36
-  Q2 grid: 1 to 6
-  t grid: -1.2 to -0.2
-  fixed phi: 0.7
-  valid points: 121/121
+  scan parameterization: user_frame_independent
+  s grid: 15.4914 to 25.819
+  qOut grid: 0.3 to 1.55
+  fixed user vars: theta_in=1.3, phi_in=0, phiOut=3.14159
+  valid points: 80/81
   initial spins averaged: False
   normalized by M^2: True
   incoming spin weights: [0.5, 0.5, 0.5, 0.5] for ((-1, -1), (-1, 1), (1, -1), (1, 1))
   transverse convention: sum_sIn rho((hIn=-1 + hIn=+1)/sqrt(2), sIn)
   transverse entanglement: E((hIn=-1 + hIn=+1)/sqrt(2), sIn=+1)
-  saved data: Output/SpinDensityMat/transverse/Q2_t/spin_density_scan_transverse_Q2_t.npz
-  saved entanglement csv: Output/SpinDensityMat/transverse/Q2_t/spin_entanglement_scan_transverse_Q2_t.csv
-  saved entanglement plots: Output/SpinDensityMat/transverse/Q2_t/spin_entanglement_scan_transverse_Q2_t.pdf
-  saved matrix csv files: 121 in Output/SpinDensityMat/transverse/Q2_t/SpinDensityScan
-  saved matrix plot files: 242 in Output/SpinDensityMat/transverse/Q2_t/SpinDensityScan
+  saved data: Output\SpinDensityMat\transverse\user_s_qOut\spin_density_scan_transverse_user_s_qOut.npz
+  saved entanglement csv: Output\SpinDensityMat\transverse\user_s_qOut\spin_entanglement_scan_transverse_user_s_qOut.csv
+  saved entanglement plots: Output\SpinDensityMat\transverse\user_s_qOut\spin_entanglement_scan_transverse_user_s_qOut.pdf
+  saved matrix csv files: 80 in Output\SpinDensityMat\transverse\user_s_qOut\SpinDensityScan
+  saved matrix plot files: 160 in Output\SpinDensityMat\transverse\user_s_qOut\SpinDensityScan
+  invalid grid points:
+    s=15.491408, theta_in=1.3, phi_in=0, qOut=1.55, phiOut=3.1415927: No physical pOut: photon energy is too large for this s and phOut.
 
-Scan transverse/Q2_phi
+Scan transverse/user_theta_in_phiOut
   outgoing basis size: 8
   particle map: 1 = outgoing electron hOut, 2 = outgoing proton sOut, 3 = outgoing photon lambda
   entanglement observables: C12, C13, C23, C1_23, C2_13, C3_12, F3, M1, M2, M3
   entanglement mode: h_in_minus_plus_h_in_plus_over_sqrt2
-  Eb: 11
-  xB: 0.36
-  Q2 grid: 1 to 6
-  phi grid: 0 to 5.75959
-  fixed t: -0.4
-  valid points: 132/132
+  scan parameterization: user_frame_independent
+  theta_in grid: 0.35 to 2.8
+  phiOut grid: 0 to 5.75959
+  fixed user vars: s=21.5158, phi_in=0, qOut=0.85
+  valid points: 99/108
   initial spins averaged: False
   normalized by M^2: True
   incoming spin weights: [0.5, 0.5, 0.5, 0.5] for ((-1, -1), (-1, 1), (1, -1), (1, 1))
   transverse convention: sum_sIn rho((hIn=-1 + hIn=+1)/sqrt(2), sIn)
   transverse entanglement: E((hIn=-1 + hIn=+1)/sqrt(2), sIn=+1)
-  saved data: Output/SpinDensityMat/transverse/Q2_phi/spin_density_scan_transverse_Q2_phi.npz
-  saved entanglement csv: Output/SpinDensityMat/transverse/Q2_phi/spin_entanglement_scan_transverse_Q2_phi.csv
-  saved entanglement plots: Output/SpinDensityMat/transverse/Q2_phi/spin_entanglement_scan_transverse_Q2_phi.pdf
-  saved matrix csv files: 132 in Output/SpinDensityMat/transverse/Q2_phi/SpinDensityScan
-  saved matrix plot files: 264 in Output/SpinDensityMat/transverse/Q2_phi/SpinDensityScan
+  saved data: Output\SpinDensityMat\transverse\user_theta_in_phiOut\spin_density_scan_transverse_user_theta_in_phiOut.npz
+  saved entanglement csv: Output\SpinDensityMat\transverse\user_theta_in_phiOut\spin_entanglement_scan_transverse_user_theta_in_phiOut.csv
+  saved entanglement plots: Output\SpinDensityMat\transverse\user_theta_in_phiOut\spin_entanglement_scan_transverse_user_theta_in_phiOut.pdf
+  saved matrix csv files: 99 in Output\SpinDensityMat\transverse\user_theta_in_phiOut\SpinDensityScan
+  saved matrix plot files: 198 in Output\SpinDensityMat\transverse\user_theta_in_phiOut\SpinDensityScan
+  invalid grid points:
+    s=21.515844, theta_in=0.35, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=0.65625, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=0.9625, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=1.26875, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=1.575, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=1.88125, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=2.1875, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=2.49375, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    s=21.515844, theta_in=2.8, phi_in=0, qOut=0.85, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
 
-Saved log: Output/SpinDensityMat.log
+Saved log: Output\SpinDensityMat.log

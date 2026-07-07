@@ -6,7 +6,7 @@ The outgoing spin basis is ordered as ``(hOut, sOut, lambda)``:
 * particle 2 is the outgoing proton spin/helicity ``sOut``;
 * particle 3 is the outgoing real-photon helicity ``lambda``.
 
-For each scalar kinematic point, this module builds the ``4 x 8`` table of
+For each independent user-frame kinematic point, this module builds the ``4 x 8`` table of
 Bethe-Heitler amplitudes over incoming and outgoing spin labels, converts it
 into an ``8 x 8`` final-state spin-density matrix, normalizes it by the
 corresponding squared amplitude when requested, and computes the two-body and
@@ -19,6 +19,7 @@ per-kinematic-point matrix CSVs/PDFs, and ``Output/SpinDensityMat.log``.
 """
 
 from itertools import product
+from concurrent.futures import ProcessPoolExecutor
 import csv
 import os
 from pathlib import Path
@@ -27,35 +28,52 @@ import tempfile
 
 import numpy as np
 
-from Algebra import HELICITIES, photon_pol
-from BHHelicityAmp import bh_amplitude_core
-from Kinematics import kinematics_user_from_scalar_inputs
+from Algebra import HELICITIES
+from BHHelicityAmp import bh_amplitude_table
+from Kinematics import kinematics_user_from_independent
 
 
 # ============================================================
 # Scan and output settings
 # ============================================================
 
-EB = 11.0
-XB = 0.36
-PHI = 0.7
-FIXED_T_FOR_PHI_SCAN = -0.4
 M = 0.938
 F1 = 1.0
 F2 = 0.0
-AZIMUTH_INPUT = "phi_hadron"
 
-Q2_VALUES = np.linspace(1.0, 6.0, 11)
-T_VALUES = np.linspace(-1.2, -0.2, 11)
-PHI_VALUES = np.linspace(0.0, 2.0 * np.pi, 12, endpoint=False)
+USER_BEAM_ENERGY_REFERENCE = 11.0
+USER_S_CENTER = M**2 + 2.0 * M * USER_BEAM_ENERGY_REFERENCE
+USER_S_VALUES = np.linspace(0.72 * USER_S_CENTER, 1.20 * USER_S_CENTER, 9)
+USER_QOUT_VALUES = np.linspace(0.30, 1.55, 9)
+USER_THETA_IN_VALUES = np.linspace(0.35, 2.80, 9)
+USER_PHI_OUT_VALUES = np.linspace(0.0, 2.0 * np.pi, 12, endpoint=False)
+USER_FIXED_S = USER_S_CENTER
+USER_FIXED_THETA_IN = 1.30
+USER_FIXED_PHI_IN = 0.0
+USER_FIXED_QOUT = 0.85
+USER_FIXED_PHI_OUT = np.pi
 
 AVERAGE_INITIAL_SPINS = False
 NORMALIZE_TRACE = True
 TRACE_BENCHMARK_TOL = 1e-10
+SCAN_WORKERS = max(1, min(os.cpu_count() or 1, 8))
 SPIN_CASE_UNPOLARIZED = "unpolarized"
 SPIN_CASE_POLARIZED = "polarized"
-SPIN_CASE_TRANSVERSE = "transverse"
-SPIN_CASES = (SPIN_CASE_UNPOLARIZED, SPIN_CASE_POLARIZED, SPIN_CASE_TRANSVERSE)
+SPIN_CASE_TRANSVERSE_TX = "transverse_Tx"
+SPIN_CASE_TRANSVERSE_TY = "transverse_Ty"
+LEGACY_SPIN_CASE_TRANSVERSE = "transverse"
+SPIN_CASE_TRANSVERSE = SPIN_CASE_TRANSVERSE_TX
+TRANSVERSE_SPIN_CASES = (
+    SPIN_CASE_TRANSVERSE_TX,
+    SPIN_CASE_TRANSVERSE_TY,
+    LEGACY_SPIN_CASE_TRANSVERSE,
+)
+SPIN_CASES = (
+    SPIN_CASE_UNPOLARIZED,
+    SPIN_CASE_POLARIZED,
+    SPIN_CASE_TRANSVERSE_TX,
+    SPIN_CASE_TRANSVERSE_TY,
+)
 ENTANGLEMENT_INITIAL_STATE = (+1, +1)
 ENTANGLEMENT_NAMES = (
     "C12",
@@ -70,10 +88,10 @@ ENTANGLEMENT_NAMES = (
     "M3",
 )
 
-BENCHMARK_KINEMATIC_INPUTS = (
-    ("K1", 5.0, 2.0, 0.36, -0.4, 0.7),
-    ("K2", 6.0, 1.5, 0.20, -0.25, 1.2),
-    ("K3", 10.0, 4.0, 0.30, -0.8, 2.1),
+BENCHMARK_USER_KINEMATIC_INPUTS = (
+    ("U1", USER_S_CENTER, 1.30, 0.0, 0.85, np.pi),
+    ("U2", 0.90 * USER_S_CENTER, 0.85, 0.5 * np.pi, 0.60, 0.5 * np.pi),
+    ("U3", 1.15 * USER_S_CENTER, 2.20, np.pi, 1.10, 0.0),
 )
 
 OUTPUT_DIR = Path("Output") / "SpinDensityMat"
@@ -107,15 +125,24 @@ def incoming_spin_weights(spin_case=SPIN_CASE_UNPOLARIZED):
             [1.0 if h_in == 1 else -1.0 for h_in, _s_in in initial_spin_states()],
             dtype=float,
         )
-    if spin_case == SPIN_CASE_TRANSVERSE:
+    if is_transverse_spin_case(spin_case):
         return np.full(len(initial_spin_states()), 0.5, dtype=float)
     raise ValueError(f"Unknown spin density case: {spin_case}")
 
 
-def transverse_electron_coefficients():
-    """Return coefficients for ``(|h=-1> + |h=+1>)/sqrt(2)``."""
+def is_transverse_spin_case(spin_case):
+    """Return whether ``spin_case`` is a coherent transverse electron state."""
+    return spin_case in TRANSVERSE_SPIN_CASES
+
+
+def transverse_electron_coefficients(spin_case=SPIN_CASE_TRANSVERSE_TX):
+    """Return incoming-electron coefficients for a transverse spin case."""
     coefficient = 1.0 / np.sqrt(2.0)
-    return {-1: coefficient, +1: coefficient}
+    if spin_case in (SPIN_CASE_TRANSVERSE_TX, LEGACY_SPIN_CASE_TRANSVERSE):
+        return {-1: coefficient, +1: coefficient}
+    if spin_case == SPIN_CASE_TRANSVERSE_TY:
+        return {-1: 1.0j * coefficient, +1: coefficient}
+    raise ValueError(f"Unknown transverse spin density case: {spin_case}")
 
 
 def amplitude_table(mom, m, F1, F2):
@@ -125,29 +152,14 @@ def amplitude_table(mom, m, F1, F2):
     ``out_state`` spans outgoing electron/proton/photon labels
     ``(hOut, sOut, lambda)``. The result has shape ``(4, 8)``.
     """
-    in_states = initial_spin_states()
-    out_states = outgoing_spin_states()
-    photon_pols = {lam: photon_pol(mom["qout"], lam) for lam in HELICITIES}
-    amplitudes = np.zeros((len(in_states), len(out_states)), dtype=complex)
-
-    for in_index, (h_in, s_in) in enumerate(in_states):
-        for out_index, (h_out, s_out, lam) in enumerate(out_states):
-            amplitudes[in_index, out_index] = bh_amplitude_core(
-                mom["k"],
-                mom["kp"],
-                mom["qout"],
-                mom["p"],
-                mom["pp"],
-                photon_pols[lam],
-                h_in,
-                h_out,
-                s_in,
-                s_out,
-                m,
-                F1,
-                F2,
-            )
-    return amplitudes
+    return bh_amplitude_table(
+        mom,
+        m,
+        F1,
+        F2,
+        initial_states=initial_spin_states(),
+        outgoing_states=outgoing_spin_states(),
+    )
 
 
 def density_matrix_from_amplitudes(
@@ -160,9 +172,10 @@ def density_matrix_from_amplitudes(
     For the unpolarized case, the convention is
     ``rho_ij = sum_initial A_initial,i conj(A_initial,j)``. For the polarized
     case, the incoming electron helicity weights are ``+1`` for ``hIn=+1`` and
-    ``-1`` for ``hIn=-1``. For the transverse case, the incoming electron is
-    the coherent state ``(|h=-1> + |h=+1>)/sqrt(2)`` and the incoming proton
-    spin is summed.
+    ``-1`` for ``hIn=-1``. For transverse cases, the incoming electron is
+    coherent and the incoming proton spin is summed. ``Tx`` is
+    ``(|h=+1> + |h=-1>)/sqrt(2)``; ``Ty`` is
+    ``(|h=+1> + i |h=-1>)/sqrt(2)``.
 
     The returned tuple is ``(rho, spin_signal, squared_amplitude)``. The
     ``spin_signal`` is the weighted trace numerator, while
@@ -177,8 +190,8 @@ def density_matrix_from_amplitudes(
 
     amplitude_norms = np.sum(np.abs(amplitudes) ** 2, axis=1)
     squared_amplitude = float(np.sum(amplitude_norms))
-    if spin_case == SPIN_CASE_TRANSVERSE:
-        coefficients = transverse_electron_coefficients()
+    if is_transverse_spin_case(spin_case):
+        coefficients = transverse_electron_coefficients(spin_case)
         rho = np.zeros((amplitudes.shape[1], amplitudes.shape[1]), dtype=complex)
         spin_signal = 0.0
         for s_in in HELICITIES:
@@ -221,13 +234,17 @@ def normalized_final_state(amplitudes, initial_state=ENTANGLEMENT_INITIAL_STATE)
     return state / norm
 
 
-def normalized_transverse_final_state(amplitudes, proton_spin):
+def normalized_transverse_final_state(
+    amplitudes,
+    proton_spin,
+    spin_case=SPIN_CASE_TRANSVERSE_TX,
+):
     """Return the normalized final state for transverse incoming electron spin."""
     in_states = initial_spin_states()
     if proton_spin not in HELICITIES:
         raise ValueError(f"Unknown incoming proton spin: {proton_spin}")
 
-    coefficients = transverse_electron_coefficients()
+    coefficients = transverse_electron_coefficients(spin_case)
     state = sum(
         coefficients[h_in] * amplitudes[in_states.index((h_in, proton_spin))]
         for h_in in HELICITIES
@@ -235,8 +252,8 @@ def normalized_transverse_final_state(amplitudes, proton_spin):
     norm = np.sqrt(np.sum(np.abs(state) ** 2))
     if norm <= 1e-14:
         raise ZeroDivisionError(
-            "Cannot normalize a zero final-state amplitude for transverse "
-            f"incoming electron and sIn={proton_spin}."
+            "Cannot normalize a zero final-state amplitude for "
+            f"{spin_case} incoming electron and sIn={proton_spin}."
         )
     return state / norm
 
@@ -362,37 +379,39 @@ def polarized_entanglement_difference(amplitudes, proton_spin):
     return {name: plus[name] - minus[name] for name in ENTANGLEMENT_NAMES}
 
 
-def transverse_entanglement_measures(amplitudes, proton_spin):
+def transverse_entanglement_measures(
+    amplitudes,
+    proton_spin,
+    spin_case=SPIN_CASE_TRANSVERSE_TX,
+):
     """Return entanglement observables for the transverse incoming electron state."""
-    state = normalized_transverse_final_state(amplitudes, proton_spin)
+    state = normalized_transverse_final_state(amplitudes, proton_spin, spin_case)
     return entanglement_measures_from_state(state)
 
 
-def build_scan_point(
-    Eb,
-    Q2,
-    xB,
-    t,
-    phi,
+def build_user_scan_point(
+    s,
+    theta_in,
+    phi_in,
+    qOut,
+    phiOut,
     m,
     F1,
     F2,
-    azimuth_input=AZIMUTH_INPUT,
     average_initial=AVERAGE_INITIAL_SPINS,
     normalize_trace=NORMALIZE_TRACE,
     entanglement_initial_state=ENTANGLEMENT_INITIAL_STATE,
     spin_case=SPIN_CASE_UNPOLARIZED,
 ):
-    """Evaluate all spin-density and entanglement data for one kinematic point."""
-    kin = kinematics_user_from_scalar_inputs(
-        Eb,
-        Q2,
-        xB,
-        t,
-        phi,
+    """Evaluate spin-density data at one independent user-frame point."""
+    kin = kinematics_user_from_independent(
+        s,
+        theta_in,
+        phi_in,
+        qOut,
+        phiOut,
         m,
-        azimuth_input=azimuth_input,
-        label=f"Q2={Q2:.6g}, t={t:.6g}",
+        label=f"user s={s:.6g}, theta={theta_in:.6g}, qOut={qOut:.6g}",
     )
     amplitudes = amplitude_table(kin["momenta"], kin["m"], F1, F2)
     rho, spin_signal, squared_amplitude = density_matrix_from_amplitudes(
@@ -415,10 +434,11 @@ def build_scan_point(
             amplitudes,
             entanglement_initial_state[1],
         )
-    elif spin_case == SPIN_CASE_TRANSVERSE:
+    elif is_transverse_spin_case(spin_case):
         entanglement = transverse_entanglement_measures(
             amplitudes,
             entanglement_initial_state[1],
+            spin_case,
         )
     else:
         raise ValueError(f"Unknown spin density case: {spin_case}")
@@ -429,106 +449,182 @@ def build_scan_point(
         "spin_signal": spin_signal,
         "trace": trace_value(rho),
         "entanglement": entanglement,
+        "kinematics": kin,
     }
 
 
-def scan_spin_density_grid(
-    Q2_values,
+def _scan_spin_density_user_grid_task(task):
+    """Evaluate one independent user-frame spin-density grid point."""
+    y_index, x_index, user_vars, settings = task
+    try:
+        point = build_user_scan_point(
+            user_vars["s"],
+            user_vars["theta_in"],
+            user_vars["phi_in"],
+            user_vars["qOut"],
+            user_vars["phiOut"],
+            settings["m"],
+            settings["F1"],
+            settings["F2"],
+            average_initial=settings["average_initial"],
+            normalize_trace=settings["normalize_trace"],
+            entanglement_initial_state=settings["entanglement_initial_state"],
+            spin_case=settings["spin_case"],
+        )
+    except Exception as exc:
+        return {"ok": False, **user_vars, "error": str(exc)}
+    return {
+        "ok": True,
+        "y_index": y_index,
+        "x_index": x_index,
+        "user_vars": user_vars,
+        "point": point,
+    }
+
+
+def user_vars_for_scan_point(x_name, x_value, y_name, y_value, fixed_user):
+    """Return the independent user variables for one 2D scan point."""
+    user_vars = dict(fixed_user)
+    user_vars[x_name] = float(x_value)
+    user_vars[y_name] = float(y_value)
+    return user_vars
+
+
+def scan_spin_density_user_grid(
+    x_values,
     y_values,
-    y_name="t",
-    Eb=EB,
-    xB=XB,
-    fixed_t=FIXED_T_FOR_PHI_SCAN,
-    fixed_phi=PHI,
+    x_name,
+    y_name,
+    fixed_user,
     m=M,
     F1=F1,
     F2=F2,
-    azimuth_input=AZIMUTH_INPUT,
     average_initial=AVERAGE_INITIAL_SPINS,
     normalize_trace=NORMALIZE_TRACE,
     entanglement_initial_state=ENTANGLEMENT_INITIAL_STATE,
     spin_case=SPIN_CASE_UNPOLARIZED,
+    max_workers=SCAN_WORKERS,
 ):
-    """Scan a rectangular kinematic grid of spin-density matrices.
+    """Scan a 2D grid of independent user-frame kinematic variables."""
+    allowed = {"s", "theta_in", "phi_in", "qOut", "phiOut"}
+    if x_name not in allowed or y_name not in allowed:
+        raise ValueError(f"x_name and y_name must be in {sorted(allowed)}.")
+    if x_name == y_name:
+        raise ValueError("x_name and y_name must be different.")
 
-    Returns a dictionary containing the complex density-matrix grid, per-point
-    squared amplitudes and traces, concurrence/F3 grids, validity mask,
-    failures, axis values, basis labels, and normalization metadata. The
-    second scan axis is selected by ``y_name``: either ``"t"`` at fixed
-    ``phi`` or ``"phi"`` at fixed ``t``.
-    """
-    if y_name not in ("t", "phi"):
-        raise ValueError("y_name must be 't' or 'phi'.")
-
+    x_values = np.asarray(x_values, dtype=float)
+    y_values = np.asarray(y_values, dtype=float)
     out_states = outgoing_spin_states()
-    shape = (len(y_values), len(Q2_values))
+    shape = (len(y_values), len(x_values))
     rho_grid = np.full((*shape, len(out_states), len(out_states)), np.nan + 1j * np.nan)
     squared_amplitude_grid = np.full(shape, np.nan, dtype=float)
     spin_signal_grid = np.full(shape, np.nan, dtype=float)
     trace_grid = np.full(shape, np.nan, dtype=float)
-    t_grid = np.full(shape, np.nan, dtype=float)
-    phi_grid = np.full(shape, np.nan, dtype=float)
     valid = np.zeros(shape, dtype=bool)
     entanglement_grid = {
         name: np.full(shape, np.nan, dtype=float)
         for name in ENTANGLEMENT_NAMES
     }
+    kinematic_grids = {
+        key: np.full(shape, np.nan, dtype=float)
+        for key in (
+            "s",
+            "sqrt_s",
+            "pIn",
+            "pOut",
+            "qOut",
+            "theta_in",
+            "phi_in",
+            "phiOut",
+            "Q2",
+            "xB",
+            "t",
+            "W2",
+            "y",
+        )
+    }
     failures = []
 
+    settings = {
+        "m": m,
+        "F1": F1,
+        "F2": F2,
+        "average_initial": average_initial,
+        "normalize_trace": normalize_trace,
+        "entanglement_initial_state": entanglement_initial_state,
+        "spin_case": spin_case,
+    }
+    tasks = []
     for y_index, y_value in enumerate(y_values):
-        for Q2_index, Q2 in enumerate(Q2_values):
-            t = y_value if y_name == "t" else fixed_t
-            phi = fixed_phi if y_name == "t" else y_value
-            try:
-                point = build_scan_point(
-                    Eb,
-                    Q2,
-                    xB,
-                    t,
-                    phi,
-                    m,
-                    F1,
-                    F2,
-                    azimuth_input=azimuth_input,
-                    average_initial=average_initial,
-                    normalize_trace=normalize_trace,
-                    entanglement_initial_state=entanglement_initial_state,
-                    spin_case=spin_case,
-                )
-            except Exception as exc:
-                failures.append((Q2, t, phi, str(exc)))
-                continue
+        for x_index, x_value in enumerate(x_values):
+            user_vars = user_vars_for_scan_point(
+                x_name,
+                x_value,
+                y_name,
+                y_value,
+                fixed_user,
+            )
+            tasks.append((y_index, x_index, user_vars, settings))
 
-            rho_grid[y_index, Q2_index] = point["rho"]
-            squared_amplitude_grid[y_index, Q2_index] = point["squared_amplitude"]
-            spin_signal_grid[y_index, Q2_index] = point["spin_signal"]
-            trace_grid[y_index, Q2_index] = point["trace"]
-            t_grid[y_index, Q2_index] = t
-            phi_grid[y_index, Q2_index] = phi
-            for name, value in point["entanglement"].items():
-                entanglement_grid[name][y_index, Q2_index] = value
-            valid[y_index, Q2_index] = True
+    if max_workers and max_workers > 1 and len(tasks) > 1:
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            results = list(executor.map(_scan_spin_density_user_grid_task, tasks))
+    else:
+        results = [_scan_spin_density_user_grid_task(task) for task in tasks]
+
+    for result in results:
+        if not result["ok"]:
+            failures.append((
+                result.get("s", np.nan),
+                result.get("theta_in", np.nan),
+                result.get("phi_in", np.nan),
+                result.get("qOut", np.nan),
+                result.get("phiOut", np.nan),
+                result["error"],
+            ))
+            continue
+
+        y_index = result["y_index"]
+        x_index = result["x_index"]
+        point = result["point"]
+        kin = point["kinematics"]
+        user_params = kin["user_params"]
+        user_independent = kin["user_independent"]
+        rho_grid[y_index, x_index] = point["rho"]
+        squared_amplitude_grid[y_index, x_index] = point["squared_amplitude"]
+        spin_signal_grid[y_index, x_index] = point["spin_signal"]
+        trace_grid[y_index, x_index] = point["trace"]
+        for name, value in point["entanglement"].items():
+            entanglement_grid[name][y_index, x_index] = value
+        for key in ("s", "theta_in", "phi_in", "qOut", "phiOut"):
+            kinematic_grids[key][y_index, x_index] = user_independent[key]
+        kinematic_grids["sqrt_s"][y_index, x_index] = kin["sqrt_s"]
+        kinematic_grids["pIn"][y_index, x_index] = user_params["pIn"]
+        kinematic_grids["pOut"][y_index, x_index] = user_params["pOut"]
+        for key in ("Q2", "xB", "t", "W2", "y"):
+            kinematic_grids[key][y_index, x_index] = kin[key]
+        valid[y_index, x_index] = True
 
     return {
         "rho": rho_grid,
         "squared_amplitude": squared_amplitude_grid,
         "spin_signal": spin_signal_grid,
         "trace": trace_grid,
-        "t_grid": t_grid,
-        "phi_grid": phi_grid,
+        "t_grid": kinematic_grids["t"],
+        "phi_grid": kinematic_grids["phiOut"],
+        "kinematic_grids": kinematic_grids,
         "entanglement": entanglement_grid,
         "entanglement_names": ENTANGLEMENT_NAMES,
         "valid": valid,
         "failures": failures,
-        "label": f"Q2_{y_name}",
-        "x_name": "Q2",
+        "label": f"user_{x_name}_{y_name}",
+        "x_name": x_name,
         "y_name": y_name,
-        "Q2_values": np.asarray(Q2_values, dtype=float),
-        "y_values": np.asarray(y_values, dtype=float),
-        "fixed_t": fixed_t,
-        "fixed_phi": fixed_phi,
-        "Eb": Eb,
-        "xB": xB,
+        "x_label": user_axis_label(x_name),
+        "y_label": user_axis_label(y_name),
+        "y_values": y_values,
+        "x_values": x_values,
+        "fixed_user": dict(fixed_user),
         "out_states": out_states,
         "initial_states": initial_spin_states(),
         "incoming_spin_weights": incoming_spin_weights(spin_case),
@@ -537,7 +633,20 @@ def scan_spin_density_grid(
         "entanglement_defined": True,
         "entanglement_mode": entanglement_mode(spin_case),
         "spin_case": spin_case,
+        "scan_parameterization": "user_frame_independent",
     }
+
+
+def user_axis_label(name):
+    """Return a plot/report label for one independent user-frame variable."""
+    labels = {
+        "s": r"$s$ [GeV$^2$]",
+        "theta_in": r"$\theta_{\rm in}$ [rad]",
+        "phi_in": r"$\phi_{\rm in}$ [rad]",
+        "qOut": r"$E_{\gamma}'$ [GeV]",
+        "phiOut": r"$\phi_{\gamma}'$ [rad]",
+    }
+    return labels.get(name, name)
 
 
 def entanglement_mode(spin_case):
@@ -546,51 +655,31 @@ def entanglement_mode(spin_case):
         return "pure_initial_state"
     if spin_case == SPIN_CASE_POLARIZED:
         return "h_in_plus_minus_h_in_minus"
-    if spin_case == SPIN_CASE_TRANSVERSE:
-        return "h_in_minus_plus_h_in_plus_over_sqrt2"
+    if spin_case in (SPIN_CASE_TRANSVERSE_TX, LEGACY_SPIN_CASE_TRANSVERSE):
+        return "Tx_h_in_plus_plus_h_in_minus_over_sqrt2"
+    if spin_case == SPIN_CASE_TRANSVERSE_TY:
+        return "Ty_h_in_plus_plus_i_h_in_minus_over_sqrt2"
     raise ValueError(f"Unknown spin density case: {spin_case}")
 
 
 def benchmark_spin_density_trace(
-    kinematic_inputs=BENCHMARK_KINEMATIC_INPUTS,
-    Eb_default=EB,
-    xB_default=XB,
-    phi_default=PHI,
+    kinematic_inputs=BENCHMARK_USER_KINEMATIC_INPUTS,
     m=M,
     F1=F1,
     F2=F2,
-    azimuth_input=AZIMUTH_INPUT,
     average_initial=AVERAGE_INITIAL_SPINS,
     tol=TRACE_BENCHMARK_TOL,
 ):
     """Check that selected benchmark density matrices normalize to trace one."""
     rows = []
-    for item in kinematic_inputs:
-        if len(item) == 6:
-            case_id, Eb, Q2, xB, t, phi = item
-        elif len(item) == 4:
-            case_id, Q2, t, phi = item
-            Eb = Eb_default
-            xB = xB_default
-        elif len(item) == 3:
-            case_id, Q2, t = item
-            Eb = Eb_default
-            xB = xB_default
-            phi = phi_default
-        else:
-            raise ValueError(
-                "Benchmark kinematic inputs must be "
-                "(case, Eb, Q2, xB, t, phi), (case, Q2, t, phi), or (case, Q2, t)."
-            )
-
-        kin = kinematics_user_from_scalar_inputs(
-            Eb,
-            Q2,
-            xB,
-            t,
-            phi,
+    for case_id, s, theta_in, phi_in, qOut, phiOut in kinematic_inputs:
+        kin = kinematics_user_from_independent(
+            s,
+            theta_in,
+            phi_in,
+            qOut,
+            phiOut,
             m,
-            azimuth_input=azimuth_input,
             label=f"trace benchmark {case_id}",
         )
         amplitudes = amplitude_table(kin["momenta"], kin["m"], F1, F2)
@@ -619,11 +708,14 @@ def benchmark_spin_density_trace(
 
         rows.append({
             "case": case_id,
-            "Eb": Eb,
-            "Q2": Q2,
-            "xB": xB,
-            "t": t,
-            "phi": phi,
+            "s": s,
+            "theta_in": theta_in,
+            "phi_in": phi_in,
+            "qOut": qOut,
+            "phiOut": phiOut,
+            "Q2": kin["Q2"],
+            "xB": kin["xB"],
+            "t": kin["t"],
             "raw_trace": raw_trace,
             "squared_amplitude": squared_amplitude,
             "normalized": not np.isclose(raw_trace, 1.0, rtol=tol, atol=tol),
@@ -639,9 +731,9 @@ def clean_generated_outputs():
         LOG_PATH,
         OUTPUT_DIR / SPIN_CASE_UNPOLARIZED,
         OUTPUT_DIR / SPIN_CASE_POLARIZED,
-        OUTPUT_DIR / SPIN_CASE_TRANSVERSE,
-        OUTPUT_DIR / "Q2_t",
-        OUTPUT_DIR / "Q2_phi",
+        OUTPUT_DIR / LEGACY_SPIN_CASE_TRANSVERSE,
+        OUTPUT_DIR / SPIN_CASE_TRANSVERSE_TX,
+        OUTPUT_DIR / SPIN_CASE_TRANSVERSE_TY,
     )
     for path in generated_paths:
         if path.is_dir():
@@ -688,29 +780,42 @@ def spin_case_filename_label(spin_case):
         return "unpolarized"
     if spin_case == SPIN_CASE_POLARIZED:
         return "longitudinal_polarized"
-    if spin_case == SPIN_CASE_TRANSVERSE:
-        return "transverse"
+    if spin_case in (SPIN_CASE_TRANSVERSE_TX, LEGACY_SPIN_CASE_TRANSVERSE):
+        return "transverse_Tx"
+    if spin_case == SPIN_CASE_TRANSVERSE_TY:
+        return "transverse_Ty"
     raise ValueError(f"Unknown spin density case: {spin_case}")
 
 
-def _scan_point_stem_from_indices(scan, y_index, Q2_index):
+def _scan_point_stem_from_indices(scan, y_index, x_index):
     """Return a filename stem identifying one scan point."""
-    Q2 = scan["Q2_values"][Q2_index]
+    x_value = scan["x_values"][x_index]
     y_value = scan["y_values"][y_index]
     spin_label = spin_case_filename_label(scan["spin_case"])
     return (
         f"spin_density_{spin_label}_"
-        f"{_safe_float_for_filename('Q2', Q2)}_"
+        f"{_safe_float_for_filename(scan['x_name'], x_value)}_"
         f"{_safe_float_for_filename(scan['y_name'], y_value)}"
     )
 
 
-def _plot_scan_page(ax, data, Q2_values, y_values, y_name, title, cmap, vmin=None, vmax=None):
+def _plot_scan_page(
+    ax,
+    data,
+    x_values,
+    y_values,
+    x_label,
+    y_label,
+    title,
+    cmap,
+    vmin=None,
+    vmax=None,
+):
     """Draw one kinematic-grid heatmap page and return the image artist."""
     image = ax.imshow(
         np.ma.masked_invalid(data),
         origin="lower",
-        extent=[Q2_values[0], Q2_values[-1], y_values[0], y_values[-1]],
+        extent=[x_values[0], x_values[-1], y_values[0], y_values[-1]],
         aspect="auto",
         interpolation="nearest",
         cmap=cmap,
@@ -718,8 +823,8 @@ def _plot_scan_page(ax, data, Q2_values, y_values, y_name, title, cmap, vmin=Non
         vmax=vmax,
     )
     ax.set_title(title)
-    ax.set_xlabel(r"$Q^2$ [GeV$^2$]")
-    ax.set_ylabel(r"$t$ [GeV$^2$]" if y_name == "t" else r"$\phi$ [rad]")
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
     return image
 
 
@@ -755,9 +860,10 @@ def save_entanglement_plot(scan, output_path=None):
             image = _plot_scan_page(
                 ax,
                 scan["entanglement"][name],
-                scan["Q2_values"],
+                scan["x_values"],
                 scan["y_values"],
-                scan["y_name"],
+                scan["x_label"],
+                scan["y_label"],
                 f"{title_prefix}{label}",
                 cmap=cmap,
                 vmin=vmin,
@@ -786,22 +892,27 @@ def save_scan_npz(scan, path=None):
         spin_signal=scan["spin_signal"],
         trace=scan["trace"],
         valid=scan["valid"],
-        Q2_values=scan["Q2_values"],
+        x_values=scan["x_values"],
         y_values=scan["y_values"],
         t_grid=scan["t_grid"],
         phi_grid=scan["phi_grid"],
+        **{
+            f"grid_{name}": values
+            for name, values in scan.get("kinematic_grids", {}).items()
+        },
         scan_label=scan["label"],
+        x_name=scan["x_name"],
         y_name=scan["y_name"],
-        fixed_t=scan["fixed_t"],
-        fixed_phi=scan["fixed_phi"],
-        Eb=scan["Eb"],
-        xB=scan["xB"],
+        scan_parameterization=scan["scan_parameterization"],
         out_states=np.asarray(scan["out_states"], dtype=int),
         initial_states=np.asarray(scan["initial_states"], dtype=int),
         incoming_spin_weights=scan["incoming_spin_weights"],
         transverse_electron_coefficients=np.asarray(
-            [transverse_electron_coefficients()[h_in] for h_in in HELICITIES],
-            dtype=float,
+            [
+                transverse_electron_coefficients(scan["spin_case"])[h_in]
+                for h_in in HELICITIES
+            ],
+            dtype=complex,
         ),
         normalized_by_squared_amplitude=scan["normalized_by_squared_amplitude"],
         entanglement_names=np.asarray(scan["entanglement_names"], dtype=str),
@@ -819,9 +930,24 @@ def _matrix_headers(include_matrix_indices):
     headers = [
         "spin_case",
         "entanglement_mode",
+        "scan_parameterization",
+        "scan_x_name",
+        "scan_x_value",
+        "scan_y_name",
+        "scan_y_value",
+        "s",
+        "sqrt_s",
+        "pIn",
+        "pOut",
+        "qOut",
+        "theta_in",
+        "phi_in",
+        "phiOut",
         "Q2",
+        "xB",
         "t",
-        "phi",
+        "W2",
+        "y",
         "squared_amplitude_M2",
         "spin_signal_M2",
         "trace",
@@ -848,21 +974,43 @@ def _matrix_headers(include_matrix_indices):
     return headers
 
 
-def _metadata_row(scan, t_index, Q2_index):
-    """Return common scalar and entanglement columns for one scan point."""
+def _metadata_row(scan, y_index, x_index):
+    """Return common user-frame kinematic and entanglement columns for one point."""
+    grids = scan.get("kinematic_grids", {})
+
+    def grid_value(name, default=np.nan):
+        if name in grids:
+            return grids[name][y_index, x_index]
+        return default
+
     return [
         scan["spin_case"],
         scan["entanglement_mode"],
-        f"{scan['Q2_values'][Q2_index]:.16e}",
-        f"{scan['t_grid'][t_index, Q2_index]:.16e}",
-        f"{scan['phi_grid'][t_index, Q2_index]:.16e}",
-        f"{scan['squared_amplitude'][t_index, Q2_index]:.16e}",
-        f"{scan['spin_signal'][t_index, Q2_index]:.16e}",
-        f"{scan['trace'][t_index, Q2_index]:.16e}",
+        scan["scan_parameterization"],
+        scan["x_name"],
+        f"{scan['x_values'][x_index]:.16e}",
+        scan["y_name"],
+        f"{scan['y_values'][y_index]:.16e}",
+        f"{grid_value('s'):.16e}",
+        f"{grid_value('sqrt_s'):.16e}",
+        f"{grid_value('pIn'):.16e}",
+        f"{grid_value('pOut'):.16e}",
+        f"{grid_value('qOut'):.16e}",
+        f"{grid_value('theta_in'):.16e}",
+        f"{grid_value('phi_in'):.16e}",
+        f"{grid_value('phiOut'):.16e}",
+        f"{grid_value('Q2'):.16e}",
+        f"{grid_value('xB'):.16e}",
+        f"{grid_value('t'):.16e}",
+        f"{grid_value('W2'):.16e}",
+        f"{grid_value('y'):.16e}",
+        f"{scan['squared_amplitude'][y_index, x_index]:.16e}",
+        f"{scan['spin_signal'][y_index, x_index]:.16e}",
+        f"{scan['trace'][y_index, x_index]:.16e}",
         scan["normalized_by_squared_amplitude"],
         *scan["entanglement_initial_state"],
         *(
-            f"{scan['entanglement'][name][t_index, Q2_index]:.16e}"
+            f"{scan['entanglement'][name][y_index, x_index]:.16e}"
             for name in scan["entanglement_names"]
         ),
     ]
@@ -880,10 +1028,10 @@ def save_entanglement_csv(scan, path=None):
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow(_matrix_headers(include_matrix_indices=False))
-        for t_index, _y in enumerate(scan["y_values"]):
-            for Q2_index, _Q2 in enumerate(scan["Q2_values"]):
-                if scan["valid"][t_index, Q2_index]:
-                    writer.writerow(_metadata_row(scan, t_index, Q2_index))
+        for y_index, _y in enumerate(scan["y_values"]):
+            for x_index, _x in enumerate(scan["x_values"]):
+                if scan["valid"][y_index, x_index]:
+                    writer.writerow(_metadata_row(scan, y_index, x_index))
     return path
 
 
@@ -895,14 +1043,14 @@ def save_scan_csv_files(scan, output_dir=None):
     paths = []
     headers = _matrix_headers(include_matrix_indices=True)
 
-    for t_index, _y in enumerate(scan["y_values"]):
-        for Q2_index, Q2 in enumerate(scan["Q2_values"]):
-            if not scan["valid"][t_index, Q2_index]:
+    for y_index, _y in enumerate(scan["y_values"]):
+        for x_index, _x in enumerate(scan["x_values"]):
+            if not scan["valid"][y_index, x_index]:
                 continue
 
-            path = output_dir / f"{_scan_point_stem_from_indices(scan, t_index, Q2_index)}.csv"
-            matrix = scan["rho"][t_index, Q2_index]
-            metadata = _metadata_row(scan, t_index, Q2_index)
+            path = output_dir / f"{_scan_point_stem_from_indices(scan, y_index, x_index)}.csv"
+            matrix = scan["rho"][y_index, x_index]
+            metadata = _metadata_row(scan, y_index, x_index)
             with path.open("w", newline="", encoding="utf-8") as handle:
                 writer = csv.writer(handle)
                 writer.writerow(headers)
@@ -972,22 +1120,24 @@ def save_point_matrix_plots(scan, output_dir=None):
 
     if scan["spin_case"] == SPIN_CASE_POLARIZED:
         rho_symbol = r"\Delta\rho_h/M^2_{\rm unpol}" if scan["normalized_by_squared_amplitude"] else r"\Delta\rho_h"
-    elif scan["spin_case"] == SPIN_CASE_TRANSVERSE:
-        rho_symbol = r"\rho_T/M^2_{\rm unpol}" if scan["normalized_by_squared_amplitude"] else r"\rho_T"
+    elif scan["spin_case"] in (SPIN_CASE_TRANSVERSE_TX, LEGACY_SPIN_CASE_TRANSVERSE):
+        rho_symbol = r"\rho_{T_x}/M^2_{\rm unpol}" if scan["normalized_by_squared_amplitude"] else r"\rho_{T_x}"
+    elif scan["spin_case"] == SPIN_CASE_TRANSVERSE_TY:
+        rho_symbol = r"\rho_{T_y}/M^2_{\rm unpol}" if scan["normalized_by_squared_amplitude"] else r"\rho_{T_y}"
     else:
         rho_symbol = r"\rho/M^2" if scan["normalized_by_squared_amplitude"] else r"\rho"
     state_key = "\n".join(_state_tick_labels(scan["out_states"]))
     paths = []
 
-    for t_index, y_value in enumerate(scan["y_values"]):
-        for Q2_index, Q2 in enumerate(scan["Q2_values"]):
-            if not scan["valid"][t_index, Q2_index]:
+    for y_index, y_value in enumerate(scan["y_values"]):
+        for x_index, x_value in enumerate(scan["x_values"]):
+            if not scan["valid"][y_index, x_index]:
                 continue
 
-            stem = _scan_point_stem_from_indices(scan, t_index, Q2_index)
-            matrix = scan["rho"][t_index, Q2_index]
+            stem = _scan_point_stem_from_indices(scan, y_index, x_index)
+            matrix = scan["rho"][y_index, x_index]
             title_suffix = (
-                f"{scan['spin_case']}, Q2={Q2:.6g}, "
+                f"{scan['spin_case']}, {scan['x_name']}={x_value:.6g}, "
                 f"{scan['y_name']}={y_value:.6g}"
             )
 
@@ -1042,8 +1192,9 @@ def format_trace_benchmark_rows(rows):
     """Format trace benchmark rows as a fixed-width text table."""
     headers = (
         "case",
-        "Q2",
-        "t",
+        "s",
+        "theta_in",
+        "qOut",
         "raw Tr(rho)",
         "|M|^2",
         "normalized",
@@ -1053,8 +1204,9 @@ def format_trace_benchmark_rows(rows):
     table_rows = [
         (
             row["case"],
-            f"{row['Q2']:.6g}",
-            f"{row['t']:.6g}",
+            f"{row['s']:.6g}",
+            f"{row['theta_in']:.6g}",
+            f"{row['qOut']:.6g}",
             f"{row['raw_trace']:.8e}",
             f"{row['squared_amplitude']:.8e}",
             str(row["normalized"]),
@@ -1081,10 +1233,14 @@ def format_trace_benchmark_rows(rows):
 def build_scan_report(scan, paths):
     """Build the report block for one completed scan."""
     y_values = scan["y_values"]
+    fixed_user = scan["fixed_user"]
     fixed_line = (
-        f"  fixed phi: {scan['fixed_phi']:.6g}"
-        if scan["y_name"] == "t"
-        else f"  fixed t: {scan['fixed_t']:.6g}"
+        "  fixed user vars: "
+        + ", ".join(
+            f"{name}={value:.6g}"
+            for name, value in fixed_user.items()
+            if name not in (scan["x_name"], scan["y_name"])
+        )
     )
     point_dir = scan_point_dir(scan)
     lines = [
@@ -1093,9 +1249,8 @@ def build_scan_report(scan, paths):
         "  particle map: 1 = outgoing electron hOut, 2 = outgoing proton sOut, 3 = outgoing photon lambda",
         f"  entanglement observables: {', '.join(scan['entanglement_names'])}",
         f"  entanglement mode: {scan['entanglement_mode']}",
-        f"  Eb: {scan['Eb']:.6g}",
-        f"  xB: {scan['xB']:.6g}",
-        f"  Q2 grid: {scan['Q2_values'][0]:.6g} to {scan['Q2_values'][-1]:.6g}",
+        f"  scan parameterization: {scan['scan_parameterization']}",
+        f"  {scan['x_name']} grid: {scan['x_values'][0]:.6g} to {scan['x_values'][-1]:.6g}",
         f"  {scan['y_name']} grid: {y_values[0]:.6g} to {y_values[-1]:.6g}",
         fixed_line,
         f"  valid points: {int(scan['valid'].sum())}/{scan['valid'].size}",
@@ -1119,13 +1274,22 @@ def build_scan_report(scan, paths):
             f"E(hIn=+1, sIn={scan['entanglement_initial_state'][1]:+d}) - "
             f"E(hIn=-1, sIn={scan['entanglement_initial_state'][1]:+d})"
         )
-    elif scan["spin_case"] == SPIN_CASE_TRANSVERSE:
+    elif scan["spin_case"] in (SPIN_CASE_TRANSVERSE_TX, LEGACY_SPIN_CASE_TRANSVERSE):
         lines.append(
-            "  transverse convention: sum_sIn rho((hIn=-1 + hIn=+1)/sqrt(2), sIn)"
+            "  transverse Tx convention: sum_sIn rho((hIn=+1 + hIn=-1)/sqrt(2), sIn)"
         )
         lines.append(
-            "  transverse entanglement: "
-            "E((hIn=-1 + hIn=+1)/sqrt(2), "
+            "  transverse Tx entanglement: "
+            "E((hIn=+1 + hIn=-1)/sqrt(2), "
+            f"sIn={scan['entanglement_initial_state'][1]:+d})"
+        )
+    elif scan["spin_case"] == SPIN_CASE_TRANSVERSE_TY:
+        lines.append(
+            "  transverse Ty convention: sum_sIn rho((hIn=+1 + i hIn=-1)/sqrt(2), sIn)"
+        )
+        lines.append(
+            "  transverse Ty entanglement: "
+            "E((hIn=+1 + i hIn=-1)/sqrt(2), "
             f"sIn={scan['entanglement_initial_state'][1]:+d})"
         )
     else:
@@ -1147,8 +1311,11 @@ def build_scan_report(scan, paths):
     ])
     if scan["failures"]:
         lines.append("  invalid grid points:")
-        for Q2, t, phi, message in scan["failures"]:
-            lines.append(f"    Q2={Q2:.8g}, t={t:.8g}, phi={phi:.8g}: {message}")
+        for s, theta_in, phi_in, qOut, phiOut, message in scan["failures"]:
+            lines.append(
+                f"    s={s:.8g}, theta_in={theta_in:.8g}, phi_in={phi_in:.8g}, "
+                f"qOut={qOut:.8g}, phiOut={phiOut:.8g}: {message}"
+            )
     return "\n".join(lines)
 
 
@@ -1171,21 +1338,30 @@ def main():
     """Regenerate all SpinDensityMat outputs from the current settings."""
     clean_generated_outputs()
     trace_benchmark_rows = benchmark_spin_density_trace()
+    fixed_user = {
+        "s": USER_FIXED_S,
+        "theta_in": USER_FIXED_THETA_IN,
+        "phi_in": USER_FIXED_PHI_IN,
+        "qOut": USER_FIXED_QOUT,
+        "phiOut": USER_FIXED_PHI_OUT,
+    }
     scans = []
     for spin_case in SPIN_CASES:
         scans.extend([
-            scan_spin_density_grid(
-                Q2_VALUES,
-                T_VALUES,
-                y_name="t",
-                fixed_phi=PHI,
+            scan_spin_density_user_grid(
+                USER_S_VALUES,
+                USER_QOUT_VALUES,
+                x_name="s",
+                y_name="qOut",
+                fixed_user=fixed_user,
                 spin_case=spin_case,
             ),
-            scan_spin_density_grid(
-                Q2_VALUES,
-                PHI_VALUES,
-                y_name="phi",
-                fixed_t=FIXED_T_FOR_PHI_SCAN,
+            scan_spin_density_user_grid(
+                USER_THETA_IN_VALUES,
+                USER_PHI_OUT_VALUES,
+                x_name="theta_in",
+                y_name="phiOut",
+                fixed_user=fixed_user,
                 spin_case=spin_case,
             ),
         ])

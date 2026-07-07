@@ -3,9 +3,9 @@
 This module evaluates the Bethe-Heitler contribution to exclusive
 electroproduction in the conventions provided by :mod:`Algebra` and
 :mod:`Kinematics`. It exposes low-level routines that operate directly on
-four-momenta, convenience wrappers for the user and scalar kinematic
-parameterizations, and a script entry point that writes a detailed comparison
-against analytic benchmark formulae to ``Output/BHHelicityAmp.log``.
+four-momenta, user-frame convenience wrappers, and a script entry point that
+writes a comparison against analytic benchmark formulae to
+``Output/BHHelicityAmp.log``.
 
 Helicity labels are doubled helicities ``+1`` and ``-1``. The final photon
 polarization vector is generated from its four-momentum and contracted as
@@ -37,12 +37,9 @@ from Algebra import (
     spinor_bar,
 )
 from Kinematics import (
-    kinematics_user_from_scalar_inputs,
-    momenta_cm_from_beam_energy,
+    kinematics_user_from_independent,
     momenta_user,
 )
-
-BENCHMARK_AZIMUTH_INPUT = "phi_hadron"  # Use "phi_hadron" or "phi_out".
 
 
 # ============================================================
@@ -213,6 +210,53 @@ def bh_unpolarized_squared_amplitude_core(
     return float(total / 4.0 if average_initial else total)
 
 
+def bh_amplitude_table(
+    momenta,
+    m,
+    F1,
+    F2,
+    initial_states=None,
+    outgoing_states=None,
+):
+    """Return the full Bethe-Heitler helicity-amplitude table.
+
+    The first axis spans incoming ``(hIn, sIn)`` spin labels and the second
+    axis spans outgoing ``(hOut, sOut, lambda)`` labels.  By default the
+    labels are ordered lexicographically from ``HELICITIES=(-1, +1)``.
+    """
+    if initial_states is None:
+        initial_states = tuple(product(HELICITIES, repeat=2))
+    if outgoing_states is None:
+        outgoing_states = tuple(product(HELICITIES, repeat=3))
+
+    k = _as_four_vector(momenta["k"], "k", dtype=float)
+    kp = _as_four_vector(momenta["kp"], "kp", dtype=float)
+    qout = _as_four_vector(momenta["qout"], "qout", dtype=float)
+    p = _as_four_vector(momenta["p"], "p", dtype=float)
+    pp = _as_four_vector(momenta["pp"], "pp", dtype=float)
+    photon_pols = {lam: photon_pol(qout, lam) for lam in HELICITIES}
+    amplitudes = np.zeros((len(initial_states), len(outgoing_states)), dtype=complex)
+
+    for in_index, (h_in, s_in) in enumerate(initial_states):
+        for out_index, (h_out, s_out, lam) in enumerate(outgoing_states):
+            amplitudes[in_index, out_index] = bh_amplitude_core(
+                k,
+                kp,
+                qout,
+                p,
+                pp,
+                photon_pols[lam],
+                h_in,
+                h_out,
+                s_in,
+                s_out,
+                m,
+                F1,
+                F2,
+            )
+    return amplitudes
+
+
 def bh_amplitude_user(
     pIn, pOut, qOut, th, ph, phOut,
     hIn, hOut,
@@ -252,40 +296,6 @@ def bh_unpolarized_squared_amplitude_user(
     )
 
 
-def bh_amplitude_cm_from_beam_energy(
-    Eb, Q2, xB, t, phi,
-    hIn, hOut,
-    sIn, sOut,
-    lam,
-    m, F1, F2,
-):
-    """Evaluate a fixed-helicity amplitude from scalar COM kinematics."""
-    mom = momenta_cm_from_beam_energy(Eb, Q2, xB, t, phi, m)
-    return bh_amplitude_core(
-        mom["k"], mom["kp"], mom["qout"],
-        mom["p"], mom["pp"],
-        photon_pol(mom["qout"], lam),
-        hIn, hOut,
-        sIn, sOut,
-        m, F1, F2,
-    )
-
-
-def bh_unpolarized_squared_amplitude_cm_from_beam_energy(
-    Eb, Q2, xB, t, phi,
-    m, F1, F2,
-    average_initial=True,
-):
-    """Return the unpolarized squared amplitude from scalar COM kinematics."""
-    mom = momenta_cm_from_beam_energy(Eb, Q2, xB, t, phi, m)
-    return bh_unpolarized_squared_amplitude_core(
-        mom["k"], mom["kp"], mom["qout"],
-        mom["p"], mom["pp"],
-        m, F1, F2,
-        average_initial=average_initial,
-    )
-
-
 def bh_amplitude_same_electron_helicity(
     pIn, pOut, qOut, th, ph, phOut,
     h, sIn, sOut, lam,
@@ -302,16 +312,11 @@ def bh_amplitude_same_electron_helicity(
 def main():
     """Run the analytic benchmark sweep and write ``Output/BHHelicityAmp.log``.
 
-    The benchmark constructs several scalar kinematic points, converts them
-    into the user backend frame, checks scalar reconstruction, and compares
-    numerical spinor sums with analytic Bethe-Heitler expressions for multiple
-    ``(F1, F2)`` form-factor choices.
+    The benchmark constructs several independent user-frame kinematic points
+    and compares numerical spinor sums with analytic Bethe-Heitler expressions
+    for multiple ``(F1, F2)`` form-factor choices.
     """
     from pathlib import Path
-
-    azimuth_input = BENCHMARK_AZIMUTH_INPUT
-    if azimuth_input not in ("phi_hadron", "phi_out"):
-        raise ValueError("BENCHMARK_AZIMUTH_INPUT must be 'phi_hadron' or 'phi_out'.")
 
     def ascii_table(headers, rows, group_by=None):
         table_rows = [[str(item) for item in row] for row in rows]
@@ -383,84 +388,9 @@ def main():
     def normalize_angle(angle):
         return float(angle % (2.0 * np.pi))
 
-    def angular_diff(value, reference):
-        return float((value - reference + np.pi) % (2.0 * np.pi) - np.pi)
-
     def vector_azimuth(vector):
         vector = _as_four_vector(vector, "vector", dtype=float)
         return normalize_angle(np.arctan2(vector[2], vector[1]))
-
-    def boost_to_rest_frame(v, beta):
-        v = _as_four_vector(v, "v", dtype=float)
-        beta = np.asarray(beta, dtype=float)
-        beta2 = float(np.dot(beta, beta))
-        if beta2 <= 1e-24:
-            return np.array(v, dtype=float, copy=True)
-        if beta2 >= 1.0:
-            raise ValueError("Boost velocity must be subluminal.")
-
-        gamma = 1.0 / np.sqrt(1.0 - beta2)
-        beta_dot_v = float(np.dot(beta, v[1:4]))
-        spatial = v[1:4] + (
-            (gamma - 1.0) * beta_dot_v / beta2 - gamma * v[0]
-        ) * beta
-        return np.concatenate([[gamma * (v[0] - beta_dot_v)], spatial])
-
-    def target_rest_momenta(mom):
-        beta = mom["p"][1:4] / mom["p"][0]
-        return {name: boost_to_rest_frame(vector, beta) for name, vector in mom.items()}
-
-    def reconstruct_phi(mom):
-        q_vec = mom["q"][1:4]
-        qhat = q_vec / np.linalg.norm(q_vec)
-        lepton_normal = np.cross(mom["k"][1:4], mom["kp"][1:4])
-        lepton_normal /= np.linalg.norm(lepton_normal)
-        ex = np.cross(lepton_normal, qhat)
-        ex /= np.linalg.norm(ex)
-        pp_transverse = mom["pp"][1:4] - np.dot(mom["pp"][1:4], qhat) * qhat
-        return normalize_angle(
-            np.arctan2(np.dot(pp_transverse, lepton_normal), np.dot(pp_transverse, ex))
-        )
-
-    def scalar_checks(case_id, kin):
-        mom = kin["momenta"]
-        m = kin["m"]
-        q = mom["k"] - mom["kp"]
-        rest_mom = target_rest_momenta(mom)
-        s_from_p4 = _real_scalar(mdot(mom["k"] + mom["p"], mom["k"] + mom["p"]), "s")
-        eb_from_p4 = (s_from_p4 - m**2) / (2.0 * m)
-        q2_from_p4 = -_real_scalar(mdot(q, q), "Q2")
-        xB_from_p4 = q2_from_p4 / (2.0 * _real_scalar(mdot(mom["p"], q), "p.q"))
-        t_from_p4 = _real_scalar(mdot(mom["pp"] - mom["p"], mom["pp"] - mom["p"]), "t")
-        phi_hadron_from_p4 = reconstruct_phi(rest_mom)
-        phi_out_from_p4 = vector_azimuth(mom["qout"])
-        conservation = mom["k"] + mom["p"] - mom["kp"] - mom["pp"] - mom["qout"]
-
-        def mass_shell(name, target):
-            value = _real_scalar(mdot(mom[name], mom[name]), f"{name}^2")
-            return (f"{name}^2", target, value, "GeV^2", False)
-
-        checks = [
-            ("Eb", kin["Eb"], eb_from_p4, "GeV", False),
-            ("Q2", kin["Q2"], q2_from_p4, "GeV^2", False),
-            ("xB", kin["xB"], xB_from_p4, "1", False),
-            ("t", kin["t"], t_from_p4, "GeV^2", False),
-            ("phi_hadron", kin["phi_hadron"], phi_hadron_from_p4, "rad", True),
-            ("phi_out", kin["phi_out"], phi_out_from_p4, "rad", True),
-            mass_shell("k", 0.0),
-            mass_shell("kp", 0.0),
-            mass_shell("qout", 0.0),
-            mass_shell("p", m**2),
-            mass_shell("pp", m**2),
-            ("energy balance", 0.0, conservation[0], "GeV", False),
-            ("|3-mom balance|", 0.0, np.linalg.norm(conservation[1:4]), "GeV", False),
-            ("user backend rebuild", 0.0, kin["user_rebuild_residual"], "GeV", False),
-        ]
-        rows = []
-        for name, target, value, unit, is_angle in checks:
-            diff = angular_diff(value, target) if is_angle else value - target
-            rows.append([case_id, name, fmt(target), fmt(value), f"{diff:.3e}", unit])
-        return rows
 
     def analytic_bh_terms(mom, m, h=0, S=None):
         pbar = 0.5 * (mom["pp"] + mom["p"])
@@ -538,13 +468,13 @@ def main():
             )
         return value / t
 
-    input_keys = ("case", "Eb", "Q2", "xB", "t", "phi", "m")
+    input_keys = ("case", "s", "theta_in", "phi_in", "qOut", "phiOut", "m")
     kinematic_inputs = [
         dict(zip(input_keys, row))
         for row in (
-            ("K1", 5.0, 2.0, 0.36, -0.4, 0.7, 0.938),
-            ("K2", 6.0, 1.5, 0.20, -0.25, 1.2, 0.938),
-            ("K3", 10.0, 4.0, 0.30, -0.8, 2.1, 0.938),
+            ("K1", 10.25844, 1.10, 0.20, 0.45, 2.40, 0.938),
+            ("K2", 14.01544, 1.45, 0.70, 0.70, 3.10, 0.938),
+            ("K3", 19.64894, 1.90, 1.10, 0.95, 3.70, 0.938),
         )
     ]
     form_factors = [(0.5, 0.0), (0.8, 0.0), (1.0, 0.2)]
@@ -554,17 +484,15 @@ def main():
     ref_F1, ref_F2 = 1.0, 0.0
     pol_h_in, pol_s = +1, +1
     pol_h_analytic = 0.5 * pol_h_in
-    azimuth_input_header = (
-        "phi_hadron input [rad]"
-        if azimuth_input == "phi_hadron"
-        else "phi_out input [rad]"
-    )
 
     def build_case(inputs):
-        kin = kinematics_user_from_scalar_inputs(
-            inputs["Eb"], inputs["Q2"], inputs["xB"],
-            inputs["t"], inputs["phi"], inputs["m"],
-            azimuth_input=azimuth_input,
+        kin = kinematics_user_from_independent(
+            inputs["s"],
+            inputs["theta_in"],
+            inputs["phi_in"],
+            inputs["qOut"],
+            inputs["phiOut"],
+            inputs["m"],
             label=inputs["case"],
         )
         mom = kin["momenta"]
@@ -589,11 +517,31 @@ def main():
         params = case["kin"]["user_params"]
         return [
             case["id"],
-            *values_from(params, ("pIn", "pOut", "qOut", "th", "ph")),
-            fmt(case["kin"]["phi_hadron"]),
-            fmt(params["phOut"]),
+            *values_from(params, ("pIn", "pOut", "qOut", "th", "ph", "phOut")),
             fmt(case["kin"]["user_rebuild_residual"]),
         ]
+
+    def kinematic_checks(case):
+        kin = case["kin"]
+        mom = case["mom"]
+        m = kin["m"]
+        conservation = mom["k"] + mom["p"] - mom["kp"] - mom["pp"] - mom["qout"]
+
+        def row(name, target, value, unit):
+            return [case["id"], name, fmt(target), fmt(value), f"{value - target:.3e}", unit]
+
+        rows = [
+            row("s", case["input"]["s"], kin["s"], "GeV^2"),
+            row("user rebuild", 0.0, kin["user_rebuild_residual"], "GeV"),
+            row("energy balance", 0.0, conservation[0], "GeV"),
+            row("|3-mom balance|", 0.0, np.linalg.norm(conservation[1:4]), "GeV"),
+            row("k^2", 0.0, _real_scalar(mdot(mom["k"], mom["k"]), "k^2"), "GeV^2"),
+            row("kp^2", 0.0, _real_scalar(mdot(mom["kp"], mom["kp"]), "kp^2"), "GeV^2"),
+            row("qout^2", 0.0, _real_scalar(mdot(mom["qout"], mom["qout"]), "qout^2"), "GeV^2"),
+            row("p^2", m**2, _real_scalar(mdot(mom["p"], mom["p"]), "p^2"), "GeV^2"),
+            row("pp^2", m**2, _real_scalar(mdot(mom["pp"], mom["pp"]), "pp^2"), "GeV^2"),
+        ]
+        return rows
 
     def spin_row(case):
         S = case["S"]
@@ -604,11 +552,11 @@ def main():
         ]
 
     independent_rows = [
-        row_from(case, "input", ("Eb", "Q2", "xB", "t", "phi", "m"))
+        row_from(case, "input", ("s", "theta_in", "phi_in", "qOut", "phiOut", "m"))
         for case in cases
     ]
     derived_rows = [
-        row_from(case, "kin", ("s", "sqrt_s", "nu", "y", "beta_target_rest_to_cm"))
+        row_from(case, "kin", ("sqrt_s", "Q2", "xB", "t", "W2", "y"))
         for case in cases
     ]
     backend_rows = [backend_row(case) for case in cases]
@@ -617,10 +565,10 @@ def main():
         for case in cases
         for name in ("k", "p", "kp", "pp", "qout", "q")
     ]
-    scalar_rows = [
+    check_rows = [
         row
         for case in cases
-        for row in scalar_checks(case["id"], case["kin"])
+        for row in kinematic_checks(case)
     ]
     spin_rows = [spin_row(case) for case in cases]
 
@@ -687,17 +635,18 @@ def main():
 
     table_specs = {
         "independent": (
-            ["case", "Eb [GeV]", "Q2 [GeV^2]", "xB", "t [GeV^2]",
-             azimuth_input_header, "m [GeV]"],
+            ["case", "s [GeV^2]", "theta_in [rad]", "phi_in [rad]",
+             "qOut [GeV]", "phiOut [rad]", "m [GeV]"],
             independent_rows,
         ),
         "derived": (
-            ["case", "s [GeV^2]", "sqrt(s) [GeV]", "nu [GeV]", "y", "beta_cm"],
+            ["case", "sqrt(s) [GeV]", "Q2 [GeV^2]", "xB", "t [GeV^2]",
+             "W2 [GeV^2]", "y"],
             derived_rows,
         ),
         "backend": (
             ["case", "pIn [GeV]", "pOut [GeV]", "qOut [GeV]", "th [rad]",
-             "ph [rad]", "phi_hadron [rad]", "phOut [rad]", "rebuild diff [GeV]"],
+             "ph [rad]", "phOut [rad]", "rebuild diff [GeV]"],
             backend_rows,
         ),
         "momenta": (
@@ -705,9 +654,9 @@ def main():
              "phi_xy [rad]"],
             momentum_rows,
         ),
-        "scalar": (
-            ["case", "scalar", "target", "from 4-mom", "diff", "unit"],
-            scalar_rows,
+        "checks": (
+            ["case", "check", "target", "from 4-mom", "diff", "unit"],
+            check_rows,
         ),
         "spin": (["case", "S0", "Sx", "Sy", "Sz", "S.p", "S^2"], spin_rows),
         "benchmark": (
@@ -734,20 +683,16 @@ def main():
         BH helicity-amplitude benchmark
 
         Kinematics and variables
-          Each K row is one independent scalar input point; these inputs are unchanged.
-          Eb: target-rest beam-energy scalar in GeV; it fixes s = m^2 + 2 m Eb.
-          Q2: -q^2 in GeV^2, with q = k - kp.
-          xB: Bjorken xB = Q2 / (2 p.q).
-          t: Delta^2 = (pp - p)^2 in GeV^2.
-          phi_hadron: hadron-plane azimuth around the virtual photon direction.
-          phi_out: user-backend outgoing-photon coordinate azimuth phOut.
-          Selected input azimuth convention: {azimuth_input}.
+          Each K row is one independent user-frame COM input point.
+          s: total incoming e+p invariant mass squared in GeV^2.
+          theta_in, phi_in: incoming proton direction in the user frame.
+          qOut: outgoing real-photon energy/momentum magnitude in GeV.
+          phiOut: outgoing real-photon azimuth in the user frame.
+          pOut is solved from energy conservation for each row.
+          Q2, xB, t, W2, and y are derived diagnostics.
           m: proton mass in GeV.
-          Backend: scalar inputs are converted to pIn, pOut, qOut, th, ph,
-          phOut, then rebuilt with momenta_user. Set BENCHMARK_AZIMUTH_INPUT =
-          'phi_out' to interpret the input phi column as phOut.
-          For fixed Eb, Q2, xB, and t, not every phi_out value is physical;
-          invalid phi_out choices raise a clear error before benchmarking.
+          Backend: independent inputs are converted to pIn, pOut, qOut, th,
+          ph, and phOut, then built with momenta_user.
           Four-momenta are reported in the user-kinematics COM frame as
           [E, px, py, pz] in GeV, with pp=(E,0,pOut,0) and
           qout=qOut(1,cos(phOut),sin(phOut),0).
@@ -788,14 +733,10 @@ def main():
     lines = [
         intro,
         "",
-        "Independent scalar inputs",
-        (
-            "  The numeric input rows are kept unchanged; the phi column label "
-            "shows how those numbers are interpreted in this run."
-        ),
+        "Independent user-frame inputs",
         tables["independent"],
         "",
-        "Derived scalar kinematics",
+        "Derived invariant diagnostics",
         tables["derived"],
         "",
         "Derived user-kinematics backend variables",
@@ -804,8 +745,8 @@ def main():
         "Four-momenta from momenta_user backend",
         tables["momenta"],
         "",
-        "Four-momentum scalar and backend reproduction checks",
-        tables["scalar"],
+        "Four-momentum and backend checks",
+        tables["checks"],
         "",
         analytic_note,
         "",

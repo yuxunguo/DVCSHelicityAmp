@@ -16,7 +16,8 @@ Algebra.py         Dirac algebra, spinors, photon polarization vectors.
 Kinematics.py     Four-momentum builders and kinematic validation checks.
 BHHelicityAmp.py  Bethe-Heitler amplitudes and benchmark log generation.
 SpinDensityMat.py Spin-density matrix scans and entanglement observables.
-AlignmentScan.py  Final electron-photon alignment phase-space scan.
+AlignmentScan.py  C13 scan at characteristic user-frame kinematics.
+ConfigGen.py      Representative high-C13 configs from AlignmentScan CSVs.
 Output/           Generated logs, scan data, CSV files, and plots.
 ```
 
@@ -57,16 +58,22 @@ Run the spin-density matrix scans:
 C:\Users\sFerm\AppData\Local\Python\bin\python.exe SpinDensityMat.py
 ```
 
-Run the final electron-photon alignment scan:
+Run the C13 scan at characteristic kinematics:
 
 ```powershell
 C:\Users\sFerm\AppData\Local\Python\bin\python.exe AlignmentScan.py
 ```
 
+Generate representative high-C13 configurations from the alignment scan:
+
+```powershell
+C:\Users\sFerm\AppData\Local\Python\bin\python.exe ConfigGen.py
+```
+
 Syntax-check all source files:
 
 ```powershell
-py -m py_compile Algebra.py Kinematics.py BHHelicityAmp.py SpinDensityMat.py AlignmentScan.py
+C:\Users\sFerm\AppData\Local\Python\bin\python.exe -m py_compile Algebra.py Kinematics.py BHHelicityAmp.py SpinDensityMat.py AlignmentScan.py ConfigGen.py
 ```
 
 ## Physics And Index Conventions
@@ -103,9 +110,9 @@ two-state outgoing degrees of freedom.
 
 ## Kinematics
 
-`Kinematics.py` supports two related parameterizations.
+`Kinematics.py` uses one user-frame COM parameterization.
 
-The direct user-frame backend uses:
+The direct backend variables are:
 
 ```text
 pIn    incoming COM three-momentum magnitude
@@ -117,44 +124,46 @@ phOut  outgoing real-photon azimuth in the user frame
 m      proton mass
 ```
 
-The scalar exclusive input path uses:
+The scan scripts use the independent user-frame variables:
 
 ```text
-Eb   beam energy
-Q2   photon virtuality, positive Q^2
-xB   Bjorken x
-t    momentum transfer, usually negative
-phi  hadronic azimuthal angle when AZIMUTH_INPUT = "phi_hadron"
-m    proton mass
+s         total incoming e+p invariant mass squared
+theta_in  incoming proton polar angle
+phi_in    incoming proton azimuth used internally
+phi_in_electron  incoming electron azimuth, phi_in + pi mod 2pi, used in scan plots
+qOut      outgoing real-photon energy/momentum magnitude
+phiOut    outgoing real-photon azimuth
+m         proton mass
 ```
 
-The scalar path is built in the target rest frame, boosted to the initial
-electron-proton COM frame, and rotated into the user-frame convention.
+`pIn` is fixed by `s`, and `pOut` is solved from energy conservation. Derived
+invariants such as `Q2`, `xB`, `t`, `W2`, and `y` are written to CSV/logs as
+diagnostics, not used as independent scan variables.
 
 The current spin-density scan settings in `SpinDensityMat.py` are:
 
 ```text
-Eb = 11.0
-xB = 0.36
 m = 0.938
 F1 = 1.0
 F2 = 0.0
-AZIMUTH_INPUT = "phi_hadron"
 ```
 
 The active scan grids are:
 
 ```text
-Q2 scan values   1.0 to 6.0, 11 points
-t scan values    -1.2 to -0.2, 11 points
-phi scan values  0 to 2*pi, 12 points, endpoint excluded
+coarse alignment anchors  low/medium/high s, low/high theta_in, low/medium/high qOut
+coarse two-angle scan     phi_in_electron and phiOut at each anchor
+s scan values             user-frame COM energy grid in SpinDensityMat.py
+qOut scan values          outgoing photon energy grid in SpinDensityMat.py
+theta_in scan values      incoming proton polar-angle grid in SpinDensityMat.py
+phiOut scan values        outgoing photon azimuth grid in SpinDensityMat.py
 ```
 
 Two scans are generated:
 
 ```text
-Q2_t    scan over Q2 and t at fixed phi = 0.7
-Q2_phi  scan over Q2 and phi at fixed t = -0.4
+user_s_qOut           scan over s and qOut
+user_theta_in_phiOut  scan over theta_in and phiOut
 ```
 
 ## Bethe-Heitler Amplitude Workflow
@@ -173,19 +182,12 @@ bh_unpolarized_squared_amplitude_core
     four-momenta.
 
 bh_amplitude_user
-    Evaluate a fixed-helicity amplitude using the direct user-frame scalar
-    momentum parameters.
+    Evaluate a fixed-helicity amplitude using direct user-frame momentum
+    parameters.
 
 bh_unpolarized_squared_amplitude_user
     Evaluate the helicity-summed squared amplitude using the direct user-frame
     parameters.
-
-bh_amplitude_cm_from_beam_energy
-    Evaluate a fixed-helicity amplitude using `(Eb, Q2, xB, t, phi)`.
-
-bh_unpolarized_squared_amplitude_cm_from_beam_energy
-    Evaluate the helicity-summed squared amplitude using
-    `(Eb, Q2, xB, t, phi)`.
 ```
 
 Running `BHHelicityAmp.py` writes:
@@ -275,16 +277,18 @@ Running `SpinDensityMat.py` cleans and regenerates the spin-density scan
 outputs. The current unpolarized density-matrix scans are written under
 `unpolarized`, the incoming-electron polarized helicity-difference scans are
 written under `polarized`, and the coherent transverse incoming-electron scans
-are written under `transverse`:
+are written under `transverse_Tx` and `transverse_Ty`:
 
 ```text
 Output/SpinDensityMat.log
-Output/SpinDensityMat/unpolarized/Q2_t/
-Output/SpinDensityMat/unpolarized/Q2_phi/
-Output/SpinDensityMat/polarized/Q2_t/
-Output/SpinDensityMat/polarized/Q2_phi/
-Output/SpinDensityMat/transverse/Q2_t/
-Output/SpinDensityMat/transverse/Q2_phi/
+Output/SpinDensityMat/unpolarized/user_s_qOut/
+Output/SpinDensityMat/unpolarized/user_theta_in_phiOut/
+Output/SpinDensityMat/polarized/user_s_qOut/
+Output/SpinDensityMat/polarized/user_theta_in_phiOut/
+Output/SpinDensityMat/transverse_Tx/user_s_qOut/
+Output/SpinDensityMat/transverse_Tx/user_theta_in_phiOut/
+Output/SpinDensityMat/transverse_Ty/user_s_qOut/
+Output/SpinDensityMat/transverse_Ty/user_theta_in_phiOut/
 ```
 
 Each scan folder contains:
@@ -299,8 +303,10 @@ spin_entanglement_scan_<spin-label>_<scan>.csv
     Summary CSV containing one row per valid kinematic point. The unpolarized
     folders contain pure-initial-state observables; the polarized folders
     contain hIn=+1 minus hIn=-1 entanglement differences at the configured
-    incoming proton spin; the transverse folders contain observables for
-    (hIn=-1 + hIn=+1)/sqrt(2) at the configured incoming proton spin.
+    incoming proton spin; the transverse Tx and Ty folders contain observables
+    for (hIn=+1 + hIn=-1)/sqrt(2) and
+    (hIn=+1 + i hIn=-1)/sqrt(2), respectively, at the configured incoming
+    proton spin.
 
 spin_entanglement_scan_<spin-label>_<scan>.pdf
     Multi-page PDF heatmaps for the concurrence observables and F3. Polarized
@@ -309,17 +315,17 @@ spin_entanglement_scan_<spin-label>_<scan>.pdf
 SpinDensityScan/
     Per-kinematic-point CSV files and two matrix plots per valid point:
     one for the amplitude-normalized density-matrix norm and one for phase.
-    Filenames begin with spin_density_<spin-label>_Q2_...
+    Filenames begin with spin_density_<spin-label>_<scan-axis>_...
 
 ```
 
 The spin labels used in filenames are `unpolarized`,
-`longitudinal_polarized`, and `transverse`.
+`longitudinal_polarized`, `transverse_Tx`, and `transverse_Ty`.
 
 Running `AlignmentScan.py` cleans and regenerates:
 
 ```text
-Output/AlignmentScan/AlignmentScan.log
+Output/AlignmentScan.log
 Output/AlignmentScan/electron_photon_spin_correlation_phase_space.csv
 Output/AlignmentScan/electron_photon_spin_correlation_aligned.csv
 Output/AlignmentScan/DensityMatScan/
@@ -327,22 +333,24 @@ Output/AlignmentScan/AmplitudeScan/
 Output/AlignmentScan/ConcurrenceScan/
 ```
 
-The alignment scan records the opening angle theta(e', gamma) over Q2, xB,
-t, and phi, and computes final electron-photon spin correlations for all valid
-phase-space points. The `DensityMatScan` folder stores reduced 4 by 4
+Set `RUN_ALIGNMENT_DENSITY_MATRIX_SCAN` or `RUN_ALIGNMENT_AMPLITUDE_SCAN` to
+`False` in `AlignmentScan.py` to skip those optional CSV/PDF output families.
+The main spin-correlation CSVs and C13 concurrence locator outputs are still
+generated.
+
+The alignment scan records the opening angle theta(e', gamma) over 18
+characteristic user-frame anchors. Each anchor fixes `s`, `theta_in`, and
+`qOut`, then scans the two remaining angular variables `phi_in_electron` and
+`phi_gamma` on a 72 by 96 grid. The stored outgoing-photon azimuth column is
+still named `phiOut`, and the internal proton azimuth is still written as
+`phi_in`.
+The `DensityMatScan` folder stores reduced 4 by 4
 electron-photon density-matrix CSVs and magnitude/phase PDFs. The
 `AmplitudeScan` folder stores 2 by 2 complex electron-photon amplitude CSVs
 and magnitude/phase PDFs. The `ConcurrenceScan` folder stores concurrence CSVs
 and PDFs. The density-matrix and concurrence folders cover unpolarized,
-longitudinal polarized, and transverse polarized incoming-electron spin cases.
-
-For the current grids, each spin case generates these per-point artifact
-counts:
-
-```text
-Q2_t    121 CSV files, 242 matrix PDFs
-Q2_phi  132 CSV files, 264 matrix PDFs
-```
+longitudinal polarized, transverse Tx polarized, and transverse Ty polarized
+incoming-electron spin cases.
 
 The top-level spin-density log records the scan settings, particle map, trace
 benchmark, normalization convention, saved paths, and invalid kinematic
@@ -358,14 +366,16 @@ The polarized entanglement scan is
 `E(hIn=+1,sIn) - E(hIn=-1,sIn)` for each concurrence/F3 observable, using
 the configured `ENTANGLEMENT_INITIAL_STATE` proton spin.
 
-The transverse scan matrix is
-`sum_sIn rho((hIn=-1 + hIn=+1)/sqrt(2),sIn)`, including the coherent
-interference between incoming electron helicities. When trace normalization is
-enabled, it is divided by the unpolarized squared amplitude `M^2`.
+The transverse Tx scan matrix is
+`sum_sIn rho((hIn=+1 + hIn=-1)/sqrt(2),sIn)`, including the coherent
+interference between incoming electron helicities. The transverse Ty scan
+matrix uses
+`sum_sIn rho((hIn=+1 + i hIn=-1)/sqrt(2),sIn)`. When trace normalization is
+enabled, each transverse matrix is divided by the unpolarized squared
+amplitude `M^2`.
 
-The transverse entanglement scan uses
-`E((hIn=-1 + hIn=+1)/sqrt(2),sIn)` at the configured
-`ENTANGLEMENT_INITIAL_STATE` proton spin.
+The transverse entanglement scans use the same Tx and Ty coherent incoming
+electron states at the configured `ENTANGLEMENT_INITIAL_STATE` proton spin.
 
 The final electron-photon alignment scan uses `ALIGNMENT_ANGLE_MAX_DEG`
 in `AlignmentScan.py` as its small-angle cut. Its main spin-correlation observable is
@@ -374,9 +384,8 @@ in `AlignmentScan.py` as its small-angle cut. Its main spin-correlation observab
 contains all valid angle points; correlation columns are filled for aligned
 points where the amplitude table is evaluated.
 
-The alignment PDFs plot observables as binned heatmaps with `theta(e', gamma)`
-on the horizontal axis and `Q2`, `xB`, `t`, or `phi` on the vertical axis.
-Marker rings on the heatmap pages show occupied bins.
+The alignment C13 PDFs contain only the per-anchor `phi_in_electron` by
+`phi_gamma` correlation maps for each characteristic kinematic point.
 
 ## CSV Structure
 
@@ -402,7 +411,7 @@ col_h_out,col_s_out,col_lambda,rho_real,rho_imag,rho_abs,rho_phase
 
 `spin_signal_M2` is the same as `squared_amplitude_M2` for unpolarized scans,
 the signed helicity-difference trace numerator for polarized scans, and the
-transverse trace numerator for transverse scans.
+transverse trace numerator for Tx and Ty transverse scans.
 `rho_abs` is the matrix-entry norm after the configured `M^2` normalization.
 `rho_phase` is the complex phase in radians.
 
@@ -433,16 +442,18 @@ amplitude_normalization_sqrt_M2,
 <spin_case>_amp_ep_norm_r1_c1_real,<spin_case>_amp_ep_norm_r1_c1_imag
 ```
 
-The `ConcurrenceScan` CSV files add concurrence observables for each spin case:
+The `AlignmentScan.py` `ConcurrenceScan` CSV files focus on the C13
+locator observable for each spin case:
 
 ```text
-<spin_case>_C12,<spin_case>_C13,<spin_case>_C23,
-<spin_case>_C1_23,<spin_case>_C2_13,<spin_case>_C3_12,
-<spin_case>_F3,<spin_case>_M1,<spin_case>_M2,<spin_case>_M3
+<spin_case>_C13
 ```
 
-The `<spin_case>` prefixes are `unpolarized`, `longitudinal_polarized`, and
-`transverse_polarized`. The `rho_ep_r*_c*` columns are the proton-traced
+The `<spin_case>` prefixes are `unpolarized`, `longitudinal_polarized`, `Tx`,
+and `Ty`. The same folder also writes `electron_photon_c13_top.csv`, a ranked
+locator table used to inspect the best C13 points. The C13 PDFs include only
+two-angle `phi_in_electron` by `phi_gamma` maps for every characteristic anchor. The
+`rho_ep_r*_c*` columns are the proton-traced
 4 by 4 electron-photon reduced density matrix entries, stored as real and
 imaginary parts. The reduced basis is ordered as
 `(hOut, lambda) = (-1,-1), (-1,+1), (+1,-1), (+1,+1)`. The reduced-density
@@ -454,7 +465,26 @@ The `AmplitudeScan` matrices are ordered by outgoing electron helicity rows
 sum over the outgoing proton spin. The unpolarized amplitude uses an equal
 incoming-spin superposition, the longitudinal-polarized amplitude uses the
 `hIn=+1` minus `hIn=-1` combination at the configured proton spin, and the
-transverse-polarized amplitude uses the `hIn=+1` plus `hIn=-1` combination at
-the configured proton spin. The stored and plotted entries are normalized as
+transverse Tx amplitude uses the `hIn=+1` plus `hIn=-1` combination at the
+configured proton spin, and the transverse Ty amplitude uses
+`hIn=+1` plus `i hIn=-1`. The stored and plotted entries are normalized as
 `M / sqrt(M^2_unpol)`, where `M^2_unpol` is the `squared_amplitude_M2` value in
 the same row.
+
+`ConfigGen.py` reads `Output/AlignmentScan/ConcurrenceScan/electron_photon_c13_top.csv`
+directly, or falls back to the full concurrence phase-space CSV, and writes:
+
+```text
+Output/ConfigGen.log
+Output/ConfigGen/high_c13_configuration_examples.csv
+Output/ConfigGen/high_c13_cluster_summary.csv
+Output/ConfigGen/high_c13_momentum_configurations.csv
+Output/ConfigGen/high_c13_final_state_amplitude_decomposition.csv
+Output/ConfigGen/high_c13_user_frame_configurations.pdf
+```
+
+The ConfigGen PDF starts with the high-C13 angular cluster maps, then adds one
+characteristic page per selected cluster. Each characteristic page shows the
+rebuilt user-frame momentum configuration as a 3D vector plot and as a
+transverse `px-py` projection, lists the corresponding kinematic variables and
+four-momenta, and plots the final-state helicity-amplitude decomposition.

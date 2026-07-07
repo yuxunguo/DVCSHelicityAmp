@@ -1,13 +1,12 @@
 """Final electron-photon alignment phase-space scan.
 
-This script scans phase space for small opening angle between the outgoing
-electron and final real photon, then evaluates electron-photon spin
-correlation observables and reduced 4x4 electron-photon matrices for all valid
-points. It writes CSV files plus amplitude, density-matrix, and concurrence
-heatmap PDFs under ``Output/AlignmentScan``.
+This script scans characteristic user-frame kinematics with a fine
+``phi_in_electron`` by ``phi_gamma`` grid and focuses the locator outputs on the
+electron-photon concurrence ``C13``.
 """
 
-from itertools import product
+from itertools import combinations, product
+from concurrent.futures import ProcessPoolExecutor
 import csv
 import os
 from pathlib import Path
@@ -16,11 +15,10 @@ import tempfile
 
 import numpy as np
 
-from Kinematics import kinematics_user_from_scalar_inputs
+from Algebra import mdot
+from Kinematics import kinematics_user_from_independent
 from SpinDensityMat import (
     AVERAGE_INITIAL_SPINS,
-    AZIMUTH_INPUT,
-    EB,
     ENTANGLEMENT_INITIAL_STATE,
     ENTANGLEMENT_NAMES,
     F1,
@@ -28,42 +26,98 @@ from SpinDensityMat import (
     M,
     NORMALIZE_TRACE,
     OUTPUT_DIR,
-    PHI_VALUES,
+    SCAN_WORKERS,
+    USER_S_CENTER,
     SPIN_CASE_POLARIZED,
-    SPIN_CASE_TRANSVERSE,
+    SPIN_CASE_TRANSVERSE_TX,
+    SPIN_CASE_TRANSVERSE_TY,
     SPIN_CASE_UNPOLARIZED,
     amplitude_table,
     density_matrix_from_amplitudes,
     entanglement_measures_from_amplitudes,
     initial_spin_states,
+    is_transverse_spin_case,
     outgoing_spin_states,
     polarized_entanglement_difference,
     trace_value,
+    transverse_electron_coefficients,
     transverse_entanglement_measures,
 )
 
 
-PHASE_SPACE_Q2_VALUES = np.linspace(0.5, 6.0, 12)
-PHASE_SPACE_XB_VALUES = np.linspace(0.10, 0.60, 6)
-PHASE_SPACE_T_VALUES = np.linspace(-2.5, -0.1, 13)
-PHASE_SPACE_PHI_VALUES = PHI_VALUES
+CHARACTERISTIC_S_POINTS = (
+    ("low_s", 0.78 * USER_S_CENTER),
+    ("mid_s", 1.00 * USER_S_CENTER),
+    ("high_s", 1.18 * USER_S_CENTER),
+)
+CHARACTERISTIC_THETA_IN_POINTS = (
+    ("low_theta_in", 1.10),
+    ("high_theta_in", 1.90),
+)
+CHARACTERISTIC_QOUT_POINTS = (
+    ("low_Egamma", 0.75),
+    ("mid_Egamma", 1.25),
+    ("high_Egamma", 1.75),
+)
+
+PHASE_SPACE_PHI_IN_VALUES = np.linspace(0.0, 2.0 * np.pi, 32, endpoint=False)
+PHASE_SPACE_PHIOUT_VALUES = np.linspace(0.0, 2.0 * np.pi, 32, endpoint=False)
 ALIGNMENT_ANGLE_MAX_DEG = 10.0
 ALIGNMENT_ANGLE_MAX_RAD = np.deg2rad(ALIGNMENT_ANGLE_MAX_DEG)
 
 OUTPUT_ROOT = OUTPUT_DIR.parent
 LEGACY_ALIGNMENT_OUTPUT_DIR = OUTPUT_DIR / "AlignmentScan"
-LEGACY_ALIGNMENT_LOG_PATH = OUTPUT_ROOT / "AlignmentScan.log"
 ALIGNMENT_OUTPUT_DIR = OUTPUT_ROOT / "AlignmentScan"
-ALIGNMENT_LOG_PATH = ALIGNMENT_OUTPUT_DIR / "AlignmentScan.log"
+LEGACY_ALIGNMENT_LOG_PATH = ALIGNMENT_OUTPUT_DIR / "AlignmentScan.log"
+ALIGNMENT_LOG_PATH = OUTPUT_ROOT / "AlignmentScan.log"
 DENSITY_MATRIX_OUTPUT_DIR = ALIGNMENT_OUTPUT_DIR / "DensityMatScan"
 CONCURRENCE_OUTPUT_DIR = ALIGNMENT_OUTPUT_DIR / "ConcurrenceScan"
 AMPLITUDE_OUTPUT_DIR = ALIGNMENT_OUTPUT_DIR / "AmplitudeScan"
+RUN_ALIGNMENT_DENSITY_MATRIX_SCAN = False
+RUN_ALIGNMENT_AMPLITUDE_SCAN = False
 REDUCED_EP_BASIS = ((-1, -1), (-1, 1), (1, -1), (1, 1))
 ALIGNMENT_SPIN_CASES = (
     ("unpolarized", "Unpolarized", SPIN_CASE_UNPOLARIZED),
     ("longitudinal_polarized", "Longitudinal polarized", SPIN_CASE_POLARIZED),
-    ("transverse_polarized", "Transverse polarized", SPIN_CASE_TRANSVERSE),
+    ("Tx", "Tx", SPIN_CASE_TRANSVERSE_TX),
+    ("Ty", "Ty", SPIN_CASE_TRANSVERSE_TY),
 )
+COARSE_CONCURRENCE_NAMES = ("C13",)
+COARSE_C13_TOP_N = 60
+
+
+def characteristic_kinematic_points():
+    """Return coarse anchor kinematics for two-angle C13 scans."""
+    points = []
+    for s_regime, s in CHARACTERISTIC_S_POINTS:
+        for theta_regime, theta_in in CHARACTERISTIC_THETA_IN_POINTS:
+            for qout_regime, qOut in CHARACTERISTIC_QOUT_POINTS:
+                point_id = f"{s_regime}_{theta_regime}_{qout_regime}"
+                points.append({
+                    "kinematic_point": point_id,
+                    "s_regime": s_regime,
+                    "theta_in_regime": theta_regime,
+                    "qOut_regime": qout_regime,
+                    "s": float(s),
+                    "theta_in": float(theta_in),
+                    "qOut": float(qOut),
+                })
+    return points
+
+
+def normalize_azimuth(angle):
+    """Return an azimuth normalized to [0, 2*pi)."""
+    return float(np.mod(angle, 2.0 * np.pi))
+
+
+def electron_phi_from_proton(phi_in_proton):
+    """Return incoming electron azimuth from the incoming proton azimuth."""
+    return normalize_azimuth(phi_in_proton + np.pi)
+
+
+def proton_phi_from_electron(phi_in_electron):
+    """Return incoming proton azimuth from the incoming electron azimuth."""
+    return normalize_azimuth(phi_in_electron - np.pi)
 
 
 def _require_matplotlib():
@@ -90,6 +144,8 @@ def clean_alignment_outputs():
         shutil.rmtree(LEGACY_ALIGNMENT_OUTPUT_DIR)
     if LEGACY_ALIGNMENT_LOG_PATH.exists():
         LEGACY_ALIGNMENT_LOG_PATH.unlink()
+    if ALIGNMENT_LOG_PATH.exists():
+        ALIGNMENT_LOG_PATH.unlink()
 
 
 def spatial_opening_angle(a, b):
@@ -101,6 +157,18 @@ def spatial_opening_angle(a, b):
         raise ZeroDivisionError("Cannot compute an opening angle with zero momentum.")
     cosine = np.dot(a3, b3) / denominator
     return float(np.arccos(np.clip(cosine, -1.0, 1.0)))
+
+
+def real_scalar(value, label):
+    """Return a real scalar, rejecting non-negligible imaginary residue."""
+    scalar = np.real_if_close(value, tol=1000)
+    if np.iscomplexobj(scalar):
+        real = float(np.real(scalar))
+        imag = float(np.imag(scalar))
+        if abs(imag) > 1.0e-10 * max(1.0, abs(real)):
+            raise ValueError(f"{label} has a non-negligible imaginary part: {value}")
+        return real
+    return float(scalar)
 
 
 def final_electron_photon_spin_correlations(rho, out_states):
@@ -171,11 +239,12 @@ def electron_photon_amplitude_matrix(amplitudes, spin_case, initial_state):
             amplitudes[in_states.index((+1, proton_spin))]
             - amplitudes[in_states.index((-1, proton_spin))]
         ) / np.sqrt(2.0)
-    elif spin_case == SPIN_CASE_TRANSVERSE:
-        amplitude_row = (
-            amplitudes[in_states.index((+1, proton_spin))]
-            + amplitudes[in_states.index((-1, proton_spin))]
-        ) / np.sqrt(2.0)
+    elif is_transverse_spin_case(spin_case):
+        coefficients = transverse_electron_coefficients(spin_case)
+        amplitude_row = sum(
+            coefficients[h_in] * amplitudes[in_states.index((h_in, proton_spin))]
+            for h_in in (-1, +1)
+        )
     else:
         raise ValueError(f"Unknown alignment amplitude spin case: {spin_case}")
     return _electron_photon_amplitude_matrix_from_state(amplitude_row)
@@ -211,154 +280,233 @@ def alignment_concurrence_measures(amplitudes, spin_case, initial_state):
         return entanglement_measures_from_amplitudes(amplitudes, initial_state)
     if spin_case == SPIN_CASE_POLARIZED:
         return polarized_entanglement_difference(amplitudes, initial_state[1])
-    if spin_case == SPIN_CASE_TRANSVERSE:
-        return transverse_entanglement_measures(amplitudes, initial_state[1])
+    if is_transverse_spin_case(spin_case):
+        return transverse_entanglement_measures(
+            amplitudes,
+            initial_state[1],
+            spin_case,
+        )
     raise ValueError(f"Unknown alignment spin case: {spin_case}")
 
 
+def _scan_alignment_point_task(task):
+    """Evaluate one final electron-photon alignment point."""
+    anchor, phi_in_electron, phiOut, settings = task
+    s = anchor["s"]
+    theta_in = anchor["theta_in"]
+    qOut = anchor["qOut"]
+    phi_in_proton = proton_phi_from_electron(phi_in_electron)
+    out_states = outgoing_spin_states()
+    try:
+        kin = kinematics_user_from_independent(
+            s,
+            theta_in,
+            phi_in_proton,
+            qOut,
+            phiOut,
+            settings["m"],
+            label=(
+                f"user alignment s={s:.6g}, theta_in={theta_in:.6g}, "
+                f"qOut={qOut:.6g}"
+            ),
+        )
+        momenta = kin["momenta"]
+        user_params = kin["user_params"]
+        user_independent = kin["user_independent"]
+        angle_rad = spatial_opening_angle(momenta["kp"], momenta["qout"])
+        k_dot_qout = real_scalar(mdot(momenta["k"], momenta["qout"]), "k dot qout")
+        kp_dot_qout = real_scalar(mdot(momenta["kp"], momenta["qout"]), "kp dot qout")
+        row = {
+            "kinematic_point": anchor["kinematic_point"],
+            "s_regime": anchor["s_regime"],
+            "theta_in_regime": anchor["theta_in_regime"],
+            "qOut_regime": anchor["qOut_regime"],
+            "s": float(user_independent["s"]),
+            "sqrt_s": float(kin["sqrt_s"]),
+            "pIn": float(user_params["pIn"]),
+            "pOut": float(user_params["pOut"]),
+            "qOut": float(user_independent["qOut"]),
+            "theta_in": float(user_independent["theta_in"]),
+            "phi_in": float(user_independent["phi_in"]),
+            "phi_in_electron": electron_phi_from_proton(user_independent["phi_in"]),
+            "phiOut": float(user_independent["phiOut"]),
+            "Q2": float(kin["Q2"]),
+            "xB": float(kin["xB"]),
+            "t": float(kin["t"]),
+            "W2": float(kin["W2"]),
+            "y": float(kin["y"]),
+            "theta_e_gamma_rad": angle_rad,
+            "theta_e_gamma_deg": float(np.degrees(angle_rad)),
+            "k_dot_qout": k_dot_qout,
+            "kp_dot_qout": kp_dot_qout,
+            "abs_k_dot_qout": abs(k_dot_qout),
+            "abs_kp_dot_qout": abs(kp_dot_qout),
+            "aligned": angle_rad <= settings["angle_max_rad"],
+            "squared_amplitude_M2": np.nan,
+            "amplitude_normalization_sqrt_M2": np.nan,
+        }
+        for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES:
+            row[f"{prefix}_amplitude_ep"] = np.full((2, 2), np.nan + 0.0j)
+            row[f"{prefix}_trace"] = np.nan
+            row[f"{prefix}_spin_signal_M2"] = np.nan
+            row[f"{prefix}_h_out_mean"] = np.nan
+            row[f"{prefix}_lambda_mean"] = np.nan
+            row[f"{prefix}_h_lambda"] = np.nan
+            row[f"{prefix}_h_lambda_connected"] = np.nan
+            row[f"{prefix}_rho_ep"] = np.full((4, 4), np.nan + 0.0j)
+            for name in ENTANGLEMENT_NAMES:
+                row[f"{prefix}_{name}"] = np.nan
+
+        amplitudes = amplitude_table(momenta, kin["m"], settings["F1"], settings["F2"])
+        rho_unpolarized, unpolarized_signal, squared_amplitude = (
+            density_matrix_from_amplitudes(
+                amplitudes,
+                average_initial=AVERAGE_INITIAL_SPINS,
+                spin_case=SPIN_CASE_UNPOLARIZED,
+            )
+        )
+        if settings["normalize_trace"] and squared_amplitude <= 1e-14:
+            raise ZeroDivisionError("Cannot normalize a zero alignment matrix.")
+        row["amplitude_normalization_sqrt_M2"] = np.sqrt(squared_amplitude)
+
+        for prefix, _label, spin_case in ALIGNMENT_SPIN_CASES:
+            amplitude_ep = electron_photon_amplitude_matrix(
+                amplitudes,
+                spin_case,
+                settings["entanglement_initial_state"],
+            )
+            row[f"{prefix}_amplitude_ep"] = normalized_amplitude_matrix(
+                amplitude_ep,
+                squared_amplitude,
+            )
+            if spin_case == SPIN_CASE_UNPOLARIZED:
+                rho = rho_unpolarized
+                spin_signal = unpolarized_signal
+            else:
+                rho, spin_signal, _squared_amplitude_check = (
+                    density_matrix_from_amplitudes(
+                        amplitudes,
+                        average_initial=AVERAGE_INITIAL_SPINS,
+                        spin_case=spin_case,
+                    )
+                )
+            if settings["normalize_trace"]:
+                rho = rho / squared_amplitude
+            corr = final_electron_photon_spin_correlations(rho, out_states)
+            concurrence = alignment_concurrence_measures(
+                amplitudes,
+                spin_case,
+                settings["entanglement_initial_state"],
+            )
+            row.update({
+                f"{prefix}_trace": trace_value(rho),
+                f"{prefix}_spin_signal_M2": spin_signal,
+                f"{prefix}_h_out_mean": corr["h_out_mean"],
+                f"{prefix}_lambda_mean": corr["lambda_mean"],
+                f"{prefix}_h_lambda": corr["h_lambda"],
+                f"{prefix}_h_lambda_connected": corr["h_lambda_connected"],
+                f"{prefix}_rho_ep": electron_photon_reduced_density_matrix(rho),
+            })
+            for name in ENTANGLEMENT_NAMES:
+                row[f"{prefix}_{name}"] = concurrence[name]
+    except Exception as exc:
+        return {
+            "ok": False,
+            "kinematic_point": anchor["kinematic_point"],
+            "s": float(s),
+            "theta_in": float(theta_in),
+            "phi_in": float(phi_in_proton),
+            "phi_in_electron": float(phi_in_electron),
+            "qOut": float(qOut),
+            "phiOut": float(phiOut),
+            "error": str(exc),
+        }
+
+    row["squared_amplitude_M2"] = squared_amplitude
+    return {"ok": True, "row": row}
+
+
 def scan_final_electron_photon_alignment(
-    Q2_values=PHASE_SPACE_Q2_VALUES,
-    xB_values=PHASE_SPACE_XB_VALUES,
-    t_values=PHASE_SPACE_T_VALUES,
-    phi_values=PHASE_SPACE_PHI_VALUES,
+    kinematic_points=None,
+    phi_in_electron_values=PHASE_SPACE_PHI_IN_VALUES,
+    phiOut_values=PHASE_SPACE_PHIOUT_VALUES,
     angle_max_rad=ALIGNMENT_ANGLE_MAX_RAD,
-    Eb=EB,
     m=M,
     F1=F1,
     F2=F2,
-    azimuth_input=AZIMUTH_INPUT,
     normalize_trace=NORMALIZE_TRACE,
     entanglement_initial_state=ENTANGLEMENT_INITIAL_STATE,
+    max_workers=SCAN_WORKERS,
 ):
-    """Scan phase space for final electron-photon spin data and alignment."""
+    """Scan two angular variables around characteristic user-frame kinematics."""
     rows = []
     failures = []
-    out_states = outgoing_spin_states()
+    if kinematic_points is None:
+        kinematic_points = characteristic_kinematic_points()
+    settings = {
+        "m": m,
+        "F1": F1,
+        "F2": F2,
+        "normalize_trace": normalize_trace,
+        "entanglement_initial_state": entanglement_initial_state,
+        "angle_max_rad": angle_max_rad,
+    }
+    tasks = [
+        (
+            anchor,
+            float(phi_in_electron),
+            float(phiOut),
+            settings,
+        )
+        for anchor, phi_in_electron, phiOut in product(
+            kinematic_points,
+            phi_in_electron_values,
+            phiOut_values,
+        )
+    ]
+    if max_workers and max_workers > 1 and len(tasks) > 1:
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            results = list(executor.map(_scan_alignment_point_task, tasks))
+    else:
+        results = [_scan_alignment_point_task(task) for task in tasks]
 
-    for Q2, xB, t, phi in product(Q2_values, xB_values, t_values, phi_values):
-        try:
-            kin = kinematics_user_from_scalar_inputs(
-                Eb,
-                Q2,
-                xB,
-                t,
-                phi,
-                m,
-                azimuth_input=azimuth_input,
-                label=f"alignment Q2={Q2:.6g}, xB={xB:.6g}, t={t:.6g}",
-            )
-            momenta = kin["momenta"]
-            angle_rad = spatial_opening_angle(momenta["kp"], momenta["qout"])
-            aligned = angle_rad <= angle_max_rad
-            row = {
-                "Q2": float(Q2),
-                "xB": float(xB),
-                "t": float(t),
-                "phi": float(phi),
-                "theta_e_gamma_rad": angle_rad,
-                "theta_e_gamma_deg": float(np.degrees(angle_rad)),
-                "aligned": aligned,
-                "squared_amplitude_M2": np.nan,
-                "amplitude_normalization_sqrt_M2": np.nan,
-            }
-            for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES:
-                row[f"{prefix}_amplitude_ep"] = np.full((2, 2), np.nan + 0.0j)
-                row[f"{prefix}_trace"] = np.nan
-                row[f"{prefix}_spin_signal_M2"] = np.nan
-                row[f"{prefix}_h_out_mean"] = np.nan
-                row[f"{prefix}_lambda_mean"] = np.nan
-                row[f"{prefix}_h_lambda"] = np.nan
-                row[f"{prefix}_h_lambda_connected"] = np.nan
-                row[f"{prefix}_rho_ep"] = np.full((4, 4), np.nan + 0.0j)
-                for name in ENTANGLEMENT_NAMES:
-                    row[f"{prefix}_{name}"] = np.nan
-
-            amplitudes = amplitude_table(momenta, kin["m"], F1, F2)
-            rho_unpolarized, unpolarized_signal, squared_amplitude = (
-                density_matrix_from_amplitudes(
-                    amplitudes,
-                    average_initial=AVERAGE_INITIAL_SPINS,
-                    spin_case=SPIN_CASE_UNPOLARIZED,
-                )
-            )
-            if normalize_trace:
-                if squared_amplitude <= 1e-14:
-                    raise ZeroDivisionError("Cannot normalize a zero alignment matrix.")
-            row["amplitude_normalization_sqrt_M2"] = np.sqrt(squared_amplitude)
-
-            for prefix, _label, spin_case in ALIGNMENT_SPIN_CASES:
-                amplitude_ep = electron_photon_amplitude_matrix(
-                    amplitudes,
-                    spin_case,
-                    entanglement_initial_state,
-                )
-                row[f"{prefix}_amplitude_ep"] = normalized_amplitude_matrix(
-                    amplitude_ep,
-                    squared_amplitude,
-                )
-                if spin_case == SPIN_CASE_UNPOLARIZED:
-                    rho = rho_unpolarized
-                    spin_signal = unpolarized_signal
-                else:
-                    rho, spin_signal, _squared_amplitude_check = (
-                        density_matrix_from_amplitudes(
-                            amplitudes,
-                            average_initial=AVERAGE_INITIAL_SPINS,
-                            spin_case=spin_case,
-                        )
-                    )
-                if normalize_trace:
-                    rho = rho / squared_amplitude
-                corr = final_electron_photon_spin_correlations(rho, out_states)
-                concurrence = alignment_concurrence_measures(
-                    amplitudes,
-                    spin_case,
-                    entanglement_initial_state,
-                )
-                row.update({
-                    f"{prefix}_trace": trace_value(rho),
-                    f"{prefix}_spin_signal_M2": spin_signal,
-                    f"{prefix}_h_out_mean": corr["h_out_mean"],
-                    f"{prefix}_lambda_mean": corr["lambda_mean"],
-                    f"{prefix}_h_lambda": corr["h_lambda"],
-                    f"{prefix}_h_lambda_connected": corr["h_lambda_connected"],
-                    f"{prefix}_rho_ep": electron_photon_reduced_density_matrix(rho),
-                })
-                for name in ENTANGLEMENT_NAMES:
-                    row[f"{prefix}_{name}"] = concurrence[name]
-        except Exception as exc:
-            failures.append((Q2, xB, t, phi, str(exc)))
-            continue
-
-        row["squared_amplitude_M2"] = squared_amplitude
-        rows.append(row)
+    for result in results:
+        if result["ok"]:
+            rows.append(result["row"])
+        else:
+            failures.append((
+                result["kinematic_point"],
+                result["s"],
+                result["theta_in"],
+                result["phi_in"],
+                result.get("phi_in_electron", np.nan),
+                result["qOut"],
+                result["phiOut"],
+                result["error"],
+            ))
 
     return {
         "rows": rows,
         "failures": failures,
         "angle_max_rad": angle_max_rad,
         "angle_max_deg": float(np.degrees(angle_max_rad)),
-        "Q2_values": np.asarray(Q2_values, dtype=float),
-        "xB_values": np.asarray(xB_values, dtype=float),
-        "t_values": np.asarray(t_values, dtype=float),
-        "phi_values": np.asarray(phi_values, dtype=float),
-        "Eb": Eb,
+        "kinematic_points": list(kinematic_points),
+        "s_values": np.asarray([point["s"] for point in kinematic_points], dtype=float),
+        "theta_in_values": np.asarray([point["theta_in"] for point in kinematic_points], dtype=float),
+        "phi_in_electron_values": np.asarray(phi_in_electron_values, dtype=float),
+        "qOut_values": np.asarray([point["qOut"] for point in kinematic_points], dtype=float),
+        "phiOut_values": np.asarray(phiOut_values, dtype=float),
         "m": m,
         "normalized_by_squared_amplitude": normalize_trace,
         "entanglement_initial_state": entanglement_initial_state,
         "spin_cases": ALIGNMENT_SPIN_CASES,
+        "scan_parameterization": "user_frame_independent",
     }
 
 
 def _alignment_csv_headers():
     """Return CSV headers for the final electron-photon alignment scan."""
-    headers = [
-        "Q2",
-        "xB",
-        "t",
-        "phi",
-        "theta_e_gamma_rad",
-        "theta_e_gamma_deg",
+    headers = _kinematic_csv_headers() + [
         "aligned",
         "squared_amplitude_M2",
     ]
@@ -374,15 +522,69 @@ def _alignment_csv_headers():
     return headers
 
 
-def _alignment_csv_row(row):
-    """Return one formatted CSV row for the alignment scan."""
-    values = [
+def _kinematic_csv_headers():
+    """Return common user-frame and derived-invariant CSV headers."""
+    return [
+        "kinematic_point",
+        "s_regime",
+        "theta_in_regime",
+        "qOut_regime",
+        "s",
+        "sqrt_s",
+        "pIn",
+        "pOut",
+        "qOut",
+        "theta_in",
+        "phi_in",
+        "phi_in_electron",
+        "phiOut",
+        "Q2",
+        "xB",
+        "t",
+        "W2",
+        "y",
+        "theta_e_gamma_rad",
+        "theta_e_gamma_deg",
+        "k_dot_qout",
+        "kp_dot_qout",
+        "abs_k_dot_qout",
+        "abs_kp_dot_qout",
+    ]
+
+
+def _kinematic_csv_row(row):
+    """Return common formatted user-frame and invariant metadata."""
+    return [
+        row["kinematic_point"],
+        row["s_regime"],
+        row["theta_in_regime"],
+        row["qOut_regime"],
+        f"{row['s']:.16e}",
+        f"{row['sqrt_s']:.16e}",
+        f"{row['pIn']:.16e}",
+        f"{row['pOut']:.16e}",
+        f"{row['qOut']:.16e}",
+        f"{row['theta_in']:.16e}",
+        f"{row['phi_in']:.16e}",
+        f"{row['phi_in_electron']:.16e}",
+        f"{row['phiOut']:.16e}",
         f"{row['Q2']:.16e}",
         f"{row['xB']:.16e}",
         f"{row['t']:.16e}",
-        f"{row['phi']:.16e}",
+        f"{row['W2']:.16e}",
+        f"{row['y']:.16e}",
         f"{row['theta_e_gamma_rad']:.16e}",
         f"{row['theta_e_gamma_deg']:.16e}",
+        f"{row['k_dot_qout']:.16e}",
+        f"{row['kp_dot_qout']:.16e}",
+        f"{row['abs_k_dot_qout']:.16e}",
+        f"{row['abs_kp_dot_qout']:.16e}",
+    ]
+
+
+def _alignment_csv_row(row):
+    """Return one formatted CSV row for the alignment scan."""
+    values = _kinematic_csv_row(row) + [
         row["aligned"],
         f"{row['squared_amplitude_M2']:.16e}",
     ]
@@ -400,13 +602,7 @@ def _alignment_csv_row(row):
 
 def _density_matrix_csv_headers():
     """Return CSV headers for the reduced electron-photon density-matrix scan."""
-    headers = [
-        "Q2",
-        "xB",
-        "t",
-        "phi",
-        "theta_e_gamma_rad",
-        "theta_e_gamma_deg",
+    headers = _kinematic_csv_headers() + [
         "aligned",
         "squared_amplitude_M2",
     ]
@@ -421,13 +617,7 @@ def _density_matrix_csv_headers():
 
 def _density_matrix_csv_row(row):
     """Return one formatted CSV row for the reduced density-matrix scan."""
-    values = [
-        f"{row['Q2']:.16e}",
-        f"{row['xB']:.16e}",
-        f"{row['t']:.16e}",
-        f"{row['phi']:.16e}",
-        f"{row['theta_e_gamma_rad']:.16e}",
-        f"{row['theta_e_gamma_deg']:.16e}",
+    values = _kinematic_csv_row(row) + [
         row["aligned"],
         f"{row['squared_amplitude_M2']:.16e}",
     ]
@@ -486,13 +676,7 @@ def save_density_matrix_scan_csv_files(
 
 def _amplitude_csv_headers():
     """Return CSV headers for the reduced electron-photon amplitude scan."""
-    headers = [
-        "Q2",
-        "xB",
-        "t",
-        "phi",
-        "theta_e_gamma_rad",
-        "theta_e_gamma_deg",
+    headers = _kinematic_csv_headers() + [
         "aligned",
         "squared_amplitude_M2",
         "amplitude_normalization_sqrt_M2",
@@ -504,13 +688,7 @@ def _amplitude_csv_headers():
 
 def _amplitude_csv_row(row):
     """Return one formatted CSV row for the reduced amplitude scan."""
-    values = [
-        f"{row['Q2']:.16e}",
-        f"{row['xB']:.16e}",
-        f"{row['t']:.16e}",
-        f"{row['phi']:.16e}",
-        f"{row['theta_e_gamma_rad']:.16e}",
-        f"{row['theta_e_gamma_deg']:.16e}",
+    values = _kinematic_csv_row(row) + [
         row["aligned"],
         f"{row['squared_amplitude_M2']:.16e}",
         f"{row['amplitude_normalization_sqrt_M2']:.16e}",
@@ -564,6 +742,17 @@ def _bin_edges_from_values(values, max_bins=18):
     return np.linspace(values.min(), values.max(), max_bins + 1)
 
 
+def user_frame_kinematic_specs(rows):
+    """Return user-frame variables used as binned plot axes."""
+    return (
+        ("s", np.asarray([row["s"] for row in rows]), r"$s$ [GeV$^2$]"),
+        ("theta_in", np.asarray([row["theta_in"] for row in rows]), r"$\theta_{\rm in}$ [rad]"),
+        ("phi_in_electron", np.asarray([row["phi_in_electron"] for row in rows]), r"$\phi_{e,\rm in}$ [rad]"),
+        ("qOut", np.asarray([row["qOut"] for row in rows]), r"$E_{\gamma}'$ [GeV]"),
+        ("phiOut", np.asarray([row["phiOut"] for row in rows]), r"$\phi_{\gamma}'$ [rad]"),
+    )
+
+
 def _binned_mean_2d(x_values, y_values, z_values, x_edges, y_edges):
     """Return a masked 2D binned mean ``z`` on ``x``/``y`` bins."""
     finite = (
@@ -611,13 +800,7 @@ def save_reduced_density_matrix_component_plot(
             plt.close(fig)
         return output_path
 
-    theta = np.asarray([row["theta_e_gamma_deg"] for row in rows])
-    kinematic_specs = (
-        (np.asarray([row["Q2"] for row in rows]), r"$Q^2$ [GeV$^2$]"),
-        (np.asarray([row["xB"] for row in rows]), r"$x_B$"),
-        (np.asarray([row["t"] for row in rows]), r"$t$ [GeV$^2$]"),
-        (np.asarray([row["phi"] for row in rows]), r"$\phi$ [rad]"),
-    )
+    kinematic_specs = user_frame_kinematic_specs(rows)
     matrices = np.asarray([row[f"{prefix}_rho_ep"] for row in rows], dtype=complex)
     if component == "abs":
         matrix_values = np.abs(matrices)
@@ -642,12 +825,11 @@ def save_reduced_density_matrix_component_plot(
     if plot_vmax is None:
         plot_vmax = 1.0
 
-    theta_edges = np.linspace(0.0, 180.0, 19)
-
     with PdfPages(output_path) as pdf:
-        for variable, y_label in kinematic_specs:
-            base_mask = np.isfinite(theta) & np.isfinite(variable)
-            y_edges = _bin_edges_from_values(variable[base_mask])
+        for (_x_name, x_values, x_label), (_y_name, y_values, y_label) in combinations(kinematic_specs, 2):
+            base_mask = np.isfinite(x_values) & np.isfinite(y_values)
+            x_edges = _bin_edges_from_values(x_values[base_mask])
+            y_edges = _bin_edges_from_values(y_values[base_mask])
             fig, axes = plt.subplots(
                 4,
                 4,
@@ -662,14 +844,14 @@ def save_reduced_density_matrix_component_plot(
                 values = matrix_values[:, row_index, col_index]
                 finite_mask = base_mask & np.isfinite(values)
                 mean_grid, _count_grid = _binned_mean_2d(
-                    theta[finite_mask],
-                    variable[finite_mask],
+                    x_values[finite_mask],
+                    y_values[finite_mask],
                     values[finite_mask],
-                    theta_edges,
+                    x_edges,
                     y_edges,
                 )
                 mesh = ax.pcolormesh(
-                    theta_edges,
+                    x_edges,
                     y_edges,
                     mean_grid,
                     shading="auto",
@@ -684,9 +866,8 @@ def save_reduced_density_matrix_component_plot(
                     f"{_reduced_basis_label(col_index)}",
                     fontsize=8.0,
                 )
-                ax.set_xlabel(r"$\theta(e', \gamma)$ [deg]")
+                ax.set_xlabel(x_label)
                 ax.set_ylabel(y_label)
-                ax.set_xlim(0.0, 180.0)
             fig.suptitle(
                 f"{title_prefix}: reduced electron-photon matrix {component_title}",
                 fontsize=13,
@@ -757,13 +938,7 @@ def save_amplitude_component_plot(
             plt.close(fig)
         return output_path
 
-    theta = np.asarray([row["theta_e_gamma_deg"] for row in rows])
-    kinematic_specs = (
-        (np.asarray([row["Q2"] for row in rows]), r"$Q^2$ [GeV$^2$]"),
-        (np.asarray([row["xB"] for row in rows]), r"$x_B$"),
-        (np.asarray([row["t"] for row in rows]), r"$t$ [GeV$^2$]"),
-        (np.asarray([row["phi"] for row in rows]), r"$\phi$ [rad]"),
-    )
+    kinematic_specs = user_frame_kinematic_specs(rows)
     matrices = np.asarray([row[f"{prefix}_amplitude_ep"] for row in rows], dtype=complex)
     if component == "abs":
         matrix_values = np.abs(matrices)
@@ -788,12 +963,11 @@ def save_amplitude_component_plot(
     if plot_vmax is None:
         plot_vmax = 1.0
 
-    theta_edges = np.linspace(0.0, 180.0, 19)
-
     with PdfPages(output_path) as pdf:
-        for variable, y_label in kinematic_specs:
-            base_mask = np.isfinite(theta) & np.isfinite(variable)
-            y_edges = _bin_edges_from_values(variable[base_mask])
+        for (_x_name, x_values, x_label), (_y_name, y_values, y_label) in combinations(kinematic_specs, 2):
+            base_mask = np.isfinite(x_values) & np.isfinite(y_values)
+            x_edges = _bin_edges_from_values(x_values[base_mask])
+            y_edges = _bin_edges_from_values(y_values[base_mask])
             fig, axes = plt.subplots(
                 2,
                 2,
@@ -808,14 +982,14 @@ def save_amplitude_component_plot(
                 values = matrix_values[:, row_index, col_index]
                 finite_mask = base_mask & np.isfinite(values)
                 mean_grid, _count_grid = _binned_mean_2d(
-                    theta[finite_mask],
-                    variable[finite_mask],
+                    x_values[finite_mask],
+                    y_values[finite_mask],
                     values[finite_mask],
-                    theta_edges,
+                    x_edges,
                     y_edges,
                 )
                 mesh = ax.pcolormesh(
-                    theta_edges,
+                    x_edges,
                     y_edges,
                     mean_grid,
                     shading="auto",
@@ -828,9 +1002,8 @@ def save_amplitude_component_plot(
                     f"r{row_index} c{col_index}\n"
                     f"{_amplitude_basis_label(row_index, col_index)}"
                 )
-                ax.set_xlabel(r"$\theta(e', \gamma)$ [deg]")
+                ax.set_xlabel(x_label)
                 ax.set_ylabel(y_label)
-                ax.set_xlim(0.0, 180.0)
             fig.suptitle(
                 f"{title_prefix}: normalized electron-photon amplitude {component_title}",
                 fontsize=13,
@@ -868,48 +1041,78 @@ def save_amplitude_scan_plots(alignment_scan, prefix, title_prefix):
 
 
 def _concurrence_csv_headers():
-    """Return CSV headers for the alignment concurrence scan."""
-    headers = [
-        "Q2",
-        "xB",
-        "t",
-        "phi",
-        "theta_e_gamma_rad",
-        "theta_e_gamma_deg",
+    """Return CSV headers for the coarse C13 locator scan."""
+    headers = _kinematic_csv_headers() + [
         "aligned",
         "squared_amplitude_M2",
     ]
     for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES:
-        headers.extend(f"{prefix}_{name}" for name in ENTANGLEMENT_NAMES)
+        headers.extend(f"{prefix}_{name}" for name in COARSE_CONCURRENCE_NAMES)
     return headers
 
 
 def _concurrence_csv_row(row):
-    """Return one formatted CSV row for the alignment concurrence scan."""
-    values = [
-        f"{row['Q2']:.16e}",
-        f"{row['xB']:.16e}",
-        f"{row['t']:.16e}",
-        f"{row['phi']:.16e}",
-        f"{row['theta_e_gamma_rad']:.16e}",
-        f"{row['theta_e_gamma_deg']:.16e}",
+    """Return one formatted CSV row for the coarse C13 locator scan."""
+    values = _kinematic_csv_row(row) + [
         row["aligned"],
         f"{row['squared_amplitude_M2']:.16e}",
     ]
     for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES:
-        values.extend(f"{row[f'{prefix}_{name}']:.16e}" for name in ENTANGLEMENT_NAMES)
+        values.extend(f"{row[f'{prefix}_{name}']:.16e}" for name in COARSE_CONCURRENCE_NAMES)
     return values
+
+
+def _c13_top_csv_headers():
+    """Return CSV headers for ranked coarse C13 locator points."""
+    return [
+        "rank_group",
+        "rank",
+        "rank_value",
+        *_kinematic_csv_headers(),
+        "aligned",
+        "squared_amplitude_M2",
+        *(f"{prefix}_C13" for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES),
+    ]
+
+
+def _c13_top_csv_row(rank_group, rank, row):
+    """Return one ranked coarse C13 CSV row."""
+    return [
+        rank_group,
+        rank,
+        f"{row[rank_group]:.16e}",
+        *_kinematic_csv_row(row),
+        row["aligned"],
+        f"{row['squared_amplitude_M2']:.16e}",
+        *(f"{row[f'{prefix}_C13']:.16e}" for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES),
+    ]
+
+
+def save_c13_top_csv(rows, output_path, top_n=COARSE_C13_TOP_N):
+    """Save top coarse C13 rows for each spin case."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(_c13_top_csv_headers())
+        for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES:
+            key = f"{prefix}_C13"
+            finite_rows = [row for row in rows if np.isfinite(row.get(key, np.nan))]
+            ordered = sorted(finite_rows, key=lambda row: row[key], reverse=True)
+            for rank, row in enumerate(ordered[:top_n], start=1):
+                writer.writerow(_c13_top_csv_row(key, rank, row))
+    return output_path
 
 
 def save_concurrence_scan_csv_files(
     alignment_scan,
     output_dir=CONCURRENCE_OUTPUT_DIR,
 ):
-    """Save full and aligned-only concurrence scan CSV files."""
+    """Save full, aligned-only, and ranked coarse C13 locator CSV files."""
     output_dir.mkdir(parents=True, exist_ok=True)
     paths = {
         "all_csv": output_dir / "electron_photon_concurrence_phase_space.csv",
         "aligned_csv": output_dir / "electron_photon_concurrence_aligned.csv",
+        "top_c13_csv": output_dir / "electron_photon_c13_top.csv",
     }
     headers = _concurrence_csv_headers()
     aligned_rows = [row for row in alignment_scan["rows"] if row["aligned"]]
@@ -919,6 +1122,7 @@ def save_concurrence_scan_csv_files(
             writer.writerow(headers)
             for row in rows:
                 writer.writerow(_concurrence_csv_row(row))
+    save_c13_top_csv(alignment_scan["rows"], paths["top_c13_csv"])
     return paths
 
 
@@ -928,10 +1132,10 @@ def save_concurrence_scan_plot(
     title_prefix,
     output_path=None,
 ):
-    """Save binned concurrence heatmaps for one alignment spin case."""
+    """Save binned C13 heatmaps for one alignment spin case."""
     plt, PdfPages = _require_matplotlib()
     if output_path is None:
-        output_path = CONCURRENCE_OUTPUT_DIR / f"concurrence_scan_{prefix}.pdf"
+        output_path = CONCURRENCE_OUTPUT_DIR / f"c13_scan_{prefix}.pdf"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     rows = alignment_scan["rows"]
@@ -944,17 +1148,8 @@ def save_concurrence_scan_plot(
             plt.close(fig)
         return output_path
 
-    theta = np.asarray([row["theta_e_gamma_deg"] for row in rows])
-    kinematic_specs = (
-        (np.asarray([row["Q2"] for row in rows]), r"$Q^2$ [GeV$^2$]"),
-        (np.asarray([row["xB"] for row in rows]), r"$x_B$"),
-        (np.asarray([row["t"] for row in rows]), r"$t$ [GeV$^2$]"),
-        (np.asarray([row["phi"] for row in rows]), r"$\phi$ [rad]"),
-    )
-    theta_edges = np.linspace(0.0, 180.0, 19)
-
     with PdfPages(output_path) as pdf:
-        for name in ENTANGLEMENT_NAMES:
+        for name in COARSE_CONCURRENCE_NAMES:
             values = np.asarray([row[f"{prefix}_{name}"] for row in rows], dtype=float)
             finite_values = values[np.isfinite(values)]
             if finite_values.size == 0:
@@ -967,58 +1162,94 @@ def save_concurrence_scan_plot(
             if abs(vmax - vmin) <= 1.0e-14:
                 vmax = vmin + 1.0
 
-            for variable, y_label in kinematic_specs:
-                finite_mask = (
-                    np.isfinite(theta)
-                    & np.isfinite(variable)
-                    & np.isfinite(values)
+            anchors = alignment_scan.get("kinematic_points", [])
+            if anchors:
+                fig, axes = plt.subplots(
+                    3,
+                    6,
+                    figsize=(18.0, 9.8),
+                    constrained_layout=True,
                 )
-                y_edges = _bin_edges_from_values(variable[finite_mask])
-                mean_grid, count_grid = _binned_mean_2d(
-                    theta[finite_mask],
-                    variable[finite_mask],
-                    values[finite_mask],
-                    theta_edges,
-                    y_edges,
-                )
-                fig, ax = plt.subplots(figsize=(7.2, 5.2), constrained_layout=True)
-                mesh = ax.pcolormesh(
-                    theta_edges,
-                    y_edges,
-                    mean_grid,
-                    shading="auto",
-                    cmap=cmap,
-                    vmin=vmin,
-                    vmax=vmax,
-                )
-                occupied_y, occupied_x = np.nonzero(count_grid > 0)
-                if occupied_x.size:
-                    x_centers = 0.5 * (theta_edges[:-1] + theta_edges[1:])
-                    y_centers = 0.5 * (y_edges[:-1] + y_edges[1:])
-                    ax.scatter(
-                        x_centers[occupied_x],
-                        y_centers[occupied_y],
-                        s=10 + 4 * count_grid[occupied_y, occupied_x],
-                        facecolors="none",
-                        edgecolors="black",
-                        linewidths=0.6,
+                axes_flat = axes.ravel()
+                anchor_meshes = []
+                for index, anchor in enumerate(anchors):
+                    ax = axes_flat[index]
+                    point_rows = [
+                        row for row in rows
+                        if row.get("kinematic_point") == anchor["kinematic_point"]
+                        and np.isfinite(row[f"{prefix}_{name}"])
+                    ]
+                    if not point_rows:
+                        ax.set_axis_off()
+                        continue
+                    x_values = np.asarray([row["phi_in_electron"] for row in point_rows], dtype=float)
+                    y_values = np.asarray([row["phiOut"] for row in point_rows], dtype=float)
+                    point_values = np.asarray([row[f"{prefix}_{name}"] for row in point_rows], dtype=float)
+                    x_edges = _bin_edges_from_values(x_values)
+                    y_edges = _bin_edges_from_values(y_values)
+                    mean_grid, _count_grid = _binned_mean_2d(
+                        x_values,
+                        y_values,
+                        point_values,
+                        x_edges,
+                        y_edges,
                     )
-                ax.set_xlabel(r"$\theta(e', \gamma)$ [deg]")
-                ax.set_ylabel(y_label)
-                ax.set_xlim(0.0, 180.0)
-                ax.set_title(f"{title_prefix}: {name}")
-                fig.colorbar(mesh, ax=ax, label=name)
+                    mesh = ax.pcolormesh(
+                        x_edges,
+                        y_edges,
+                        mean_grid,
+                        shading="auto",
+                        cmap=cmap,
+                        vmin=vmin,
+                        vmax=vmax,
+                    )
+                    anchor_meshes.append(mesh)
+                    best = max(point_rows, key=lambda row: row[f"{prefix}_{name}"])
+                    ax.set_title(
+                        f"{anchor['s_regime']}, {anchor['theta_in_regime']}\n"
+                        f"{anchor['qOut_regime']}, max={best[f'{prefix}_{name}']:.3f}",
+                        fontsize=8,
+                    )
+                    if index // 6 == 2:
+                        ax.set_xlabel(r"$\phi_{e,\rm in}$", fontsize=8)
+                    else:
+                        ax.set_xticklabels([])
+                    if index % 6 == 0:
+                        ax.set_ylabel(r"$\phi_{\gamma}'$", fontsize=8)
+                    else:
+                        ax.set_yticklabels([])
+                    ax.tick_params(labelsize=7)
+                for ax in axes_flat[len(anchors):]:
+                    ax.set_axis_off()
+                fig.suptitle(
+                    f"{title_prefix}: {name} two-angle scans at characteristic kinematics",
+                    fontsize=14,
+                )
+                if anchor_meshes:
+                    fig.colorbar(anchor_meshes[-1], ax=axes, label=name, shrink=0.82)
                 pdf.savefig(fig)
                 plt.close(fig)
     return output_path
 
 
 def save_concurrence_scan_plots(alignment_scan):
-    """Save concurrence scan PDFs for all alignment spin cases."""
+    """Save C13 scan PDFs for all alignment spin cases."""
     return {
         prefix: save_concurrence_scan_plot(alignment_scan, prefix, label)
         for prefix, label, _spin_case in ALIGNMENT_SPIN_CASES
     }
+
+
+def c13_summary_line(row, key):
+    """Return a compact coarse C13 maximum summary line."""
+    return (
+        f"    {key}={row[key]:.12g}, s={row['s']:.8g}, "
+        f"theta_in={row['theta_in']:.8g}, phi_e_in={row['phi_in_electron']:.8g}, "
+        f"phi_p_in={row['phi_in']:.8g}, "
+        f"qOut={row['qOut']:.8g}, phiOut={row['phiOut']:.8g}, "
+        f"Q2={row['Q2']:.8g}, xB={row['xB']:.8g}, t={row['t']:.8g}, "
+        f"theta(e',gamma)={row['theta_e_gamma_deg']:.8g} deg"
+    )
 
 
 def build_alignment_report(alignment_scan, alignment_paths):
@@ -1026,20 +1257,40 @@ def build_alignment_report(alignment_scan, alignment_paths):
     rows = alignment_scan["rows"]
     aligned_rows = [row for row in rows if row["aligned"]]
     lines = [
-        "Final electron-photon alignment phase-space scan",
+        "C13-focused user-frame phase-space scan",
+        "  anchor variables: s, theta_in, qOut",
+        "  scanned variables per anchor: phi_in_electron, phi_gamma",
+        "  locator observable: C13 between outgoing electron and real photon",
         f"  angle cut: theta(e', gamma) <= {alignment_scan['angle_max_deg']:.6g} deg",
-        f"  Q2 grid: {alignment_scan['Q2_values'][0]:.6g} to {alignment_scan['Q2_values'][-1]:.6g}",
-        f"  xB grid: {alignment_scan['xB_values'][0]:.6g} to {alignment_scan['xB_values'][-1]:.6g}",
-        f"  t grid: {alignment_scan['t_values'][0]:.6g} to {alignment_scan['t_values'][-1]:.6g}",
-        f"  phi grid: {alignment_scan['phi_values'][0]:.6g} to {alignment_scan['phi_values'][-1]:.6g}",
+        f"  characteristic kinematic anchors: {len(alignment_scan['kinematic_points'])}",
+        f"  s anchor range: {min(alignment_scan['s_values']):.6g} to {max(alignment_scan['s_values']):.6g}",
+        f"  theta_in anchor range: {min(alignment_scan['theta_in_values']):.6g} to {max(alignment_scan['theta_in_values']):.6g}",
+        f"  qOut/Egamma anchor range: {min(alignment_scan['qOut_values']):.6g} to {max(alignment_scan['qOut_values']):.6g}",
+        f"  phi_e_in scan: {len(alignment_scan['phi_in_electron_values'])} values from "
+        f"{alignment_scan['phi_in_electron_values'][0]:.6g} to {alignment_scan['phi_in_electron_values'][-1]:.6g}",
+        f"  phi_gamma scan: {len(alignment_scan['phiOut_values'])} values from "
+        f"{alignment_scan['phiOut_values'][0]:.6g} to {alignment_scan['phiOut_values'][-1]:.6g}",
         f"  valid points: {len(rows)}",
         f"  aligned points: {len(aligned_rows)}",
         "  amplitude normalization: M / sqrt(M^2_unpol)",
+        "  density matrix scan outputs: "
+        f"{'enabled' if alignment_paths.get('run_density_matrix_scan') else 'disabled'}",
+        "  amplitude scan outputs: "
+        f"{'enabled' if alignment_paths.get('run_amplitude_scan') else 'disabled'}",
     ]
     if rows:
         min_angle = min(row["theta_e_gamma_deg"] for row in rows)
         max_angle = max(row["theta_e_gamma_deg"] for row in rows)
         lines.append(f"  theta range: {min_angle:.6g} to {max_angle:.6g} deg")
+        lines.append("")
+        lines.append("Top C13 locator points:")
+        for prefix, label, _spin_case in ALIGNMENT_SPIN_CASES:
+            key = f"{prefix}_C13"
+            finite_rows = [row for row in rows if np.isfinite(row.get(key, np.nan))]
+            if finite_rows:
+                best = max(finite_rows, key=lambda row: row[key])
+                lines.append(f"  {label}:")
+                lines.append(c13_summary_line(best, key))
     if aligned_rows:
         correlations = [row["unpolarized_h_lambda"] for row in aligned_rows]
         lines.append(
@@ -1049,62 +1300,87 @@ def build_alignment_report(alignment_scan, alignment_paths):
     lines.extend([
         f"  saved full csv: {alignment_paths['all_csv']}",
         f"  saved aligned csv: {alignment_paths['aligned_csv']}",
-        "  saved density matrix full csv: "
-        f"{alignment_paths['density_matrix_csv']['all_csv']}",
-        "  saved density matrix aligned csv: "
-        f"{alignment_paths['density_matrix_csv']['aligned_csv']}",
-        "  saved amplitude full csv: "
-        f"{alignment_paths['amplitude_csv']['all_csv']}",
-        "  saved amplitude aligned csv: "
-        f"{alignment_paths['amplitude_csv']['aligned_csv']}",
-        "  saved concurrence full csv: "
+        "  saved C13 full csv: "
         f"{alignment_paths['concurrence_csv']['all_csv']}",
-        "  saved concurrence aligned csv: "
+        "  saved C13 aligned csv: "
         f"{alignment_paths['concurrence_csv']['aligned_csv']}",
+        "  saved ranked C13 csv: "
+        f"{alignment_paths['concurrence_csv']['top_c13_csv']}",
     ])
+    if alignment_paths.get("run_density_matrix_scan"):
+        lines.extend([
+            "  saved density matrix full csv: "
+            f"{alignment_paths['density_matrix_csv']['all_csv']}",
+            "  saved density matrix aligned csv: "
+            f"{alignment_paths['density_matrix_csv']['aligned_csv']}",
+        ])
+    if alignment_paths.get("run_amplitude_scan"):
+        lines.extend([
+            "  saved amplitude full csv: "
+            f"{alignment_paths['amplitude_csv']['all_csv']}",
+            "  saved amplitude aligned csv: "
+            f"{alignment_paths['amplitude_csv']['aligned_csv']}",
+        ])
     for prefix, label, _spin_case in ALIGNMENT_SPIN_CASES:
-        amplitude_paths = alignment_paths[f"{prefix}_amplitude_plots"]
+        if alignment_paths.get("run_amplitude_scan"):
+            amplitude_paths = alignment_paths[f"{prefix}_amplitude_plots"]
+            lines.append(
+                f"  saved {label.lower()} amplitude magnitude plot: "
+                f"{amplitude_paths['abs']}"
+            )
+            lines.append(
+                f"  saved {label.lower()} amplitude phase plot: "
+                f"{amplitude_paths['phase']}"
+            )
+        if alignment_paths.get("run_density_matrix_scan"):
+            plot_paths = alignment_paths[f"{prefix}_reduced_density_plots"]
+            lines.append(
+                f"  saved {label.lower()} reduced density magnitude plot: "
+                f"{plot_paths['abs']}"
+            )
+            lines.append(
+                f"  saved {label.lower()} reduced density phase plot: "
+                f"{plot_paths['phase']}"
+            )
         lines.append(
-            f"  saved {label.lower()} amplitude magnitude plot: "
-            f"{amplitude_paths['abs']}"
-        )
-        lines.append(
-            f"  saved {label.lower()} amplitude phase plot: "
-            f"{amplitude_paths['phase']}"
-        )
-        plot_paths = alignment_paths[f"{prefix}_reduced_density_plots"]
-        lines.append(
-            f"  saved {label.lower()} reduced density magnitude plot: "
-            f"{plot_paths['abs']}"
-        )
-        lines.append(
-            f"  saved {label.lower()} reduced density phase plot: "
-            f"{plot_paths['phase']}"
-        )
-        lines.append(
-            f"  saved {label.lower()} concurrence plot: "
+            f"  saved {label.lower()} C13 plot: "
             f"{alignment_paths['concurrence_plots'][prefix]}"
         )
     if alignment_scan["failures"]:
         lines.append(f"  invalid phase-space points: {len(alignment_scan['failures'])}")
+        for point_id, s, theta_in, phi_in, phi_in_electron, qOut, phiOut, message in alignment_scan["failures"][:10]:
+            lines.append(
+                f"    point={point_id}, s={s:.8g}, theta_in={theta_in:.8g}, "
+                f"phi_e_in={phi_in_electron:.8g}, phi_p_in={phi_in:.8g}, "
+                f"qOut={qOut:.8g}, phiOut={phiOut:.8g}: {message}"
+            )
     return "\n".join(lines)
 
 
-def main():
+def main(
+    run_density_matrix_scan=RUN_ALIGNMENT_DENSITY_MATRIX_SCAN,
+    run_amplitude_scan=RUN_ALIGNMENT_AMPLITUDE_SCAN,
+):
     """Regenerate final electron-photon alignment scan outputs."""
     clean_alignment_outputs()
     alignment_scan = scan_final_electron_photon_alignment()
     paths = save_alignment_scan_csv_files(alignment_scan)
-    paths["density_matrix_csv"] = save_density_matrix_scan_csv_files(alignment_scan)
-    paths["amplitude_csv"] = save_amplitude_scan_csv_files(alignment_scan)
+    paths["run_density_matrix_scan"] = run_density_matrix_scan
+    paths["run_amplitude_scan"] = run_amplitude_scan
+    if run_density_matrix_scan:
+        paths["density_matrix_csv"] = save_density_matrix_scan_csv_files(alignment_scan)
+    if run_amplitude_scan:
+        paths["amplitude_csv"] = save_amplitude_scan_csv_files(alignment_scan)
     paths["concurrence_csv"] = save_concurrence_scan_csv_files(alignment_scan)
     for prefix, label, _spin_case in ALIGNMENT_SPIN_CASES:
-        paths[f"{prefix}_amplitude_plots"] = (
-            save_amplitude_scan_plots(alignment_scan, prefix, label)
-        )
-        paths[f"{prefix}_reduced_density_plots"] = (
-            save_reduced_density_matrix_plots(alignment_scan, prefix, label)
-        )
+        if run_amplitude_scan:
+            paths[f"{prefix}_amplitude_plots"] = (
+                save_amplitude_scan_plots(alignment_scan, prefix, label)
+            )
+        if run_density_matrix_scan:
+            paths[f"{prefix}_reduced_density_plots"] = (
+                save_reduced_density_matrix_plots(alignment_scan, prefix, label)
+            )
     paths["concurrence_plots"] = save_concurrence_scan_plots(alignment_scan)
 
     log_text = build_alignment_report(alignment_scan, paths) + f"\n\nSaved log: {ALIGNMENT_LOG_PATH}\n"
