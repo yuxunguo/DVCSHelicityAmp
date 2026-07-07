@@ -35,6 +35,7 @@ from SpinDensityMat import (
     amplitude_table,
     density_matrix_from_amplitudes,
     entanglement_measures_from_amplitudes,
+    entanglement_measures_from_state,
     initial_spin_states,
     is_transverse_spin_case,
     outgoing_spin_states,
@@ -51,8 +52,8 @@ CHARACTERISTIC_S_POINTS = (
     ("high_s", 1.18 * USER_S_CENTER),
 )
 CHARACTERISTIC_THETA_IN_POINTS = (
-    ("low_theta_in", 1.10),
-    ("high_theta_in", 1.90),
+    ("low_theta_in", 0.1),
+    ("high_theta_in", 3.14159/2),
 )
 CHARACTERISTIC_QOUT_POINTS = (
     ("low_Egamma", 0.75),
@@ -75,12 +76,15 @@ CONCURRENCE_OUTPUT_DIR = ALIGNMENT_OUTPUT_DIR / "ConcurrenceScan"
 AMPLITUDE_OUTPUT_DIR = ALIGNMENT_OUTPUT_DIR / "AmplitudeScan"
 RUN_ALIGNMENT_DENSITY_MATRIX_SCAN = False
 RUN_ALIGNMENT_AMPLITUDE_SCAN = False
+SPIN_CASE_DOUBLE_TRANSVERSE = "double_transverse"
+DOUBLE_TRANSVERSE_BASE_SPIN_CASE = SPIN_CASE_TRANSVERSE_TX
 REDUCED_EP_BASIS = ((-1, -1), (-1, 1), (1, -1), (1, 1))
 ALIGNMENT_SPIN_CASES = (
     ("unpolarized", "Unpolarized", SPIN_CASE_UNPOLARIZED),
     ("longitudinal_polarized", "Longitudinal polarized", SPIN_CASE_POLARIZED),
     ("Tx", "Tx", SPIN_CASE_TRANSVERSE_TX),
     ("Ty", "Ty", SPIN_CASE_TRANSVERSE_TY),
+    ("double_transverse", "Double transverse", SPIN_CASE_DOUBLE_TRANSVERSE),
 )
 COARSE_CONCURRENCE_NAMES = ("C13",)
 COARSE_C13_TOP_N = 60
@@ -228,6 +232,49 @@ def _electron_photon_amplitude_matrix_from_state(amplitude_row):
     return matrix
 
 
+def double_transverse_final_state(amplitudes):
+    """Return the outgoing state for e and p both polarized along transverse x."""
+    in_states = initial_spin_states()
+    coefficients = transverse_electron_coefficients(DOUBLE_TRANSVERSE_BASE_SPIN_CASE)
+    return sum(
+        coefficients[h_in]
+        * coefficients[s_in]
+        * amplitudes[in_states.index((h_in, s_in))]
+        for h_in in (-1, +1)
+        for s_in in (-1, +1)
+    )
+
+
+def normalized_double_transverse_final_state(amplitudes):
+    """Return the normalized double-transverse outgoing pure state."""
+    state = double_transverse_final_state(amplitudes)
+    norm = np.sqrt(np.sum(np.abs(state) ** 2))
+    if norm <= 1e-14:
+        raise ZeroDivisionError("Cannot normalize a zero double-transverse final state.")
+    return state / norm
+
+
+def density_matrix_for_alignment_spin_case(
+    amplitudes,
+    spin_case,
+    average_initial=AVERAGE_INITIAL_SPINS,
+):
+    """Return density-matrix data for one alignment spin case."""
+    if spin_case == SPIN_CASE_DOUBLE_TRANSVERSE:
+        state = double_transverse_final_state(amplitudes)
+        rho = np.outer(state, state.conj())
+        spin_signal = float(np.sum(np.abs(state) ** 2))
+        squared_amplitude = float(np.sum(np.abs(amplitudes) ** 2))
+        if average_initial:
+            squared_amplitude /= amplitudes.shape[0]
+        return rho, spin_signal, squared_amplitude
+    return density_matrix_from_amplitudes(
+        amplitudes,
+        average_initial=average_initial,
+        spin_case=spin_case,
+    )
+
+
 def electron_photon_amplitude_matrix(amplitudes, spin_case, initial_state):
     """Return a 2x2 final electron-photon amplitude for one spin case."""
     in_states = initial_spin_states()
@@ -245,6 +292,8 @@ def electron_photon_amplitude_matrix(amplitudes, spin_case, initial_state):
             coefficients[h_in] * amplitudes[in_states.index((h_in, proton_spin))]
             for h_in in (-1, +1)
         )
+    elif spin_case == SPIN_CASE_DOUBLE_TRANSVERSE:
+        amplitude_row = double_transverse_final_state(amplitudes)
     else:
         raise ValueError(f"Unknown alignment amplitude spin case: {spin_case}")
     return _electron_photon_amplitude_matrix_from_state(amplitude_row)
@@ -285,6 +334,10 @@ def alignment_concurrence_measures(amplitudes, spin_case, initial_state):
             amplitudes,
             initial_state[1],
             spin_case,
+        )
+    if spin_case == SPIN_CASE_DOUBLE_TRANSVERSE:
+        return entanglement_measures_from_state(
+            normalized_double_transverse_final_state(amplitudes)
         )
     raise ValueError(f"Unknown alignment spin case: {spin_case}")
 
@@ -384,7 +437,7 @@ def _scan_alignment_point_task(task):
                 spin_signal = unpolarized_signal
             else:
                 rho, spin_signal, _squared_amplitude_check = (
-                    density_matrix_from_amplitudes(
+                    density_matrix_for_alignment_spin_case(
                         amplitudes,
                         average_initial=AVERAGE_INITIAL_SPINS,
                         spin_case=spin_case,

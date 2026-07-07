@@ -5,7 +5,7 @@ C13-focused user-frame phase-space scan
   angle cut: theta(e', gamma) <= 10 deg
   characteristic kinematic anchors: 18
   s anchor range: 16.7824 to 25.3887
-  theta_in anchor range: 1.1 to 1.9
+  theta_in anchor range: 0.1 to 1.57079
   qOut/Egamma anchor range: 0.75 to 1.75
   phi_e_in scan: 32 values from 0 to 6.08684
   phi_gamma scan: 32 values from 0 to 6.08684
@@ -18,13 +18,15 @@ C13-focused user-frame phase-space scan
 
 Top C13 locator points:
   Unpolarized:
-    unpolarized_C13=4.60613915969e-16, s=25.388696, theta_in=1.9, phi_e_in=1.7671459, phi_p_in=4.9087385, qOut=1.75, phiOut=1.9634954, Q2=20.992632, xB=0.9091677, t=-6.0663054, theta(e',gamma)=175.02558 deg
+    unpolarized_C13=8.4713995244e-11, s=21.515844, theta_in=1.570795, phi_e_in=2.552544, phi_p_in=5.6941367, qOut=1.75, phiOut=2.552544, Q2=16.959837, xB=0.85431556, t=-3.617147, theta(e',gamma)=173.28084 deg
   Longitudinal polarized:
-    longitudinal_polarized_C13=1.96034437485e-16, s=21.515844, theta_in=1.1, phi_e_in=3.5342917, phi_p_in=0.39269908, qOut=1.75, phiOut=3.7306413, Q2=11.659031, xB=0.62147867, t=-3.5056574, theta(e',gamma)=142.0625 deg
+    longitudinal_polarized_C13=4.07465927705e-11, s=21.515844, theta_in=1.570795, phi_e_in=4.5160394, phi_p_in=1.3744468, qOut=1.75, phiOut=4.5160394, Q2=0.86423861, xB=0.052636067, t=-0.18432242, theta(e',gamma)=49.810428 deg
   Tx:
-    Tx_C13=0.915381189014, s=21.515844, theta_in=1.9, phi_e_in=5.3014376, phi_p_in=2.1598449, qOut=1.75, phiOut=4.9087385, Q2=1.7360184, xB=0.10040062, t=-2.0349895, theta(e',gamma)=49.810428 deg
+    Tx_C13=0.928650767925, s=16.782358, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.75, phiOut=4.5160394, Q2=0.034699359, xB=0.005698669, t=-2.8747846e-05, theta(e',gamma)=18.241951 deg
   Ty:
-    Ty_C13=0.915381191312, s=21.515844, theta_in=1.9, phi_e_in=4.1233404, phi_p_in=0.9817477, qOut=1.75, phiOut=4.5160394, Q2=1.7360184, xB=0.10040062, t=-2.0349895, theta(e',gamma)=49.810428 deg
+    Ty_C13=0.928650766956, s=16.782358, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.75, phiOut=4.5160394, Q2=0.034699359, xB=0.005698669, t=-2.8747846e-05, theta(e',gamma)=18.241951 deg
+  Double transverse:
+    double_transverse_C13=0.928665479409, s=16.782358, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.75, phiOut=4.5160394, Q2=0.034699359, xB=0.005698669, t=-2.8747846e-05, theta(e',gamma)=18.241951 deg
   saved full csv: Output\AlignmentScan\electron_photon_spin_correlation_phase_space.csv
   saved aligned csv: Output\AlignmentScan\electron_photon_spin_correlation_aligned.csv
   saved C13 full csv: Output\AlignmentScan\ConcurrenceScan\electron_photon_concurrence_phase_space.csv
@@ -34,16 +36,17 @@ Top C13 locator points:
   saved longitudinal polarized C13 plot: Output\AlignmentScan\ConcurrenceScan\c13_scan_longitudinal_polarized.pdf
   saved tx C13 plot: Output\AlignmentScan\ConcurrenceScan\c13_scan_Tx.pdf
   saved ty C13 plot: Output\AlignmentScan\ConcurrenceScan\c13_scan_Ty.pdf
+  saved double transverse C13 plot: Output\AlignmentScan\ConcurrenceScan\c13_scan_double_transverse.pdf
   invalid phase-space points: 2560
-    point=low_s_low_theta_in_low_Egamma, s=16.782358, theta_in=1.1, phi_e_in=0, phi_p_in=3.1415927, qOut=0.75, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
-    point=low_s_low_theta_in_low_Egamma, s=16.782358, theta_in=1.1, phi_e_in=0.19634954, phi_p_in=3.3379422, qOut=0.75, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
-    point=low_s_low_theta_in_low_Egamma, s=16.782358, theta_in=1.1, phi_e_in=0.39269908, phi_p_in=3.5342917, qOut=0.75, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
-    point=low_s_low_theta_in_low_Egamma, s=16.782358, theta_in=1.1, phi_e_in=0.58904862, phi_p_in=3.7306413, qOut=0.75, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
-    point=low_s_low_theta_in_low_Egamma, s=16.782358, theta_in=1.1, phi_e_in=0.78539816, phi_p_in=3.9269908, qOut=0.75, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
-    point=low_s_low_theta_in_low_Egamma, s=16.782358, theta_in=1.1, phi_e_in=0.9817477, phi_p_in=4.1233404, qOut=0.75, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
-    point=low_s_low_theta_in_low_Egamma, s=16.782358, theta_in=1.1, phi_e_in=1.1780972, phi_p_in=4.3196899, qOut=0.75, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
-    point=low_s_low_theta_in_low_Egamma, s=16.782358, theta_in=1.1, phi_e_in=1.3744468, phi_p_in=4.5160394, qOut=0.75, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
-    point=low_s_low_theta_in_low_Egamma, s=16.782358, theta_in=1.1, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.75, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
-    point=low_s_low_theta_in_low_Egamma, s=16.782358, theta_in=1.1, phi_e_in=1.7671459, phi_p_in=4.9087385, qOut=0.75, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    point=low_s_low_theta_in_low_Egamma, s=16.782358, theta_in=0.1, phi_e_in=0, phi_p_in=3.1415927, qOut=0.75, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    point=low_s_low_theta_in_low_Egamma, s=16.782358, theta_in=0.1, phi_e_in=0.19634954, phi_p_in=3.3379422, qOut=0.75, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    point=low_s_low_theta_in_low_Egamma, s=16.782358, theta_in=0.1, phi_e_in=0.39269908, phi_p_in=3.5342917, qOut=0.75, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    point=low_s_low_theta_in_low_Egamma, s=16.782358, theta_in=0.1, phi_e_in=0.58904862, phi_p_in=3.7306413, qOut=0.75, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    point=low_s_low_theta_in_low_Egamma, s=16.782358, theta_in=0.1, phi_e_in=0.78539816, phi_p_in=3.9269908, qOut=0.75, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    point=low_s_low_theta_in_low_Egamma, s=16.782358, theta_in=0.1, phi_e_in=0.9817477, phi_p_in=4.1233404, qOut=0.75, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    point=low_s_low_theta_in_low_Egamma, s=16.782358, theta_in=0.1, phi_e_in=1.1780972, phi_p_in=4.3196899, qOut=0.75, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    point=low_s_low_theta_in_low_Egamma, s=16.782358, theta_in=0.1, phi_e_in=1.3744468, phi_p_in=4.5160394, qOut=0.75, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    point=low_s_low_theta_in_low_Egamma, s=16.782358, theta_in=0.1, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.75, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
+    point=low_s_low_theta_in_low_Egamma, s=16.782358, theta_in=0.1, phi_e_in=1.7671459, phi_p_in=4.9087385, qOut=0.75, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
 
 Saved log: Output\AlignmentScan.log

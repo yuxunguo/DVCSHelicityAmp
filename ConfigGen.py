@@ -46,6 +46,9 @@ TOP_ROWS_PER_SPIN = 60
 MAX_CLUSTERS_PER_SPIN = 8
 EXAMPLES_PER_CLUSTER = 2
 CLUSTER_RADIUS = 0.42
+CONFIG_SPIN_CASES = ("Tx", "Ty")
+DISPLAY_MOMENTA = ("k", "p", "kp", "pp", "qout")
+INCOMING_MOMENTA = ("k", "p")
 
 KINEMATIC_COLUMNS = (
     "kinematic_point",
@@ -123,9 +126,10 @@ def c13_columns(rows):
     if not rows:
         return []
     columns = [name for name in rows[0] if name.endswith("_C13")]
-    preferred = ["Tx_C13", "Ty_C13", "longitudinal_polarized_C13", "unpolarized_C13"]
+    preferred = [f"{spin_case}_C13" for spin_case in CONFIG_SPIN_CASES]
     return [name for name in preferred if name in columns] + [
-        name for name in columns if name not in preferred
+        name for name in columns
+        if name not in preferred and spin_label_from_key(name) in CONFIG_SPIN_CASES
     ]
 
 
@@ -336,7 +340,7 @@ def momentum_configuration_rows(detail_rows):
     records = []
     for row in detail_rows:
         kin = kinematics_from_config_row(row)
-        for name in ("k", "p", "kp", "pp", "qout", "q"):
+        for name in DISPLAY_MOMENTA:
             vector = kin["momenta"][name]
             records.append({
                 "detail_id": row["detail_id"],
@@ -450,32 +454,64 @@ def amplitude_decomposition_rows(detail_rows):
     return rows
 
 
-def _plot_vector_3d(ax, vector, label, color):
-    """Draw one 3D momentum vector from the origin."""
+def _plot_vector_3d(ax, vector, label, color, incoming=False):
+    """Draw one 3D momentum vector."""
     spatial = np.asarray(vector, dtype=float)[1:4]
-    ax.quiver(0.0, 0.0, 0.0, spatial[0], spatial[1], spatial[2], color=color, arrow_length_ratio=0.08)
-    ax.text(spatial[0], spatial[1], spatial[2], f" {label}", color=color, fontsize=8)
+    if incoming:
+        start = spatial
+        delta = -spatial
+        text_position = spatial
+    else:
+        start = np.zeros(3)
+        delta = spatial
+        text_position = spatial
+    ax.quiver(
+        start[0],
+        start[1],
+        start[2],
+        delta[0],
+        delta[1],
+        delta[2],
+        color=color,
+        arrow_length_ratio=0.08,
+    )
+    ax.text(
+        text_position[0],
+        text_position[1],
+        text_position[2],
+        f" {label}",
+        color=color,
+        fontsize=8,
+    )
 
 
-def _plot_vector_2d(ax, vector, label, color):
-    """Draw one transverse momentum vector from the origin."""
+def _plot_vector_2d(ax, vector, label, color, incoming=False):
+    """Draw one transverse momentum vector."""
     spatial = np.asarray(vector, dtype=float)[1:3]
+    if incoming:
+        start = spatial
+        delta = -spatial
+        text_position = spatial
+    else:
+        start = np.zeros(2)
+        delta = spatial
+        text_position = spatial
     ax.arrow(
-        0.0,
-        0.0,
-        spatial[0],
-        spatial[1],
+        start[0],
+        start[1],
+        delta[0],
+        delta[1],
         color=color,
         width=0.0,
         head_width=0.045,
         length_includes_head=True,
     )
-    ax.text(spatial[0], spatial[1], f" {label}", color=color, fontsize=8, va="center")
+    ax.text(text_position[0], text_position[1], f" {label}", color=color, fontsize=8, va="center")
 
 
 def _set_symmetric_limits_3d(ax, momenta):
     """Use symmetric limits so 3D momentum directions are not distorted."""
-    vectors = np.asarray([momenta[name][1:4] for name in ("k", "p", "kp", "pp", "qout", "q")])
+    vectors = np.asarray([momenta[name][1:4] for name in DISPLAY_MOMENTA])
     limit = max(1.0, float(np.nanmax(np.abs(vectors))) * 1.15)
     ax.set_xlim(-limit, limit)
     ax.set_ylim(-limit, limit)
@@ -490,20 +526,20 @@ def plot_momentum_panels(fig, grid_spec, kin):
         "kp": "tab:cyan",
         "pp": "tab:red",
         "qout": "tab:green",
-        "q": "tab:purple",
     }
     momenta = kin["momenta"]
     ax3d = fig.add_subplot(grid_spec[0, 0], projection="3d")
     ax2d = fig.add_subplot(grid_spec[1, 0])
-    for name in ("k", "p", "kp", "pp", "qout", "q"):
-        _plot_vector_3d(ax3d, momenta[name], name, colors[name])
-        _plot_vector_2d(ax2d, momenta[name], name, colors[name])
+    for name in DISPLAY_MOMENTA:
+        incoming = name in INCOMING_MOMENTA
+        _plot_vector_3d(ax3d, momenta[name], name, colors[name], incoming=incoming)
+        _plot_vector_2d(ax2d, momenta[name], name, colors[name], incoming=incoming)
     _set_symmetric_limits_3d(ax3d, momenta)
     ax3d.set_title("3D momenta")
     ax3d.set_xlabel("px [GeV]")
     ax3d.set_ylabel("py [GeV]")
     ax3d.set_zlabel("pz [GeV]")
-    transverse = np.asarray([momenta[name][1:3] for name in ("k", "p", "kp", "pp", "qout", "q")])
+    transverse = np.asarray([momenta[name][1:3] for name in DISPLAY_MOMENTA])
     limit = max(1.0, float(np.nanmax(np.abs(transverse))) * 1.20)
     ax2d.set_xlim(-limit, limit)
     ax2d.set_ylim(-limit, limit)
@@ -553,7 +589,7 @@ def plot_configuration_text(ax, row, kin):
         "",
         "four-momenta [E, px, py, pz] GeV:",
     ]
-    lines.extend(format_vector_line(name, momenta[name]) for name in ("k", "p", "kp", "pp", "qout", "q"))
+    lines.extend(format_vector_line(name, momenta[name]) for name in DISPLAY_MOMENTA)
     ax.text(0.0, 1.0, "\n".join(lines), va="top", ha="left", family="monospace", fontsize=8)
 
 

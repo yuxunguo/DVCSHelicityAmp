@@ -350,7 +350,8 @@ electron-photon density-matrix CSVs and magnitude/phase PDFs. The
 and magnitude/phase PDFs. The `ConcurrenceScan` folder stores concurrence CSVs
 and PDFs. The density-matrix and concurrence folders cover unpolarized,
 longitudinal polarized, transverse Tx polarized, and transverse Ty polarized
-incoming-electron spin cases.
+incoming-electron spin cases, plus a double-transverse case where the incoming
+electron and proton are both polarized along the same transverse Tx direction.
 
 The top-level spin-density log records the scan settings, particle map, trace
 benchmark, normalization convention, saved paths, and invalid kinematic
@@ -376,6 +377,10 @@ amplitude `M^2`.
 
 The transverse entanglement scans use the same Tx and Ty coherent incoming
 electron states at the configured `ENTANGLEMENT_INITIAL_STATE` proton spin.
+
+The alignment-only double-transverse category uses the coherent incoming state
+`(|hIn=+1> + |hIn=-1>) (|sIn=+1> + |sIn=-1>) / 2`, so the initial electron
+and proton are both polarized along the same transverse Tx direction.
 
 The final electron-photon alignment scan uses `ALIGNMENT_ANGLE_MAX_DEG`
 in `AlignmentScan.py` as its small-angle cut. Its main spin-correlation observable is
@@ -450,9 +455,10 @@ locator observable for each spin case:
 ```
 
 The `<spin_case>` prefixes are `unpolarized`, `longitudinal_polarized`, `Tx`,
-and `Ty`. The same folder also writes `electron_photon_c13_top.csv`, a ranked
-locator table used to inspect the best C13 points. The C13 PDFs include only
-two-angle `phi_in_electron` by `phi_gamma` maps for every characteristic anchor. The
+`Ty`, and `double_transverse`. The same folder also writes
+`electron_photon_c13_top.csv`, a ranked locator table used to inspect the best
+C13 points. The C13 PDFs include only two-angle `phi_in_electron` by
+`phi_gamma` maps for every characteristic anchor. The
 `rho_ep_r*_c*` columns are the proton-traced
 4 by 4 electron-photon reduced density matrix entries, stored as real and
 imaginary parts. The reduced basis is ordered as
@@ -467,7 +473,9 @@ incoming-spin superposition, the longitudinal-polarized amplitude uses the
 `hIn=+1` minus `hIn=-1` combination at the configured proton spin, and the
 transverse Tx amplitude uses the `hIn=+1` plus `hIn=-1` combination at the
 configured proton spin, and the transverse Ty amplitude uses
-`hIn=+1` plus `i hIn=-1`. The stored and plotted entries are normalized as
+`hIn=+1` plus `i hIn=-1`. The double-transverse amplitude uses the product of
+the same Tx coherent superposition for both incoming electron and incoming
+proton. The stored and plotted entries are normalized as
 `M / sqrt(M^2_unpol)`, where `M^2_unpol` is the `squared_amplitude_M2` value in
 the same row.
 
@@ -483,8 +491,12 @@ Output/ConfigGen/high_c13_final_state_amplitude_decomposition.csv
 Output/ConfigGen/high_c13_user_frame_configurations.pdf
 ```
 
-The ConfigGen PDF starts with the high-C13 angular cluster maps, then adds one
-characteristic page per selected cluster. Each characteristic page shows the
-rebuilt user-frame momentum configuration as a 3D vector plot and as a
-transverse `px-py` projection, lists the corresponding kinematic variables and
-four-momenta, and plots the final-state helicity-amplitude decomposition.
+The ConfigGen PDF focuses on the polarized `Tx` and `Ty` high-C13 clusters.
+It starts with angular cluster maps, then adds one characteristic page per
+selected cluster. Each characteristic page shows the rebuilt user-frame
+momentum configuration as a 3D vector plot and as a transverse `px-py`
+projection, with incoming `k` and `p` arrows ending at the origin. The plotted
+momenta are `k`, `p`, `kp`, `pp`, and `qout`; the virtual photon `q` is omitted
+from these configuration plots. The page also lists the corresponding
+kinematic variables and four-momenta and plots the final-state helicity-
+amplitude decomposition.
