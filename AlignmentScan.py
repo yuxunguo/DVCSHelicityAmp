@@ -473,7 +473,7 @@ def save_alignment_scan_csv_files(alignment_scan, output_dir=ALIGNMENT_OUTPUT_DI
 
     for key, rows in (("all_csv", alignment_scan["rows"]), ("aligned_csv", aligned_rows)):
         with paths[key].open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.writer(handle)
+            writer = csv.writer(handle, lineterminator="\n")
             writer.writerow(headers)
             for row in rows:
                 writer.writerow(_alignment_csv_row(row))
@@ -592,7 +592,7 @@ def save_concurrence_top_csv(
     """Save top coarse concurrence rows for each observable and spin case."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.writer(handle)
+        writer = csv.writer(handle, lineterminator="\n")
         writer.writerow(_concurrence_top_csv_headers())
         for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES:
             for observable in observables:
@@ -625,7 +625,7 @@ def save_concurrence_scan_csv_files(
     aligned_rows = [row for row in alignment_scan["rows"] if row["aligned"]]
     for key, rows in (("all_csv", alignment_scan["rows"]), ("aligned_csv", aligned_rows)):
         with paths[key].open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.writer(handle)
+            writer = csv.writer(handle, lineterminator="\n")
             writer.writerow(headers)
             for row in rows:
                 writer.writerow(_concurrence_csv_row(row))
@@ -805,6 +805,11 @@ def build_alignment_report(alignment_scan, alignment_paths):
             "  aligned <hOut*lambda> range: "
             f"{min(correlations):.6g} to {max(correlations):.6g}"
         )
+    elif rows:
+        lines.append(
+            "  aligned <hOut*lambda> range: none; no valid points pass the "
+            "configured angle cut"
+        )
     lines.extend([
         f"  saved full csv: {alignment_paths['all_csv']}",
         f"  saved aligned csv: {alignment_paths['aligned_csv']}",
@@ -814,7 +819,7 @@ def build_alignment_report(alignment_scan, alignment_paths):
         f"{alignment_paths['concurrence_csv']['aligned_csv']}",
         "  saved ranked concurrence csv: "
         f"{alignment_paths['concurrence_csv']['top_concurrence_csv']}",
-        "  saved legacy ranked C13 csv: "
+        "  saved ranked C13 csv: "
         f"{alignment_paths['concurrence_csv']['top_c13_csv']}",
     ])
     for prefix, label, _spin_case in ALIGNMENT_SPIN_CASES:

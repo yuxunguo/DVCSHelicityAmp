@@ -92,12 +92,13 @@ Top C12/C13/C23/M1/M2/M3/F3 locator points:
     Ty_F3=0.841422462128, s=16.782358, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.75, phiOut=4.5160394, Q2=0.034699359, xB=0.005698669, t=-2.8747846e-05, theta(e',gamma)=18.241951 deg
     Double transverse:
     double_transverse_F3=0.939948758313, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.75, phiOut=2.1598449, Q2=15.979144, xB=0.85295069, t=-3.8112352, theta(e',gamma)=176.54268 deg
+  aligned <hOut*lambda> range: none; no valid points pass the configured angle cut
   saved full csv: Output\AlignmentScan\electron_photon_spin_correlation_phase_space.csv
   saved aligned csv: Output\AlignmentScan\electron_photon_spin_correlation_aligned.csv
   saved concurrence full csv: Output\AlignmentScan\ConcurrenceScan\electron_photon_concurrence_phase_space.csv
   saved concurrence aligned csv: Output\AlignmentScan\ConcurrenceScan\electron_photon_concurrence_aligned.csv
   saved ranked concurrence csv: Output\AlignmentScan\ConcurrenceScan\electron_photon_concurrence_top.csv
-  saved legacy ranked C13 csv: Output\AlignmentScan\ConcurrenceScan\electron_photon_c13_top.csv
+  saved ranked C13 csv: Output\AlignmentScan\ConcurrenceScan\electron_photon_c13_top.csv
   saved unpolarized concurrence plot: Output\AlignmentScan\ConcurrenceScan\concurrence_scan_unpolarized.pdf
   saved longitudinal polarized concurrence plot: Output\AlignmentScan\ConcurrenceScan\concurrence_scan_longitudinal_polarized.pdf
   saved tx concurrence plot: Output\AlignmentScan\ConcurrenceScan\concurrence_scan_Tx.pdf

@@ -2,9 +2,8 @@
 
 This script reads the C13 CSVs written by ``AlignmentScan.py`` and builds a
 small set of representative user-frame configurations directly from those
-coarse alignment results. It prefers the full phase-space concurrence CSV so
-that both near-aligned and pi-separated electron/photon regions are available,
-and falls back to the ranked ``electron_photon_c13_top.csv`` table when needed.
+coarse alignment results. It prefers the ranked ``electron_photon_c13_top.csv``
+table and falls back to the full phase-space concurrence CSV when needed.
 """
 
 import csv
@@ -47,8 +46,8 @@ EXAMPLES_PER_CLUSTER = 2
 CLUSTER_RADIUS = 0.42
 CONFIG_SPIN_CASES = ("Tx", "Ty")
 CONFIG_RELATIVE_REGIONS = (
-    ("aligned", 0.0),
-    ("opposite", math.pi),
+    ("near_azimuth", 0.0),
+    ("back_to_back_azimuth", math.pi),
 )
 REGION_HALF_WIDTH = 0.25
 DISPLAY_MOMENTA = ("k", "p", "kp", "pp", "qout")
@@ -116,13 +115,13 @@ def read_csv_rows(path):
 
 def alignment_input_path():
     """Return the best available AlignmentScan C13 CSV path."""
-    if FULL_C13_CSV.exists():
-        return FULL_C13_CSV
     if RANKED_C13_CSV.exists():
         return RANKED_C13_CSV
+    if FULL_C13_CSV.exists():
+        return FULL_C13_CSV
     raise FileNotFoundError(
         "No AlignmentScan C13 CSV found. Run AlignmentScan.py first to create "
-        f"{FULL_C13_CSV} or {RANKED_C13_CSV}."
+        f"{RANKED_C13_CSV} or {FULL_C13_CSV}."
     )
 
 
@@ -332,7 +331,7 @@ def write_dict_csv(path, rows):
     else:
         headers = []
     with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=headers)
+        writer = csv.DictWriter(handle, fieldnames=headers, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
     return path
@@ -789,6 +788,8 @@ def build_report(
         f"  total input rows: {total_rows}",
         f"  spin cases: {len({spin for spin, _region, _clusters in grouped_clusters})}",
         f"  angular regions: {', '.join(region for region, _center in CONFIG_RELATIVE_REGIONS)}",
+        "  angular region criterion: shortest azimuthal separation "
+        "|phi_e_in - phi_gamma|",
         f"  angular region half width: {REGION_HALF_WIDTH:.6g} rad",
         f"  clusters: {sum(len(clusters) for _spin, _region, clusters in grouped_clusters)}",
         f"  examples: {len(examples)}",

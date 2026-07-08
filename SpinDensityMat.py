@@ -124,6 +124,8 @@ def incoming_spin_weights(spin_case=SPIN_CASE_UNPOLARIZED):
         )
     if is_transverse_spin_case(spin_case):
         return np.full(len(initial_spin_states()), 0.5, dtype=float)
+    if spin_case == SPIN_CASE_DOUBLE_TRANSVERSE:
+        return np.full(len(initial_spin_states()), 0.25, dtype=float)
     raise ValueError(f"Unknown spin density case: {spin_case}")
 
 
@@ -726,6 +728,8 @@ def entanglement_mode(spin_case):
         return "Tx_h_in_plus_plus_h_in_minus_over_sqrt2"
     if spin_case == SPIN_CASE_TRANSVERSE_TY:
         return "Ty_h_in_plus_plus_i_h_in_minus_over_sqrt2"
+    if spin_case == SPIN_CASE_DOUBLE_TRANSVERSE:
+        return "double_Tx_electron_proton"
     raise ValueError(f"Unknown spin density case: {spin_case}")
 
 
@@ -802,6 +806,7 @@ def clean_generated_outputs():
         OUTPUT_DIR / "transverse",
         OUTPUT_DIR / SPIN_CASE_TRANSVERSE_TX,
         OUTPUT_DIR / SPIN_CASE_TRANSVERSE_TY,
+        OUTPUT_DIR / SPIN_CASE_DOUBLE_TRANSVERSE,
     )
     for path in generated_paths:
         if path.is_dir():
@@ -852,6 +857,8 @@ def spin_case_filename_label(spin_case):
         return "transverse_Tx"
     if spin_case == SPIN_CASE_TRANSVERSE_TY:
         return "transverse_Ty"
+    if spin_case == SPIN_CASE_DOUBLE_TRANSVERSE:
+        return "double_transverse"
     raise ValueError(f"Unknown spin density case: {spin_case}")
 
 
@@ -1201,6 +1208,12 @@ def save_point_matrix_plots(scan, output_dir=None):
         rho_symbol = r"\rho_{T_x}/M^2_{\rm unpol}" if scan["normalized_by_squared_amplitude"] else r"\rho_{T_x}"
     elif scan["spin_case"] == SPIN_CASE_TRANSVERSE_TY:
         rho_symbol = r"\rho_{T_y}/M^2_{\rm unpol}" if scan["normalized_by_squared_amplitude"] else r"\rho_{T_y}"
+    elif scan["spin_case"] == SPIN_CASE_DOUBLE_TRANSVERSE:
+        rho_symbol = (
+            r"\rho_{T_xT_x}/M^2_{\rm unpol}"
+            if scan["normalized_by_squared_amplitude"]
+            else r"\rho_{T_xT_x}"
+        )
     else:
         rho_symbol = r"\rho/M^2" if scan["normalized_by_squared_amplitude"] else r"\rho"
     state_key = "\n".join(_state_tick_labels(scan["out_states"]))
@@ -1374,6 +1387,12 @@ def build_scan_report(scan, paths):
             "E((hIn=+1 + i hIn=-1)/sqrt(2), "
             f"sIn={scan['entanglement_initial_state'][1]:+d})"
         )
+    elif scan["spin_case"] == SPIN_CASE_DOUBLE_TRANSVERSE:
+        lines.append(
+            "  double transverse convention: rho((hIn=+1 + hIn=-1)/sqrt(2), "
+            "(sIn=+1 + sIn=-1)/sqrt(2))"
+        )
+        lines.append("  double transverse entanglement: E(Tx electron, Tx proton)")
     else:
         raise ValueError(f"Unknown spin density case: {scan['spin_case']}")
     lines.extend([

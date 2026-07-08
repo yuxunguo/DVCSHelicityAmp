@@ -164,7 +164,7 @@ columns alongside the kinematic invariants.
 The active scan grids are:
 
 ```text
-coarse alignment anchors  low/medium/high s, low/high theta_in, low/medium/high qOut
+coarse alignment anchors  low/medium/high s, configured theta_in labels, low/medium/high qOut
 coarse two-angle scan     phi_in_electron and phiOut at each anchor
 s scan values             user-frame COM energy grid in SpinDensityMat.py
 qOut scan values          outgoing photon energy grid in SpinDensityMat.py
@@ -384,7 +384,7 @@ amplitude `M^2`.
 The transverse entanglement scans use the same Tx and Ty coherent incoming
 electron states at the configured `ENTANGLEMENT_INITIAL_STATE` proton spin.
 
-The alignment-only double-transverse category uses the coherent incoming state
+The alignment and helper-level double-transverse category uses the coherent incoming state
 `(|hIn=+1> + |hIn=-1>) (|sIn=+1> + |sIn=-1>) / 2`, so the initial electron
 and proton are both polarized along the same transverse Tx direction.
 
@@ -392,12 +392,13 @@ The final electron-photon alignment scan uses `ALIGNMENT_ANGLE_MAX_DEG`
 in `AlignmentScan.py` as its small-angle cut. Its main spin-correlation observable is
 `<hOut * lambda>`, where `hOut` is the outgoing electron helicity label and
 `lambda` is the final real-photon helicity label. The full phase-space CSV
-contains all valid angle points; correlation columns are filled for aligned
-points where the amplitude table is evaluated.
+contains all valid angle points; the aligned-only CSV contains only points
+passing the configured 3D `theta(e', gamma)` cut and may contain only a header
+when the active grid has no such points.
 
 The alignment concurrence/F3/monogamy PDFs contain only the per-anchor
-`phi_in_electron` by `phi_gamma` correlation maps for each characteristic
-kinematic point.
+`phi_in_electron` by `phi_gamma` correlation maps for each configured
+characteristic kinematic point.
 
 ## CSV Structure
 
@@ -456,7 +457,8 @@ The `<spin_case>` prefixes are `unpolarized`, `longitudinal_polarized`, `Tx`,
 the best C12, C13, C23, M1, M2, M3, and F3 points. It also keeps
 `electron_photon_c13_top.csv` for the C13-only downstream configuration
 generator. The concurrence/F3/monogamy PDFs include only two-angle
-`phi_in_electron` by `phi_gamma` maps for every characteristic anchor.
+`phi_in_electron` by `phi_gamma` maps for every configured characteristic
+anchor.
 
 `ConfigGen.py` reads `Output/AlignmentScan/ConcurrenceScan/electron_photon_c13_top.csv`
 directly, or falls back to the full concurrence phase-space CSV, and writes:
@@ -471,8 +473,12 @@ Output/ConfigGen/high_c13_user_frame_configurations.pdf
 ```
 
 The ConfigGen PDF focuses on the polarized `Tx` and `Ty` high-C13 clusters.
-It starts with angular cluster maps, then adds one characteristic page per
-selected cluster. Each characteristic page shows the rebuilt user-frame
+Its angular regions are based on the shortest azimuthal separation
+`|phi_in_electron - phi_gamma|`: `near_azimuth` is centered at zero and
+`back_to_back_azimuth` is centered at `pi`. These are not the same as the
+3D `theta(e', gamma)` alignment cut. The PDF starts with angular cluster maps,
+then adds one characteristic page per selected cluster. Each characteristic
+page shows the rebuilt user-frame
 momentum configuration as a 3D vector plot and as a transverse `px-py`
 projection, with incoming `k` and `p` arrows ending at the origin. The plotted
 momenta are `k`, `p`, `kp`, `pp`, and `qout`; the virtual photon `q` is omitted
