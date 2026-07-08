@@ -292,31 +292,37 @@ def save_spin_plot(path, best_rows, prefix, label):
     """Save kinematic C13 plots for one polarization/spin case."""
     plt, PdfPages = _require_matplotlib()
     path.parent.mkdir(parents=True, exist_ok=True)
+    spin_rows = [row for row in best_rows if row["spin_case"] == prefix]
+    s_values_unique = sorted({row["s"] for row in spin_rows})
+    c13_all = np.asarray([row["best_C13"] for row in spin_rows], dtype=float)
+    c13_max = float(np.nanmax(c13_all)) if c13_all.size else 1.0
+    if c13_max <= 0.0:
+        c13_max = 1.0
     with PdfPages(path) as pdf:
-        for region_name, _region_center in REGIONS:
-            region_rows = [
-                row for row in best_rows
-                if row["spin_case"] == prefix and row["phi_e_region"] == region_name
-            ]
-            s_values_unique = sorted({row["s"] for row in region_rows})
-            if not s_values_unique:
-                continue
-            c13_all = np.asarray([row["best_C13"] for row in region_rows], dtype=float)
-            c13_max = float(np.nanmax(c13_all)) if c13_all.size else 1.0
-            if c13_max <= 0.0:
-                c13_max = 1.0
-            for s_value in s_values_unique:
+        for s_value in s_values_unique:
+            fig, axes = plt.subplots(
+                1,
+                len(REGIONS),
+                figsize=(12.8, 5.4),
+                sharex=True,
+                sharey=True,
+                constrained_layout=True,
+            )
+            if len(REGIONS) == 1:
+                axes = [axes]
+            scatter = None
+            for ax, (region_name, _region_center) in zip(axes, REGIONS):
                 rows = [
-                    row for row in region_rows
-                    if row["s"] == s_value
+                    row for row in spin_rows
+                    if row["s"] == s_value and row["phi_e_region"] == region_name
                 ]
                 if not rows:
+                    ax.set_axis_off()
                     continue
                 qout_values = np.asarray([row["qOut"] for row in rows], dtype=float)
                 c13_values = np.asarray([row["best_C13"] for row in rows], dtype=float)
                 phi_gamma_values = np.asarray([row["phiOut"] for row in rows], dtype=float)
-                fig, ax = plt.subplots(figsize=(7.4, 5.4), constrained_layout=True)
-                c13_plot = ax.scatter(
+                scatter = ax.scatter(
                     phi_gamma_values,
                     qout_values,
                     c=c13_values,
@@ -325,13 +331,16 @@ def save_spin_plot(path, best_rows, prefix, label):
                     vmax=c13_max,
                     s=58,
                 )
-                ax.set_title(f"{label} {region_name}: C13 at s={s_value:.4g}")
+                ax.set_title(region_name)
                 ax.set_xlabel("phi_gamma [rad]")
-                ax.set_ylabel("qOut [GeV]")
                 ax.set_xlim(0.0, 2.0 * math.pi)
-                fig.colorbar(c13_plot, ax=ax, label="C13")
+                ax.set_ylim(float(np.min(QOUT_VALUES)), float(np.max(QOUT_VALUES)))
+            axes[0].set_ylabel("qOut [GeV]")
+            fig.suptitle(f"{label}: C13 at s={s_value:.6g}")
+            if scatter is not None:
+                fig.colorbar(scatter, ax=axes, label="C13")
                 pdf.savefig(fig)
-                plt.close(fig)
+            plt.close(fig)
     return path
 
 
