@@ -2,7 +2,7 @@
 
 This script scans characteristic user-frame kinematics with a fine
 ``phi_in_electron`` by ``phi_gamma`` grid and focuses the locator outputs on the
-electron-photon concurrence ``C13``.
+selected two-body concurrences and multipartite observables.
 """
 
 from itertools import combinations, product
@@ -86,12 +86,13 @@ ALIGNMENT_SPIN_CASES = (
     ("Ty", "Ty", SPIN_CASE_TRANSVERSE_TY),
     ("double_transverse", "Double transverse", SPIN_CASE_DOUBLE_TRANSVERSE),
 )
-COARSE_CONCURRENCE_NAMES = ("C13",)
-COARSE_C13_TOP_N = 60
+COARSE_CONCURRENCE_NAMES = ("C12", "C13", "C23", "M1", "M2", "M3", "F3")
+COARSE_CONCURRENCE_TOP_N = 60
+COARSE_C13_TOP_N = COARSE_CONCURRENCE_TOP_N
 
 
 def characteristic_kinematic_points():
-    """Return coarse anchor kinematics for two-angle C13 scans."""
+    """Return coarse anchor kinematics for two-angle concurrence scans."""
     points = []
     for s_regime, s in CHARACTERISTIC_S_POINTS:
         for theta_regime, theta_in in CHARACTERISTIC_THETA_IN_POINTS:
@@ -1094,7 +1095,7 @@ def save_amplitude_scan_plots(alignment_scan, prefix, title_prefix):
 
 
 def _concurrence_csv_headers():
-    """Return CSV headers for the coarse C13 locator scan."""
+    """Return CSV headers for the coarse concurrence locator scan."""
     headers = _kinematic_csv_headers() + [
         "aligned",
         "squared_amplitude_M2",
@@ -1105,7 +1106,7 @@ def _concurrence_csv_headers():
 
 
 def _concurrence_csv_row(row):
-    """Return one formatted CSV row for the coarse C13 locator scan."""
+    """Return one formatted CSV row for the coarse concurrence locator scan."""
     values = _kinematic_csv_row(row) + [
         row["aligned"],
         f"{row['squared_amplitude_M2']:.16e}",
@@ -1115,56 +1116,81 @@ def _concurrence_csv_row(row):
     return values
 
 
-def _c13_top_csv_headers():
-    """Return CSV headers for ranked coarse C13 locator points."""
+def _concurrence_top_csv_headers():
+    """Return CSV headers for ranked coarse concurrence locator points."""
     return [
         "rank_group",
         "rank",
         "rank_value",
+        "rank_observable",
+        "rank_spin_case",
         *_kinematic_csv_headers(),
         "aligned",
         "squared_amplitude_M2",
-        *(f"{prefix}_C13" for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES),
+        *(
+            f"{prefix}_{name}"
+            for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES
+            for name in COARSE_CONCURRENCE_NAMES
+        ),
     ]
 
 
-def _c13_top_csv_row(rank_group, rank, row):
-    """Return one ranked coarse C13 CSV row."""
+def _concurrence_top_csv_row(rank_group, rank, row):
+    """Return one ranked coarse concurrence CSV row."""
+    prefix, observable = rank_group.rsplit("_", 1)
     return [
         rank_group,
         rank,
         f"{row[rank_group]:.16e}",
+        observable,
+        prefix,
         *_kinematic_csv_row(row),
         row["aligned"],
         f"{row['squared_amplitude_M2']:.16e}",
-        *(f"{row[f'{prefix}_C13']:.16e}" for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES),
+        *(
+            f"{row[f'{prefix}_{name}']:.16e}"
+            for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES
+            for name in COARSE_CONCURRENCE_NAMES
+        ),
     ]
+
+
+def save_concurrence_top_csv(
+    rows,
+    output_path,
+    top_n=COARSE_CONCURRENCE_TOP_N,
+    observables=COARSE_CONCURRENCE_NAMES,
+):
+    """Save top coarse concurrence rows for each observable and spin case."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(_concurrence_top_csv_headers())
+        for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES:
+            for observable in observables:
+                key = f"{prefix}_{observable}"
+                finite_rows = [row for row in rows if np.isfinite(row.get(key, np.nan))]
+                ordered = sorted(finite_rows, key=lambda row: row[key], reverse=True)
+                for rank, row in enumerate(ordered[:top_n], start=1):
+                    writer.writerow(_concurrence_top_csv_row(key, rank, row))
+    return output_path
 
 
 def save_c13_top_csv(rows, output_path, top_n=COARSE_C13_TOP_N):
     """Save top coarse C13 rows for each spin case."""
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.writer(handle)
-        writer.writerow(_c13_top_csv_headers())
-        for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES:
-            key = f"{prefix}_C13"
-            finite_rows = [row for row in rows if np.isfinite(row.get(key, np.nan))]
-            ordered = sorted(finite_rows, key=lambda row: row[key], reverse=True)
-            for rank, row in enumerate(ordered[:top_n], start=1):
-                writer.writerow(_c13_top_csv_row(key, rank, row))
-    return output_path
+    return save_concurrence_top_csv(rows, output_path, top_n=top_n, observables=("C13",))
 
 
 def save_concurrence_scan_csv_files(
     alignment_scan,
     output_dir=CONCURRENCE_OUTPUT_DIR,
 ):
-    """Save full, aligned-only, and ranked coarse C13 locator CSV files."""
+    """Save full, aligned-only, and ranked coarse concurrence locator CSV files."""
     output_dir.mkdir(parents=True, exist_ok=True)
     paths = {
         "all_csv": output_dir / "electron_photon_concurrence_phase_space.csv",
         "aligned_csv": output_dir / "electron_photon_concurrence_aligned.csv",
+        "top_concurrence_csv": output_dir / "electron_photon_concurrence_top.csv",
         "top_c13_csv": output_dir / "electron_photon_c13_top.csv",
     }
     headers = _concurrence_csv_headers()
@@ -1175,6 +1201,7 @@ def save_concurrence_scan_csv_files(
             writer.writerow(headers)
             for row in rows:
                 writer.writerow(_concurrence_csv_row(row))
+    save_concurrence_top_csv(alignment_scan["rows"], paths["top_concurrence_csv"])
     save_c13_top_csv(alignment_scan["rows"], paths["top_c13_csv"])
     return paths
 
@@ -1185,10 +1212,10 @@ def save_concurrence_scan_plot(
     title_prefix,
     output_path=None,
 ):
-    """Save binned C13 heatmaps for one alignment spin case."""
+    """Save binned concurrence heatmaps for one alignment spin case."""
     plt, PdfPages = _require_matplotlib()
     if output_path is None:
-        output_path = CONCURRENCE_OUTPUT_DIR / f"c13_scan_{prefix}.pdf"
+        output_path = CONCURRENCE_OUTPUT_DIR / f"concurrence_scan_{prefix}.pdf"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     rows = alignment_scan["rows"]
@@ -1286,15 +1313,15 @@ def save_concurrence_scan_plot(
 
 
 def save_concurrence_scan_plots(alignment_scan):
-    """Save C13 scan PDFs for all alignment spin cases."""
+    """Save selected concurrence scan PDFs for all alignment spin cases."""
     return {
         prefix: save_concurrence_scan_plot(alignment_scan, prefix, label)
         for prefix, label, _spin_case in ALIGNMENT_SPIN_CASES
     }
 
 
-def c13_summary_line(row, key):
-    """Return a compact coarse C13 maximum summary line."""
+def concurrence_summary_line(row, key):
+    """Return a compact coarse concurrence maximum summary line."""
     return (
         f"    {key}={row[key]:.12g}, s={row['s']:.8g}, "
         f"theta_in={row['theta_in']:.8g}, phi_e_in={row['phi_in_electron']:.8g}, "
@@ -1309,11 +1336,13 @@ def build_alignment_report(alignment_scan, alignment_paths):
     """Build a text report for the final electron-photon alignment scan."""
     rows = alignment_scan["rows"]
     aligned_rows = [row for row in rows if row["aligned"]]
+    locator_label = "/".join(COARSE_CONCURRENCE_NAMES)
     lines = [
-        "C13-focused user-frame phase-space scan",
+        f"{locator_label}-focused user-frame phase-space scan",
         "  anchor variables: s, theta_in, qOut",
         "  scanned variables per anchor: phi_in_electron, phi_gamma",
-        "  locator observable: C13 between outgoing electron and real photon",
+        "  locator observables: "
+        f"{', '.join(COARSE_CONCURRENCE_NAMES)}",
         f"  angle cut: theta(e', gamma) <= {alignment_scan['angle_max_deg']:.6g} deg",
         f"  characteristic kinematic anchors: {len(alignment_scan['kinematic_points'])}",
         f"  s anchor range: {min(alignment_scan['s_values']):.6g} to {max(alignment_scan['s_values']):.6g}",
@@ -1336,14 +1365,16 @@ def build_alignment_report(alignment_scan, alignment_paths):
         max_angle = max(row["theta_e_gamma_deg"] for row in rows)
         lines.append(f"  theta range: {min_angle:.6g} to {max_angle:.6g} deg")
         lines.append("")
-        lines.append("Top C13 locator points:")
-        for prefix, label, _spin_case in ALIGNMENT_SPIN_CASES:
-            key = f"{prefix}_C13"
-            finite_rows = [row for row in rows if np.isfinite(row.get(key, np.nan))]
-            if finite_rows:
-                best = max(finite_rows, key=lambda row: row[key])
-                lines.append(f"  {label}:")
-                lines.append(c13_summary_line(best, key))
+        lines.append(f"Top {locator_label} locator points:")
+        for observable in COARSE_CONCURRENCE_NAMES:
+            lines.append(f"  {observable}:")
+            for prefix, label, _spin_case in ALIGNMENT_SPIN_CASES:
+                key = f"{prefix}_{observable}"
+                finite_rows = [row for row in rows if np.isfinite(row.get(key, np.nan))]
+                if finite_rows:
+                    best = max(finite_rows, key=lambda row: row[key])
+                    lines.append(f"    {label}:")
+                    lines.append(concurrence_summary_line(best, key))
     if aligned_rows:
         correlations = [row["unpolarized_h_lambda"] for row in aligned_rows]
         lines.append(
@@ -1353,11 +1384,13 @@ def build_alignment_report(alignment_scan, alignment_paths):
     lines.extend([
         f"  saved full csv: {alignment_paths['all_csv']}",
         f"  saved aligned csv: {alignment_paths['aligned_csv']}",
-        "  saved C13 full csv: "
+        "  saved concurrence full csv: "
         f"{alignment_paths['concurrence_csv']['all_csv']}",
-        "  saved C13 aligned csv: "
+        "  saved concurrence aligned csv: "
         f"{alignment_paths['concurrence_csv']['aligned_csv']}",
-        "  saved ranked C13 csv: "
+        "  saved ranked concurrence csv: "
+        f"{alignment_paths['concurrence_csv']['top_concurrence_csv']}",
+        "  saved legacy ranked C13 csv: "
         f"{alignment_paths['concurrence_csv']['top_c13_csv']}",
     ])
     if alignment_paths.get("run_density_matrix_scan"):
@@ -1396,7 +1429,7 @@ def build_alignment_report(alignment_scan, alignment_paths):
                 f"{plot_paths['phase']}"
             )
         lines.append(
-            f"  saved {label.lower()} C13 plot: "
+            f"  saved {label.lower()} concurrence plot: "
             f"{alignment_paths['concurrence_plots'][prefix]}"
         )
     if alignment_scan["failures"]:

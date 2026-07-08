@@ -16,7 +16,7 @@ Algebra.py         Dirac algebra, spinors, photon polarization vectors.
 Kinematics.py     Four-momentum builders and kinematic validation checks.
 BHHelicityAmp.py  Bethe-Heitler amplitudes and benchmark log generation.
 SpinDensityMat.py Spin-density matrix scans and entanglement observables.
-AlignmentScan.py  C13 scan at characteristic user-frame kinematics.
+AlignmentScan.py  C12/C13/C23, M1/M2/M3, and F3 scan at characteristic kinematics.
 ConfigGen.py      Representative high-C13 configs from AlignmentScan CSVs.
 Output/           Generated logs, scan data, CSV files, and plots.
 ```
@@ -58,7 +58,7 @@ Run the spin-density matrix scans:
 C:\Users\sFerm\AppData\Local\Python\bin\python.exe SpinDensityMat.py
 ```
 
-Run the C13 scan at characteristic kinematics:
+Run the C12/C13/C23, M1/M2/M3, and F3 scan at characteristic kinematics:
 
 ```powershell
 C:\Users\sFerm\AppData\Local\Python\bin\python.exe AlignmentScan.py
@@ -261,9 +261,9 @@ C1_23   one-to-rest concurrence for particle 1 against particles 2 and 3
 C2_13   one-to-rest concurrence for particle 2 against particles 1 and 3
 C3_12   one-to-rest concurrence for particle 3 against particles 1 and 2
 F3      multipartite observable built from C1_23, C2_13, C3_12
-M1      one-particle reduced determinant term for particle 1
-M2      one-particle reduced determinant term for particle 2
-M3      one-particle reduced determinant term for particle 3
+M1      CKW monogamy residual C1_23^2 - C12^2 - C13^2
+M2      CKW monogamy residual C2_13^2 - C12^2 - C23^2
+M3      CKW monogamy residual C3_12^2 - C13^2 - C23^2
 ```
 
 With the particle map above, `C1_23` measures entanglement of the outgoing
@@ -335,8 +335,8 @@ Output/AlignmentScan/ConcurrenceScan/
 
 Set `RUN_ALIGNMENT_DENSITY_MATRIX_SCAN` or `RUN_ALIGNMENT_AMPLITUDE_SCAN` to
 `False` in `AlignmentScan.py` to skip those optional CSV/PDF output families.
-The main spin-correlation CSVs and C13 concurrence locator outputs are still
-generated.
+The main spin-correlation CSVs and C12/C13/C23 plus M1/M2/M3 and F3 locator
+outputs are still generated.
 
 The alignment scan records the opening angle theta(e', gamma) over 18
 characteristic user-frame anchors. Each anchor fixes `s`, `theta_in`, and
@@ -389,8 +389,9 @@ in `AlignmentScan.py` as its small-angle cut. Its main spin-correlation observab
 contains all valid angle points; correlation columns are filled for aligned
 points where the amplitude table is evaluated.
 
-The alignment C13 PDFs contain only the per-anchor `phi_in_electron` by
-`phi_gamma` correlation maps for each characteristic kinematic point.
+The alignment concurrence/F3/monogamy PDFs contain only the per-anchor
+`phi_in_electron` by `phi_gamma` correlation maps for each characteristic
+kinematic point.
 
 ## CSV Structure
 
@@ -447,18 +448,26 @@ amplitude_normalization_sqrt_M2,
 <spin_case>_amp_ep_norm_r1_c1_real,<spin_case>_amp_ep_norm_r1_c1_imag
 ```
 
-The `AlignmentScan.py` `ConcurrenceScan` CSV files focus on the C13
-locator observable for each spin case:
+The `AlignmentScan.py` `ConcurrenceScan` CSV files focus on the C12, C13, C23,
+M1, M2, M3, and F3 locator observables for each spin case:
 
 ```text
+<spin_case>_C12
 <spin_case>_C13
+<spin_case>_C23
+<spin_case>_M1
+<spin_case>_M2
+<spin_case>_M3
+<spin_case>_F3
 ```
 
 The `<spin_case>` prefixes are `unpolarized`, `longitudinal_polarized`, `Tx`,
 `Ty`, and `double_transverse`. The same folder also writes
-`electron_photon_c13_top.csv`, a ranked locator table used to inspect the best
-C13 points. The C13 PDFs include only two-angle `phi_in_electron` by
-`phi_gamma` maps for every characteristic anchor. The
+`electron_photon_concurrence_top.csv`, a ranked locator table used to inspect
+the best C12, C13, C23, M1, M2, M3, and F3 points. It also keeps
+`electron_photon_c13_top.csv` for the C13-only downstream configuration
+generator. The concurrence/F3/monogamy PDFs include only two-angle
+`phi_in_electron` by `phi_gamma` maps for every characteristic anchor. The
 `rho_ep_r*_c*` columns are the proton-traced
 4 by 4 electron-photon reduced density matrix entries, stored as real and
 imaginary parts. The reduced basis is ordered as
