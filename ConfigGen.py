@@ -15,11 +15,10 @@ import tempfile
 
 import numpy as np
 
+from FormFactors import yahl_dirac_pauli_from_t
 from Kinematics import kinematics_user_from_independent
 from SpinDensityMat import (
     ENTANGLEMENT_INITIAL_STATE,
-    F1,
-    F2,
     M,
     SPIN_CASE_TRANSVERSE_TX,
     SPIN_CASE_TRANSVERSE_TY,
@@ -488,6 +487,7 @@ def selected_initial_state_label(spin_case):
 def amplitude_decomposition(row):
     """Return final-state amplitude decomposition records for one detail row."""
     kin = kinematics_from_config_row(row)
+    F1, F2 = yahl_dirac_pauli_from_t(kin["t"], M)
     amplitudes = amplitude_table(kin["momenta"], M, F1, F2)
     state = selected_final_state_amplitudes(amplitudes, row["selected_spin_case"])
     norms = np.abs(state) ** 2

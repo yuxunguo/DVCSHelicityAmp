@@ -5,7 +5,7 @@ This script scans characteristic user-frame kinematics with a fine
 selected two-body concurrences and multipartite observables.
 """
 
-from itertools import combinations, product
+from itertools import product
 from concurrent.futures import ProcessPoolExecutor
 import csv
 import os
@@ -16,33 +16,24 @@ import tempfile
 import numpy as np
 
 from Algebra import mdot
+from FormFactors import YAHL_MODEL_NAME, yahl_dirac_pauli_from_t
 from Kinematics import kinematics_user_from_independent
 from SpinDensityMat import (
     AVERAGE_INITIAL_SPINS,
     ENTANGLEMENT_INITIAL_STATE,
-    ENTANGLEMENT_NAMES,
-    F1,
-    F2,
     M,
     NORMALIZE_TRACE,
     OUTPUT_DIR,
     SCAN_WORKERS,
     USER_S_CENTER,
+    SPIN_CASE_DOUBLE_TRANSVERSE,
     SPIN_CASE_POLARIZED,
     SPIN_CASE_TRANSVERSE_TX,
     SPIN_CASE_TRANSVERSE_TY,
     SPIN_CASE_UNPOLARIZED,
     amplitude_table,
-    density_matrix_from_amplitudes,
-    entanglement_measures_from_amplitudes,
-    entanglement_measures_from_state,
-    initial_spin_states,
-    is_transverse_spin_case,
     outgoing_spin_states,
-    polarized_entanglement_difference,
-    trace_value,
-    transverse_electron_coefficients,
-    transverse_entanglement_measures,
+    spin_density_observables_from_amplitudes,
 )
 
 
@@ -71,14 +62,7 @@ LEGACY_ALIGNMENT_OUTPUT_DIR = OUTPUT_DIR / "AlignmentScan"
 ALIGNMENT_OUTPUT_DIR = OUTPUT_ROOT / "AlignmentScan"
 LEGACY_ALIGNMENT_LOG_PATH = ALIGNMENT_OUTPUT_DIR / "AlignmentScan.log"
 ALIGNMENT_LOG_PATH = OUTPUT_ROOT / "AlignmentScan.log"
-DENSITY_MATRIX_OUTPUT_DIR = ALIGNMENT_OUTPUT_DIR / "DensityMatScan"
 CONCURRENCE_OUTPUT_DIR = ALIGNMENT_OUTPUT_DIR / "ConcurrenceScan"
-AMPLITUDE_OUTPUT_DIR = ALIGNMENT_OUTPUT_DIR / "AmplitudeScan"
-RUN_ALIGNMENT_DENSITY_MATRIX_SCAN = False
-RUN_ALIGNMENT_AMPLITUDE_SCAN = False
-SPIN_CASE_DOUBLE_TRANSVERSE = "double_transverse"
-DOUBLE_TRANSVERSE_BASE_SPIN_CASE = SPIN_CASE_TRANSVERSE_TX
-REDUCED_EP_BASIS = ((-1, -1), (-1, 1), (1, -1), (1, 1))
 ALIGNMENT_SPIN_CASES = (
     ("unpolarized", "Unpolarized", SPIN_CASE_UNPOLARIZED),
     ("longitudinal_polarized", "Longitudinal polarized", SPIN_CASE_POLARIZED),
@@ -194,155 +178,6 @@ def final_electron_photon_spin_correlations(rho, out_states):
     }
 
 
-def electron_photon_reduced_density_matrix(rho):
-    """Trace out the outgoing proton and keep the 4x4 electron-photon matrix."""
-    matrix = np.asarray(rho, dtype=complex)
-    tensor = matrix.reshape((2, 2, 2, 2, 2, 2))
-    reduced = np.trace(tensor, axis1=1, axis2=4)
-    return reduced.reshape((4, 4))
-
-
-def _reduced_matrix_key(prefix, row_index, col_index, part):
-    """Return a stable CSV key for one reduced electron-photon matrix entry."""
-    return f"{prefix}_rho_ep_r{row_index}_c{col_index}_{part}"
-
-
-def _reduced_matrix_headers(prefix):
-    """Return ordered real/imag CSV headers for a 4x4 reduced matrix."""
-    headers = []
-    for row_index in range(4):
-        for col_index in range(4):
-            headers.append(_reduced_matrix_key(prefix, row_index, col_index, "real"))
-            headers.append(_reduced_matrix_key(prefix, row_index, col_index, "imag"))
-    return headers
-
-
-def _reduced_basis_label(index):
-    """Return a compact label for one electron-photon basis state."""
-    h_out, lam = REDUCED_EP_BASIS[index]
-    return rf"$h'={h_out:+d},\lambda={lam:+d}$"
-
-
-def _electron_photon_amplitude_matrix_from_state(amplitude_row):
-    """Return a 2x2 final electron-photon amplitude from one outgoing state."""
-    matrix = np.zeros((2, 2), dtype=complex)
-    out_states = outgoing_spin_states()
-    helicity_index = {-1: 0, 1: 1}
-    for out_index, (h_out, _s_out, lam) in enumerate(out_states):
-        matrix[helicity_index[h_out], helicity_index[lam]] += amplitude_row[out_index]
-    return matrix
-
-
-def double_transverse_final_state(amplitudes):
-    """Return the outgoing state for e and p both polarized along transverse x."""
-    in_states = initial_spin_states()
-    coefficients = transverse_electron_coefficients(DOUBLE_TRANSVERSE_BASE_SPIN_CASE)
-    return sum(
-        coefficients[h_in]
-        * coefficients[s_in]
-        * amplitudes[in_states.index((h_in, s_in))]
-        for h_in in (-1, +1)
-        for s_in in (-1, +1)
-    )
-
-
-def normalized_double_transverse_final_state(amplitudes):
-    """Return the normalized double-transverse outgoing pure state."""
-    state = double_transverse_final_state(amplitudes)
-    norm = np.sqrt(np.sum(np.abs(state) ** 2))
-    if norm <= 1e-14:
-        raise ZeroDivisionError("Cannot normalize a zero double-transverse final state.")
-    return state / norm
-
-
-def density_matrix_for_alignment_spin_case(
-    amplitudes,
-    spin_case,
-    average_initial=AVERAGE_INITIAL_SPINS,
-):
-    """Return density-matrix data for one alignment spin case."""
-    if spin_case == SPIN_CASE_DOUBLE_TRANSVERSE:
-        state = double_transverse_final_state(amplitudes)
-        rho = np.outer(state, state.conj())
-        spin_signal = float(np.sum(np.abs(state) ** 2))
-        squared_amplitude = float(np.sum(np.abs(amplitudes) ** 2))
-        if average_initial:
-            squared_amplitude /= amplitudes.shape[0]
-        return rho, spin_signal, squared_amplitude
-    return density_matrix_from_amplitudes(
-        amplitudes,
-        average_initial=average_initial,
-        spin_case=spin_case,
-    )
-
-
-def electron_photon_amplitude_matrix(amplitudes, spin_case, initial_state):
-    """Return a 2x2 final electron-photon amplitude for one spin case."""
-    in_states = initial_spin_states()
-    proton_spin = initial_state[1]
-    if spin_case == SPIN_CASE_UNPOLARIZED:
-        amplitude_row = np.sum(amplitudes, axis=0) / np.sqrt(len(in_states))
-    elif spin_case == SPIN_CASE_POLARIZED:
-        amplitude_row = (
-            amplitudes[in_states.index((+1, proton_spin))]
-            - amplitudes[in_states.index((-1, proton_spin))]
-        ) / np.sqrt(2.0)
-    elif is_transverse_spin_case(spin_case):
-        coefficients = transverse_electron_coefficients(spin_case)
-        amplitude_row = sum(
-            coefficients[h_in] * amplitudes[in_states.index((h_in, proton_spin))]
-            for h_in in (-1, +1)
-        )
-    elif spin_case == SPIN_CASE_DOUBLE_TRANSVERSE:
-        amplitude_row = double_transverse_final_state(amplitudes)
-    else:
-        raise ValueError(f"Unknown alignment amplitude spin case: {spin_case}")
-    return _electron_photon_amplitude_matrix_from_state(amplitude_row)
-
-
-def normalized_amplitude_matrix(matrix, squared_amplitude):
-    """Normalize an amplitude matrix by ``sqrt(M^2)``."""
-    if squared_amplitude <= 1e-14:
-        raise ZeroDivisionError("Cannot normalize amplitude with zero M^2.")
-    return np.asarray(matrix, dtype=complex) / np.sqrt(squared_amplitude)
-
-
-def _amplitude_matrix_headers(prefix):
-    """Return ordered real/imag CSV headers for the normalized 2x2 amplitude."""
-    headers = []
-    for row_index in range(2):
-        for col_index in range(2):
-            headers.append(f"{prefix}_amp_ep_norm_r{row_index}_c{col_index}_real")
-            headers.append(f"{prefix}_amp_ep_norm_r{row_index}_c{col_index}_imag")
-    return headers
-
-
-def _amplitude_basis_label(row_index, col_index):
-    """Return a compact label for one electron-photon amplitude entry."""
-    h_out = -1 if row_index == 0 else 1
-    lam = -1 if col_index == 0 else 1
-    return rf"$h'={h_out:+d},\lambda={lam:+d}$"
-
-
-def alignment_concurrence_measures(amplitudes, spin_case, initial_state):
-    """Return concurrence observables for one alignment spin case."""
-    if spin_case == SPIN_CASE_UNPOLARIZED:
-        return entanglement_measures_from_amplitudes(amplitudes, initial_state)
-    if spin_case == SPIN_CASE_POLARIZED:
-        return polarized_entanglement_difference(amplitudes, initial_state[1])
-    if is_transverse_spin_case(spin_case):
-        return transverse_entanglement_measures(
-            amplitudes,
-            initial_state[1],
-            spin_case,
-        )
-    if spin_case == SPIN_CASE_DOUBLE_TRANSVERSE:
-        return entanglement_measures_from_state(
-            normalized_double_transverse_final_state(amplitudes)
-        )
-    raise ValueError(f"Unknown alignment spin case: {spin_case}")
-
-
 def _scan_alignment_point_task(task):
     """Evaluate one final electron-photon alignment point."""
     anchor, phi_in_electron, phiOut, settings = task
@@ -370,6 +205,7 @@ def _scan_alignment_point_task(task):
         angle_rad = spatial_opening_angle(momenta["kp"], momenta["qout"])
         k_dot_qout = real_scalar(mdot(momenta["k"], momenta["qout"]), "k dot qout")
         kp_dot_qout = real_scalar(mdot(momenta["kp"], momenta["qout"]), "kp dot qout")
+        F1, F2 = yahl_dirac_pauli_from_t(kin["t"], kin["m"])
         row = {
             "kinematic_point": anchor["kinematic_point"],
             "s_regime": anchor["s_regime"],
@@ -387,6 +223,8 @@ def _scan_alignment_point_task(task):
             "Q2": float(kin["Q2"]),
             "xB": float(kin["xB"]),
             "t": float(kin["t"]),
+            "F1": F1,
+            "F2": F2,
             "W2": float(kin["W2"]),
             "y": float(kin["y"]),
             "theta_e_gamma_rad": angle_rad,
@@ -397,72 +235,40 @@ def _scan_alignment_point_task(task):
             "abs_kp_dot_qout": abs(kp_dot_qout),
             "aligned": angle_rad <= settings["angle_max_rad"],
             "squared_amplitude_M2": np.nan,
-            "amplitude_normalization_sqrt_M2": np.nan,
         }
         for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES:
-            row[f"{prefix}_amplitude_ep"] = np.full((2, 2), np.nan + 0.0j)
             row[f"{prefix}_trace"] = np.nan
             row[f"{prefix}_spin_signal_M2"] = np.nan
             row[f"{prefix}_h_out_mean"] = np.nan
             row[f"{prefix}_lambda_mean"] = np.nan
             row[f"{prefix}_h_lambda"] = np.nan
             row[f"{prefix}_h_lambda_connected"] = np.nan
-            row[f"{prefix}_rho_ep"] = np.full((4, 4), np.nan + 0.0j)
-            for name in ENTANGLEMENT_NAMES:
+            for name in COARSE_CONCURRENCE_NAMES:
                 row[f"{prefix}_{name}"] = np.nan
 
-        amplitudes = amplitude_table(momenta, kin["m"], settings["F1"], settings["F2"])
-        rho_unpolarized, unpolarized_signal, squared_amplitude = (
-            density_matrix_from_amplitudes(
-                amplitudes,
-                average_initial=AVERAGE_INITIAL_SPINS,
-                spin_case=SPIN_CASE_UNPOLARIZED,
-            )
-        )
-        if settings["normalize_trace"] and squared_amplitude <= 1e-14:
-            raise ZeroDivisionError("Cannot normalize a zero alignment matrix.")
-        row["amplitude_normalization_sqrt_M2"] = np.sqrt(squared_amplitude)
-
+        amplitudes = amplitude_table(momenta, kin["m"], F1, F2)
+        squared_amplitude = np.nan
         for prefix, _label, spin_case in ALIGNMENT_SPIN_CASES:
-            amplitude_ep = electron_photon_amplitude_matrix(
+            spin_data = spin_density_observables_from_amplitudes(
                 amplitudes,
-                spin_case,
-                settings["entanglement_initial_state"],
+                spin_case=spin_case,
+                average_initial=AVERAGE_INITIAL_SPINS,
+                normalize_trace=settings["normalize_trace"],
+                entanglement_initial_state=settings["entanglement_initial_state"],
             )
-            row[f"{prefix}_amplitude_ep"] = normalized_amplitude_matrix(
-                amplitude_ep,
-                squared_amplitude,
-            )
-            if spin_case == SPIN_CASE_UNPOLARIZED:
-                rho = rho_unpolarized
-                spin_signal = unpolarized_signal
-            else:
-                rho, spin_signal, _squared_amplitude_check = (
-                    density_matrix_for_alignment_spin_case(
-                        amplitudes,
-                        average_initial=AVERAGE_INITIAL_SPINS,
-                        spin_case=spin_case,
-                    )
-                )
-            if settings["normalize_trace"]:
-                rho = rho / squared_amplitude
+            rho = spin_data["rho"]
+            squared_amplitude = spin_data["squared_amplitude"]
             corr = final_electron_photon_spin_correlations(rho, out_states)
-            concurrence = alignment_concurrence_measures(
-                amplitudes,
-                spin_case,
-                settings["entanglement_initial_state"],
-            )
             row.update({
-                f"{prefix}_trace": trace_value(rho),
-                f"{prefix}_spin_signal_M2": spin_signal,
+                f"{prefix}_trace": spin_data["trace"],
+                f"{prefix}_spin_signal_M2": spin_data["spin_signal"],
                 f"{prefix}_h_out_mean": corr["h_out_mean"],
                 f"{prefix}_lambda_mean": corr["lambda_mean"],
                 f"{prefix}_h_lambda": corr["h_lambda"],
                 f"{prefix}_h_lambda_connected": corr["h_lambda_connected"],
-                f"{prefix}_rho_ep": electron_photon_reduced_density_matrix(rho),
             })
-            for name in ENTANGLEMENT_NAMES:
-                row[f"{prefix}_{name}"] = concurrence[name]
+            for name in COARSE_CONCURRENCE_NAMES:
+                row[f"{prefix}_{name}"] = spin_data["entanglement"][name]
     except Exception as exc:
         return {
             "ok": False,
@@ -486,8 +292,6 @@ def scan_final_electron_photon_alignment(
     phiOut_values=PHASE_SPACE_PHIOUT_VALUES,
     angle_max_rad=ALIGNMENT_ANGLE_MAX_RAD,
     m=M,
-    F1=F1,
-    F2=F2,
     normalize_trace=NORMALIZE_TRACE,
     entanglement_initial_state=ENTANGLEMENT_INITIAL_STATE,
     max_workers=SCAN_WORKERS,
@@ -499,8 +303,6 @@ def scan_final_electron_photon_alignment(
         kinematic_points = characteristic_kinematic_points()
     settings = {
         "m": m,
-        "F1": F1,
-        "F2": F2,
         "normalize_trace": normalize_trace,
         "entanglement_initial_state": entanglement_initial_state,
         "angle_max_rad": angle_max_rad,
@@ -551,6 +353,7 @@ def scan_final_electron_photon_alignment(
         "qOut_values": np.asarray([point["qOut"] for point in kinematic_points], dtype=float),
         "phiOut_values": np.asarray(phiOut_values, dtype=float),
         "m": m,
+        "form_factor_model": YAHL_MODEL_NAME,
         "normalized_by_squared_amplitude": normalize_trace,
         "entanglement_initial_state": entanglement_initial_state,
         "spin_cases": ALIGNMENT_SPIN_CASES,
@@ -595,6 +398,8 @@ def _kinematic_csv_headers():
         "Q2",
         "xB",
         "t",
+        "F1",
+        "F2",
         "W2",
         "y",
         "theta_e_gamma_rad",
@@ -625,6 +430,8 @@ def _kinematic_csv_row(row):
         f"{row['Q2']:.16e}",
         f"{row['xB']:.16e}",
         f"{row['t']:.16e}",
+        f"{row['F1']:.16e}",
+        f"{row['F2']:.16e}",
         f"{row['W2']:.16e}",
         f"{row['y']:.16e}",
         f"{row['theta_e_gamma_rad']:.16e}",
@@ -654,40 +461,6 @@ def _alignment_csv_row(row):
     return values
 
 
-def _density_matrix_csv_headers():
-    """Return CSV headers for the reduced electron-photon density-matrix scan."""
-    headers = _kinematic_csv_headers() + [
-        "aligned",
-        "squared_amplitude_M2",
-    ]
-    for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES:
-        headers.extend([
-            f"{prefix}_trace",
-            f"{prefix}_spin_signal_M2",
-            *_reduced_matrix_headers(prefix),
-        ])
-    return headers
-
-
-def _density_matrix_csv_row(row):
-    """Return one formatted CSV row for the reduced density-matrix scan."""
-    values = _kinematic_csv_row(row) + [
-        row["aligned"],
-        f"{row['squared_amplitude_M2']:.16e}",
-    ]
-    for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES:
-        values.extend([
-            f"{row[f'{prefix}_trace']:.16e}",
-            f"{row[f'{prefix}_spin_signal_M2']:.16e}",
-        ])
-        matrix = row[f"{prefix}_rho_ep"]
-        for row_index in range(4):
-            for col_index in range(4):
-                value = matrix[row_index, col_index]
-                values.extend([f"{value.real:.16e}", f"{value.imag:.16e}"])
-    return values
-
-
 def save_alignment_scan_csv_files(alignment_scan, output_dir=ALIGNMENT_OUTPUT_DIR):
     """Save full and aligned-only CSV files for the alignment phase-space scan."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -704,76 +477,6 @@ def save_alignment_scan_csv_files(alignment_scan, output_dir=ALIGNMENT_OUTPUT_DI
             writer.writerow(headers)
             for row in rows:
                 writer.writerow(_alignment_csv_row(row))
-    return paths
-
-
-def save_density_matrix_scan_csv_files(
-    alignment_scan,
-    output_dir=DENSITY_MATRIX_OUTPUT_DIR,
-):
-    """Save full and aligned-only reduced density-matrix scan CSV files."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-    paths = {
-        "all_csv": output_dir / "electron_photon_reduced_density_phase_space.csv",
-        "aligned_csv": output_dir / "electron_photon_reduced_density_aligned.csv",
-    }
-    headers = _density_matrix_csv_headers()
-    aligned_rows = [row for row in alignment_scan["rows"] if row["aligned"]]
-    for key, rows in (("all_csv", alignment_scan["rows"]), ("aligned_csv", aligned_rows)):
-        with paths[key].open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.writer(handle)
-            writer.writerow(headers)
-            for row in rows:
-                writer.writerow(_density_matrix_csv_row(row))
-    return paths
-
-
-def _amplitude_csv_headers():
-    """Return CSV headers for the reduced electron-photon amplitude scan."""
-    headers = _kinematic_csv_headers() + [
-        "aligned",
-        "squared_amplitude_M2",
-        "amplitude_normalization_sqrt_M2",
-    ]
-    for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES:
-        headers.extend(_amplitude_matrix_headers(prefix))
-    return headers
-
-
-def _amplitude_csv_row(row):
-    """Return one formatted CSV row for the reduced amplitude scan."""
-    values = _kinematic_csv_row(row) + [
-        row["aligned"],
-        f"{row['squared_amplitude_M2']:.16e}",
-        f"{row['amplitude_normalization_sqrt_M2']:.16e}",
-    ]
-    for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES:
-        matrix = row[f"{prefix}_amplitude_ep"]
-        for row_index in range(2):
-            for col_index in range(2):
-                value = matrix[row_index, col_index]
-                values.extend([f"{value.real:.16e}", f"{value.imag:.16e}"])
-    return values
-
-
-def save_amplitude_scan_csv_files(
-    alignment_scan,
-    output_dir=AMPLITUDE_OUTPUT_DIR,
-):
-    """Save full and aligned-only 2x2 amplitude scan CSV files."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-    paths = {
-        "all_csv": output_dir / "electron_photon_amplitude_phase_space.csv",
-        "aligned_csv": output_dir / "electron_photon_amplitude_aligned.csv",
-    }
-    headers = _amplitude_csv_headers()
-    aligned_rows = [row for row in alignment_scan["rows"] if row["aligned"]]
-    for key, rows in (("all_csv", alignment_scan["rows"]), ("aligned_csv", aligned_rows)):
-        with paths[key].open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.writer(handle)
-            writer.writerow(headers)
-            for row in rows:
-                writer.writerow(_amplitude_csv_row(row))
     return paths
 
 
@@ -794,17 +497,6 @@ def _bin_edges_from_values(values, max_bins=18):
         last = unique[-1] + 0.5 * (unique[-1] - unique[-2])
         return np.concatenate([[first], midpoints, [last]])
     return np.linspace(values.min(), values.max(), max_bins + 1)
-
-
-def user_frame_kinematic_specs(rows):
-    """Return user-frame variables used as binned plot axes."""
-    return (
-        ("s", np.asarray([row["s"] for row in rows]), r"$s$ [GeV$^2$]"),
-        ("theta_in", np.asarray([row["theta_in"] for row in rows]), r"$\theta_{\rm in}$ [rad]"),
-        ("phi_in_electron", np.asarray([row["phi_in_electron"] for row in rows]), r"$\phi_{e,\rm in}$ [rad]"),
-        ("qOut", np.asarray([row["qOut"] for row in rows]), r"$E_{\gamma}'$ [GeV]"),
-        ("phiOut", np.asarray([row["phiOut"] for row in rows]), r"$\phi_{\gamma}'$ [rad]"),
-    )
 
 
 def _binned_mean_2d(x_values, y_values, z_values, x_edges, y_edges):
@@ -828,270 +520,6 @@ def _binned_mean_2d(x_values, y_values, z_values, x_edges, y_edges):
     mean = np.full_like(sums, np.nan, dtype=float)
     np.divide(sums, counts, out=mean, where=counts > 0)
     return np.ma.masked_invalid(mean.T), counts.T
-
-
-def save_reduced_density_matrix_component_plot(
-    alignment_scan,
-    prefix,
-    title_prefix,
-    component,
-    output_path,
-    cmap,
-    vmin=None,
-    vmax=None,
-):
-    """Save 4x4 reduced electron-photon matrix heatmaps for one component."""
-    plt, PdfPages = _require_matplotlib()
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    rows = alignment_scan["rows"]
-    if not rows:
-        with PdfPages(output_path) as pdf:
-            fig, ax = plt.subplots(figsize=(7.0, 5.0), constrained_layout=True)
-            ax.text(0.5, 0.5, "No valid phase-space points", ha="center", va="center")
-            ax.set_axis_off()
-            pdf.savefig(fig)
-            plt.close(fig)
-        return output_path
-
-    kinematic_specs = user_frame_kinematic_specs(rows)
-    matrices = np.asarray([row[f"{prefix}_rho_ep"] for row in rows], dtype=complex)
-    if component == "abs":
-        matrix_values = np.abs(matrices)
-        component_title = "magnitude"
-        colorbar_label = rf"$|\rho_{{e\gamma}}|$ ({title_prefix})"
-    elif component == "phase":
-        matrix_values = np.angle(matrices)
-        component_title = "phase"
-        colorbar_label = rf"$\arg\rho_{{e\gamma}}$ [rad] ({title_prefix})"
-    else:
-        raise ValueError(f"Unknown reduced-matrix component: {component}")
-    finite_matrix_values = matrix_values[np.isfinite(matrix_values)]
-    plot_vmin = vmin
-    plot_vmax = vmax
-    if finite_matrix_values.size and (plot_vmin is None or plot_vmax is None):
-        if plot_vmin is None:
-            plot_vmin = float(np.nanmin(finite_matrix_values))
-        if plot_vmax is None:
-            plot_vmax = float(np.nanmax(finite_matrix_values))
-    if plot_vmin is None:
-        plot_vmin = 0.0
-    if plot_vmax is None:
-        plot_vmax = 1.0
-
-    with PdfPages(output_path) as pdf:
-        for (_x_name, x_values, x_label), (_y_name, y_values, y_label) in combinations(kinematic_specs, 2):
-            base_mask = np.isfinite(x_values) & np.isfinite(y_values)
-            x_edges = _bin_edges_from_values(x_values[base_mask])
-            y_edges = _bin_edges_from_values(y_values[base_mask])
-            fig, axes = plt.subplots(
-                4,
-                4,
-                figsize=(13.0, 10.0),
-                sharex=True,
-                sharey=True,
-                constrained_layout=True,
-            )
-            meshes = []
-            for flat_index, ax in enumerate(axes.ravel()):
-                row_index, col_index = divmod(flat_index, 4)
-                values = matrix_values[:, row_index, col_index]
-                finite_mask = base_mask & np.isfinite(values)
-                mean_grid, _count_grid = _binned_mean_2d(
-                    x_values[finite_mask],
-                    y_values[finite_mask],
-                    values[finite_mask],
-                    x_edges,
-                    y_edges,
-                )
-                mesh = ax.pcolormesh(
-                    x_edges,
-                    y_edges,
-                    mean_grid,
-                    shading="auto",
-                    cmap=cmap,
-                    vmin=plot_vmin,
-                    vmax=plot_vmax,
-                )
-                meshes.append(mesh)
-                ax.set_title(
-                    f"r{row_index} c{col_index}\n"
-                    f"{_reduced_basis_label(row_index)} x "
-                    f"{_reduced_basis_label(col_index)}",
-                    fontsize=8.0,
-                )
-                ax.set_xlabel(x_label)
-                ax.set_ylabel(y_label)
-            fig.suptitle(
-                f"{title_prefix}: reduced electron-photon matrix {component_title}",
-                fontsize=13,
-            )
-            fig.colorbar(
-                meshes[-1],
-                ax=axes,
-                label=colorbar_label,
-            )
-            pdf.savefig(fig)
-            plt.close(fig)
-    return output_path
-
-
-def _spin_case_plot_stem(prefix):
-    """Return the filename stem for one alignment spin case."""
-    return f"electron_photon_reduced_density_{prefix}_phase_space"
-
-
-def save_reduced_density_matrix_plots(alignment_scan, prefix, title_prefix):
-    """Save magnitude and phase PDFs for one 4x4 reduced density matrix scan."""
-    stem = _spin_case_plot_stem(prefix)
-    return {
-        "abs": save_reduced_density_matrix_component_plot(
-            alignment_scan,
-            prefix,
-            title_prefix,
-            "abs",
-            DENSITY_MATRIX_OUTPUT_DIR / f"{stem}_matrix_abs.pdf",
-            "viridis",
-            0.0,
-            None,
-        ),
-        "phase": save_reduced_density_matrix_component_plot(
-            alignment_scan,
-            prefix,
-            title_prefix,
-            "phase",
-            DENSITY_MATRIX_OUTPUT_DIR / f"{stem}_matrix_phase.pdf",
-            "twilight",
-            -np.pi,
-            np.pi,
-        ),
-    }
-
-
-def save_amplitude_component_plot(
-    alignment_scan,
-    prefix,
-    title_prefix,
-    component,
-    output_path,
-    cmap,
-    vmin=None,
-    vmax=None,
-):
-    """Save a 2x2 electron-photon amplitude heatmap PDF for one component."""
-    plt, PdfPages = _require_matplotlib()
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    rows = alignment_scan["rows"]
-    if not rows:
-        with PdfPages(output_path) as pdf:
-            fig, ax = plt.subplots(figsize=(7.0, 5.0), constrained_layout=True)
-            ax.text(0.5, 0.5, "No valid phase-space points", ha="center", va="center")
-            ax.set_axis_off()
-            pdf.savefig(fig)
-            plt.close(fig)
-        return output_path
-
-    kinematic_specs = user_frame_kinematic_specs(rows)
-    matrices = np.asarray([row[f"{prefix}_amplitude_ep"] for row in rows], dtype=complex)
-    if component == "abs":
-        matrix_values = np.abs(matrices)
-        component_title = "magnitude"
-        colorbar_label = r"$|M|/\sqrt{M^2_{\rm unpol}}$"
-    elif component == "phase":
-        matrix_values = np.angle(matrices)
-        component_title = "phase"
-        colorbar_label = r"$\arg(M/\sqrt{M^2_{\rm unpol}})$ [rad]"
-    else:
-        raise ValueError(f"Unknown amplitude component: {component}")
-    finite_matrix_values = matrix_values[np.isfinite(matrix_values)]
-    plot_vmin = vmin
-    plot_vmax = vmax
-    if finite_matrix_values.size and (plot_vmin is None or plot_vmax is None):
-        if plot_vmin is None:
-            plot_vmin = float(np.nanmin(finite_matrix_values))
-        if plot_vmax is None:
-            plot_vmax = float(np.nanmax(finite_matrix_values))
-    if plot_vmin is None:
-        plot_vmin = 0.0
-    if plot_vmax is None:
-        plot_vmax = 1.0
-
-    with PdfPages(output_path) as pdf:
-        for (_x_name, x_values, x_label), (_y_name, y_values, y_label) in combinations(kinematic_specs, 2):
-            base_mask = np.isfinite(x_values) & np.isfinite(y_values)
-            x_edges = _bin_edges_from_values(x_values[base_mask])
-            y_edges = _bin_edges_from_values(y_values[base_mask])
-            fig, axes = plt.subplots(
-                2,
-                2,
-                figsize=(9.0, 7.0),
-                sharex=True,
-                sharey=True,
-                constrained_layout=True,
-            )
-            meshes = []
-            for flat_index, ax in enumerate(axes.ravel()):
-                row_index, col_index = divmod(flat_index, 2)
-                values = matrix_values[:, row_index, col_index]
-                finite_mask = base_mask & np.isfinite(values)
-                mean_grid, _count_grid = _binned_mean_2d(
-                    x_values[finite_mask],
-                    y_values[finite_mask],
-                    values[finite_mask],
-                    x_edges,
-                    y_edges,
-                )
-                mesh = ax.pcolormesh(
-                    x_edges,
-                    y_edges,
-                    mean_grid,
-                    shading="auto",
-                    cmap=cmap,
-                    vmin=plot_vmin,
-                    vmax=plot_vmax,
-                )
-                meshes.append(mesh)
-                ax.set_title(
-                    f"r{row_index} c{col_index}\n"
-                    f"{_amplitude_basis_label(row_index, col_index)}"
-                )
-                ax.set_xlabel(x_label)
-                ax.set_ylabel(y_label)
-            fig.suptitle(
-                f"{title_prefix}: normalized electron-photon amplitude {component_title}",
-                fontsize=13,
-            )
-            fig.colorbar(meshes[-1], ax=axes, label=colorbar_label)
-            pdf.savefig(fig)
-            plt.close(fig)
-    return output_path
-
-
-def save_amplitude_scan_plots(alignment_scan, prefix, title_prefix):
-    """Save magnitude and phase PDFs for one 2x2 amplitude scan."""
-    return {
-        "abs": save_amplitude_component_plot(
-            alignment_scan,
-            prefix,
-            title_prefix,
-            "abs",
-            AMPLITUDE_OUTPUT_DIR / f"electron_photon_amplitude_{prefix}_matrix_abs.pdf",
-            "viridis",
-            0.0,
-            None,
-        ),
-        "phase": save_amplitude_component_plot(
-            alignment_scan,
-            prefix,
-            title_prefix,
-            "phase",
-            AMPLITUDE_OUTPUT_DIR / f"electron_photon_amplitude_{prefix}_matrix_phase.pdf",
-            "twilight",
-            -np.pi,
-            np.pi,
-        ),
-    }
 
 
 def _concurrence_csv_headers():
@@ -1348,17 +776,13 @@ def build_alignment_report(alignment_scan, alignment_paths):
         f"  s anchor range: {min(alignment_scan['s_values']):.6g} to {max(alignment_scan['s_values']):.6g}",
         f"  theta_in anchor range: {min(alignment_scan['theta_in_values']):.6g} to {max(alignment_scan['theta_in_values']):.6g}",
         f"  qOut/Egamma anchor range: {min(alignment_scan['qOut_values']):.6g} to {max(alignment_scan['qOut_values']):.6g}",
+        f"  form factor model: {alignment_scan['form_factor_model']} with F1(t), F2(t)",
         f"  phi_e_in scan: {len(alignment_scan['phi_in_electron_values'])} values from "
         f"{alignment_scan['phi_in_electron_values'][0]:.6g} to {alignment_scan['phi_in_electron_values'][-1]:.6g}",
         f"  phi_gamma scan: {len(alignment_scan['phiOut_values'])} values from "
         f"{alignment_scan['phiOut_values'][0]:.6g} to {alignment_scan['phiOut_values'][-1]:.6g}",
         f"  valid points: {len(rows)}",
         f"  aligned points: {len(aligned_rows)}",
-        "  amplitude normalization: M / sqrt(M^2_unpol)",
-        "  density matrix scan outputs: "
-        f"{'enabled' if alignment_paths.get('run_density_matrix_scan') else 'disabled'}",
-        "  amplitude scan outputs: "
-        f"{'enabled' if alignment_paths.get('run_amplitude_scan') else 'disabled'}",
     ]
     if rows:
         min_angle = min(row["theta_e_gamma_deg"] for row in rows)
@@ -1393,41 +817,7 @@ def build_alignment_report(alignment_scan, alignment_paths):
         "  saved legacy ranked C13 csv: "
         f"{alignment_paths['concurrence_csv']['top_c13_csv']}",
     ])
-    if alignment_paths.get("run_density_matrix_scan"):
-        lines.extend([
-            "  saved density matrix full csv: "
-            f"{alignment_paths['density_matrix_csv']['all_csv']}",
-            "  saved density matrix aligned csv: "
-            f"{alignment_paths['density_matrix_csv']['aligned_csv']}",
-        ])
-    if alignment_paths.get("run_amplitude_scan"):
-        lines.extend([
-            "  saved amplitude full csv: "
-            f"{alignment_paths['amplitude_csv']['all_csv']}",
-            "  saved amplitude aligned csv: "
-            f"{alignment_paths['amplitude_csv']['aligned_csv']}",
-        ])
     for prefix, label, _spin_case in ALIGNMENT_SPIN_CASES:
-        if alignment_paths.get("run_amplitude_scan"):
-            amplitude_paths = alignment_paths[f"{prefix}_amplitude_plots"]
-            lines.append(
-                f"  saved {label.lower()} amplitude magnitude plot: "
-                f"{amplitude_paths['abs']}"
-            )
-            lines.append(
-                f"  saved {label.lower()} amplitude phase plot: "
-                f"{amplitude_paths['phase']}"
-            )
-        if alignment_paths.get("run_density_matrix_scan"):
-            plot_paths = alignment_paths[f"{prefix}_reduced_density_plots"]
-            lines.append(
-                f"  saved {label.lower()} reduced density magnitude plot: "
-                f"{plot_paths['abs']}"
-            )
-            lines.append(
-                f"  saved {label.lower()} reduced density phase plot: "
-                f"{plot_paths['phase']}"
-            )
         lines.append(
             f"  saved {label.lower()} concurrence plot: "
             f"{alignment_paths['concurrence_plots'][prefix]}"
@@ -1443,30 +833,12 @@ def build_alignment_report(alignment_scan, alignment_paths):
     return "\n".join(lines)
 
 
-def main(
-    run_density_matrix_scan=RUN_ALIGNMENT_DENSITY_MATRIX_SCAN,
-    run_amplitude_scan=RUN_ALIGNMENT_AMPLITUDE_SCAN,
-):
+def main():
     """Regenerate final electron-photon alignment scan outputs."""
     clean_alignment_outputs()
     alignment_scan = scan_final_electron_photon_alignment()
     paths = save_alignment_scan_csv_files(alignment_scan)
-    paths["run_density_matrix_scan"] = run_density_matrix_scan
-    paths["run_amplitude_scan"] = run_amplitude_scan
-    if run_density_matrix_scan:
-        paths["density_matrix_csv"] = save_density_matrix_scan_csv_files(alignment_scan)
-    if run_amplitude_scan:
-        paths["amplitude_csv"] = save_amplitude_scan_csv_files(alignment_scan)
     paths["concurrence_csv"] = save_concurrence_scan_csv_files(alignment_scan)
-    for prefix, label, _spin_case in ALIGNMENT_SPIN_CASES:
-        if run_amplitude_scan:
-            paths[f"{prefix}_amplitude_plots"] = (
-                save_amplitude_scan_plots(alignment_scan, prefix, label)
-            )
-        if run_density_matrix_scan:
-            paths[f"{prefix}_reduced_density_plots"] = (
-                save_reduced_density_matrix_plots(alignment_scan, prefix, label)
-            )
     paths["concurrence_plots"] = save_concurrence_scan_plots(alignment_scan)
 
     log_text = build_alignment_report(alignment_scan, paths) + f"\n\nSaved log: {ALIGNMENT_LOG_PATH}\n"

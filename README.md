@@ -140,13 +140,26 @@ m         proton mass
 invariants such as `Q2`, `xB`, `t`, `W2`, and `y` are written to CSV/logs as
 diagnostics, not used as independent scan variables.
 
-The current spin-density scan settings in `SpinDensityMat.py` are:
+The current spin-density scan uses the proton mass
 
 ```text
 m = 0.938
-F1 = 1.0
-F2 = 0.0
 ```
+
+At each kinematic point, the proton form factors are computed from the YAHL
+2018 proton lookup table in `YAHL 2018/proton_lookup.dat`. The table gives
+Sachs central values as `GEp/GD` and `GMp/(mu_p GD)`. The scan reconstructs
+`GE(t)` and `GM(t)` with `Q2_transfer = -t`, then converts them to Dirac and
+Pauli form factors with
+
+```text
+tau = Q2_transfer / (4 m^2)
+F1 = (GE + tau GM) / (1 + tau)
+F2 = (GM - GE) / (1 + tau)
+```
+
+The generated CSV/NPZ outputs store the resulting per-point `F1` and `F2`
+columns alongside the kinematic invariants.
 
 The active scan grids are:
 
@@ -328,30 +341,23 @@ Running `AlignmentScan.py` cleans and regenerates:
 Output/AlignmentScan.log
 Output/AlignmentScan/electron_photon_spin_correlation_phase_space.csv
 Output/AlignmentScan/electron_photon_spin_correlation_aligned.csv
-Output/AlignmentScan/DensityMatScan/
-Output/AlignmentScan/AmplitudeScan/
 Output/AlignmentScan/ConcurrenceScan/
 ```
 
-Set `RUN_ALIGNMENT_DENSITY_MATRIX_SCAN` or `RUN_ALIGNMENT_AMPLITUDE_SCAN` to
-`False` in `AlignmentScan.py` to skip those optional CSV/PDF output families.
 The main spin-correlation CSVs and C12/C13/C23 plus M1/M2/M3 and F3 locator
 outputs are still generated.
 
 The alignment scan records the opening angle theta(e', gamma) over 18
 characteristic user-frame anchors. Each anchor fixes `s`, `theta_in`, and
 `qOut`, then scans the two remaining angular variables `phi_in_electron` and
-`phi_gamma` on a 72 by 96 grid. The stored outgoing-photon azimuth column is
+`phi_gamma` on a 32 by 32 grid. The stored outgoing-photon azimuth column is
 still named `phiOut`, and the internal proton azimuth is still written as
 `phi_in`.
-The `DensityMatScan` folder stores reduced 4 by 4
-electron-photon density-matrix CSVs and magnitude/phase PDFs. The
-`AmplitudeScan` folder stores 2 by 2 complex electron-photon amplitude CSVs
-and magnitude/phase PDFs. The `ConcurrenceScan` folder stores concurrence CSVs
-and PDFs. The density-matrix and concurrence folders cover unpolarized,
-longitudinal polarized, transverse Tx polarized, and transverse Ty polarized
-incoming-electron spin cases, plus a double-transverse case where the incoming
-electron and proton are both polarized along the same transverse Tx direction.
+The `ConcurrenceScan` folder stores concurrence, F3, and monogamy-residual
+CSVs and PDFs. It covers unpolarized, longitudinal polarized, transverse Tx
+polarized, and transverse Ty polarized incoming-electron spin cases, plus a
+double-transverse case where the incoming electron and proton are both
+polarized along the same transverse Tx direction.
 
 The top-level spin-density log records the scan settings, particle map, trace
 benchmark, normalization convention, saved paths, and invalid kinematic
@@ -431,23 +437,6 @@ squared_amplitude_M2,
 <spin_case>_h_lambda,<spin_case>_h_lambda_connected
 ```
 
-The `DensityMatScan` CSV files add:
-
-```text
-<spin_case>_rho_ep_r0_c0_real,<spin_case>_rho_ep_r0_c0_imag,
-...
-<spin_case>_rho_ep_r3_c3_real,<spin_case>_rho_ep_r3_c3_imag
-```
-
-The `AmplitudeScan` CSV files add:
-
-```text
-amplitude_normalization_sqrt_M2,
-<spin_case>_amp_ep_norm_r0_c0_real,<spin_case>_amp_ep_norm_r0_c0_imag,
-...
-<spin_case>_amp_ep_norm_r1_c1_real,<spin_case>_amp_ep_norm_r1_c1_imag
-```
-
 The `AlignmentScan.py` `ConcurrenceScan` CSV files focus on the C12, C13, C23,
 M1, M2, M3, and F3 locator observables for each spin case:
 
@@ -467,26 +456,7 @@ The `<spin_case>` prefixes are `unpolarized`, `longitudinal_polarized`, `Tx`,
 the best C12, C13, C23, M1, M2, M3, and F3 points. It also keeps
 `electron_photon_c13_top.csv` for the C13-only downstream configuration
 generator. The concurrence/F3/monogamy PDFs include only two-angle
-`phi_in_electron` by `phi_gamma` maps for every characteristic anchor. The
-`rho_ep_r*_c*` columns are the proton-traced
-4 by 4 electron-photon reduced density matrix entries, stored as real and
-imaginary parts. The reduced basis is ordered as
-`(hOut, lambda) = (-1,-1), (-1,+1), (+1,-1), (+1,+1)`. The reduced-density
-PDFs show all 16 matrix entries as 4 by 4 grids across the full valid
-kinematic scan, with separate magnitude and phase files.
-
-The `AmplitudeScan` matrices are ordered by outgoing electron helicity rows
-`hOut = -1,+1` and photon helicity columns `lambda = -1,+1`, and coherently
-sum over the outgoing proton spin. The unpolarized amplitude uses an equal
-incoming-spin superposition, the longitudinal-polarized amplitude uses the
-`hIn=+1` minus `hIn=-1` combination at the configured proton spin, and the
-transverse Tx amplitude uses the `hIn=+1` plus `hIn=-1` combination at the
-configured proton spin, and the transverse Ty amplitude uses
-`hIn=+1` plus `i hIn=-1`. The double-transverse amplitude uses the product of
-the same Tx coherent superposition for both incoming electron and incoming
-proton. The stored and plotted entries are normalized as
-`M / sqrt(M^2_unpol)`, where `M^2_unpol` is the `squared_amplitude_M2` value in
-the same row.
+`phi_in_electron` by `phi_gamma` maps for every characteristic anchor.
 
 `ConfigGen.py` reads `Output/AlignmentScan/ConcurrenceScan/electron_photon_c13_top.csv`
 directly, or falls back to the full concurrence phase-space CSV, and writes:
