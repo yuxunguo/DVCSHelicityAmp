@@ -52,7 +52,7 @@ CHARACTERISTIC_S_POINTS = (
     ("high_s", 1.18 * USER_S_CENTER),
 )
 CHARACTERISTIC_THETA_IN_POINTS = (
-    ("low_theta_in", 0.1),
+    ("low_theta_in", 3.14159/2),
     ("high_theta_in", 3.14159/2),
 )
 CHARACTERISTIC_QOUT_POINTS = (

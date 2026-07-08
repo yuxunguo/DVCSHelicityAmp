@@ -2,9 +2,9 @@
 
 This script reads the C13 CSVs written by ``AlignmentScan.py`` and builds a
 small set of representative user-frame configurations directly from those
-coarse alignment results. It prefers the ranked
-``electron_photon_c13_top.csv`` table and falls back to the full phase-space
-concurrence CSV when the ranked table is not present.
+coarse alignment results. It prefers the full phase-space concurrence CSV so
+that both near-aligned and pi-separated electron/photon regions are available,
+and falls back to the ranked ``electron_photon_c13_top.csv`` table when needed.
 """
 
 import csv
@@ -47,8 +47,14 @@ MAX_CLUSTERS_PER_SPIN = 8
 EXAMPLES_PER_CLUSTER = 2
 CLUSTER_RADIUS = 0.42
 CONFIG_SPIN_CASES = ("Tx", "Ty")
+CONFIG_RELATIVE_REGIONS = (
+    ("aligned", 0.0),
+    ("opposite", math.pi),
+)
+REGION_HALF_WIDTH = 0.25
 DISPLAY_MOMENTA = ("k", "p", "kp", "pp", "qout")
 INCOMING_MOMENTA = ("k", "p")
+HIGH_C13_PREFIX = "high_c13_"
 
 KINEMATIC_COLUMNS = (
     "kinematic_point",
@@ -111,13 +117,13 @@ def read_csv_rows(path):
 
 def alignment_input_path():
     """Return the best available AlignmentScan C13 CSV path."""
-    if RANKED_C13_CSV.exists():
-        return RANKED_C13_CSV
     if FULL_C13_CSV.exists():
         return FULL_C13_CSV
+    if RANKED_C13_CSV.exists():
+        return RANKED_C13_CSV
     raise FileNotFoundError(
         "No AlignmentScan C13 CSV found. Run AlignmentScan.py first to create "
-        f"{RANKED_C13_CSV} or {FULL_C13_CSV}."
+        f"{FULL_C13_CSV} or {RANKED_C13_CSV}."
     )
 
 
@@ -138,7 +144,19 @@ def spin_label_from_key(key):
     return key[:-4] if key.endswith("_C13") else key
 
 
-def candidate_rows(rows, key):
+def electron_photon_delta(row):
+    """Return the shortest azimuthal separation between incoming electron and photon."""
+    return circular_distance(parse_float(row.get("phi_in_electron")), parse_float(row.get("phiOut")))
+
+
+def region_offset(delta, center):
+    """Return distance of an electron/photon separation from a region center."""
+    if not np.isfinite(delta):
+        return np.nan
+    return abs(delta - center)
+
+
+def candidate_rows(rows, key, region_name, region_center):
     """Return ranked candidates for one spin C13 column."""
     if rows and "rank_group" in rows[0]:
         group_rows = [row for row in rows if row.get("rank_group") == key]
@@ -149,6 +167,10 @@ def candidate_rows(rows, key):
     candidates = []
     seen = set()
     for row in source_rows:
+        delta = electron_photon_delta(row)
+        offset = region_offset(delta, region_center)
+        if not np.isfinite(offset) or offset > REGION_HALF_WIDTH:
+            continue
         value = parse_float(row.get("rank_value") if row.get("rank_group") == key else row.get(key))
         if not np.isfinite(value):
             continue
@@ -160,6 +182,10 @@ def candidate_rows(rows, key):
         item["selected_spin_case"] = spin_label_from_key(key)
         item["selected_c13_key"] = key
         item["selected_C13"] = value
+        item["selected_region"] = region_name
+        item["electron_photon_delta"] = delta
+        item["electron_photon_region_center"] = region_center
+        item["electron_photon_region_offset"] = offset
         candidates.append(item)
     candidates.sort(key=lambda item: item["selected_C13"], reverse=True)
     return candidates[:TOP_ROWS_PER_SPIN]
@@ -233,16 +259,21 @@ def format_range(rows, name):
 def cluster_summary_rows(grouped_clusters):
     """Return dictionaries for the cluster summary CSV."""
     summaries = []
-    for spin_case, clusters in grouped_clusters:
+    for spin_case, region_name, clusters in grouped_clusters:
         for cluster in clusters:
             rows = cluster["rows"]
             best = cluster["best"]
             summary = {
                 "selected_spin_case": spin_case,
+                "selected_region": region_name,
                 "cluster_id": cluster["cluster_id"],
                 "size": len(rows),
                 "max_C13": f"{best['selected_C13']:.16e}",
                 "best_kinematic_point": best.get("kinematic_point", ""),
+                "best_electron_photon_delta": f"{best['electron_photon_delta']:.16e}",
+                "best_electron_photon_region_offset": (
+                    f"{best['electron_photon_region_offset']:.16e}"
+                ),
             }
             for name in (
                 "s",
@@ -271,14 +302,19 @@ def cluster_summary_rows(grouped_clusters):
 def example_rows(grouped_clusters):
     """Return representative example configuration rows."""
     examples = []
-    for spin_case, clusters in grouped_clusters:
+    for spin_case, region_name, clusters in grouped_clusters:
         for cluster in clusters:
             for rank, row in enumerate(cluster["rows"][:EXAMPLES_PER_CLUSTER], start=1):
                 item = {
                     "selected_spin_case": spin_case,
+                    "selected_region": region_name,
                     "cluster_id": cluster["cluster_id"],
                     "example_rank": rank,
                     "selected_C13": f"{row['selected_C13']:.16e}",
+                    "electron_photon_delta": f"{row['electron_photon_delta']:.16e}",
+                    "electron_photon_region_offset": (
+                        f"{row['electron_photon_region_offset']:.16e}"
+                    ),
                 }
                 for name in KINEMATIC_COLUMNS:
                     item[name] = row.get(name, "")
@@ -303,15 +339,50 @@ def write_dict_csv(path, rows):
     return path
 
 
+def polarization_file_tag(spin_case):
+    """Return a filesystem-friendly tag for one selected polarization."""
+    tag = "".join(char.lower() if char.isalnum() else "_" for char in str(spin_case))
+    return tag.strip("_") or "unknown"
+
+
+def polarization_output_path(base_path, spin_case):
+    """Return the per-polarization output path next to an aggregate path."""
+    tag = polarization_file_tag(spin_case)
+    name = base_path.name
+    if name.startswith(HIGH_C13_PREFIX):
+        name = f"{HIGH_C13_PREFIX}{tag}_{name[len(HIGH_C13_PREFIX):]}"
+    else:
+        name = f"{base_path.stem}_{tag}{base_path.suffix}"
+    return base_path.with_name(name)
+
+
+def polarization_csv_path(base_path, spin_case):
+    """Return the per-polarization CSV path next to an aggregate CSV path."""
+    return polarization_output_path(base_path, spin_case)
+
+
+def write_polarization_csvs(base_path, rows, spin_cases):
+    """Write one filtered CSV per selected polarization."""
+    outputs = []
+    for spin_case in spin_cases:
+        spin_rows = [row for row in rows if row.get("selected_spin_case") == spin_case]
+        outputs.append((
+            spin_case,
+            write_dict_csv(polarization_csv_path(base_path, spin_case), spin_rows),
+        ))
+    return outputs
+
+
 def representative_rows(grouped_clusters):
     """Return one characteristic row per selected spin/cluster."""
     rows = []
-    for spin_case, clusters in grouped_clusters:
+    for spin_case, region_name, clusters in grouped_clusters:
         for cluster in clusters:
             row = dict(cluster["best"])
             row["selected_spin_case"] = spin_case
+            row["selected_region"] = region_name
             row["cluster_id"] = cluster["cluster_id"]
-            row["detail_id"] = f"{spin_case}_cluster_{cluster['cluster_id']}"
+            row["detail_id"] = f"{spin_case}_{region_name}_cluster_{cluster['cluster_id']}"
             rows.append(row)
     return rows
 
@@ -345,8 +416,11 @@ def momentum_configuration_rows(detail_rows):
             records.append({
                 "detail_id": row["detail_id"],
                 "selected_spin_case": row["selected_spin_case"],
+                "selected_region": row["selected_region"],
                 "cluster_id": row["cluster_id"],
                 "selected_C13": f"{row['selected_C13']:.16e}",
+                "electron_photon_delta": f"{row['electron_photon_delta']:.16e}",
+                "electron_photon_region_offset": f"{row['electron_photon_region_offset']:.16e}",
                 "kinematic_point": row.get("kinematic_point", ""),
                 "momentum": name,
                 "E": f"{vector[0]:.16e}",
@@ -427,8 +501,11 @@ def amplitude_decomposition(row):
         records.append({
             "detail_id": row["detail_id"],
             "selected_spin_case": row["selected_spin_case"],
+            "selected_region": row["selected_region"],
             "cluster_id": row["cluster_id"],
             "selected_C13": f"{row['selected_C13']:.16e}",
+            "electron_photon_delta": f"{row['electron_photon_delta']:.16e}",
+            "electron_photon_region_offset": f"{row['electron_photon_region_offset']:.16e}",
             "kinematic_point": row.get("kinematic_point", ""),
             "incoming_state": selected_initial_state_label(row["selected_spin_case"]),
             "out_index": index,
@@ -457,14 +534,9 @@ def amplitude_decomposition_rows(detail_rows):
 def _plot_vector_3d(ax, vector, label, color, incoming=False):
     """Draw one 3D momentum vector."""
     spatial = np.asarray(vector, dtype=float)[1:4]
-    if incoming:
-        start = spatial
-        delta = -spatial
-        text_position = spatial
-    else:
-        start = np.zeros(3)
-        delta = spatial
-        text_position = spatial
+    start = np.zeros(3)
+    delta = spatial
+    text_position = spatial
     ax.quiver(
         start[0],
         start[1],
@@ -488,14 +560,9 @@ def _plot_vector_3d(ax, vector, label, color, incoming=False):
 def _plot_vector_2d(ax, vector, label, color, incoming=False):
     """Draw one transverse momentum vector."""
     spatial = np.asarray(vector, dtype=float)[1:3]
-    if incoming:
-        start = spatial
-        delta = -spatial
-        text_position = spatial
-    else:
-        start = np.zeros(2)
-        delta = spatial
-        text_position = spatial
+    start = np.zeros(2)
+    delta = spatial
+    text_position = spatial
     ax.arrow(
         start[0],
         start[1],
@@ -565,6 +632,10 @@ def plot_configuration_text(ax, row, kin):
     momenta = kin["momenta"]
     lines = [
         f"{row['detail_id']}  C13={row['selected_C13']:.6g}",
+        (
+            f"region: {row['selected_region']}  "
+            f"|phi_e_in - phi_gamma|={row['electron_photon_delta']:.6g}"
+        ),
         f"kinematic point: {row.get('kinematic_point', '')}",
         f"incoming state: {selected_initial_state_label(row['selected_spin_case'])}",
         "",
@@ -649,7 +720,7 @@ def save_configuration_plot(grouped_clusters, path=PLOT_PATH):
     path.parent.mkdir(parents=True, exist_ok=True)
     detail_rows = representative_rows(grouped_clusters)
     with PdfPages(path) as pdf:
-        for spin_case, clusters in grouped_clusters:
+        for spin_case, region_name, clusters in grouped_clusters:
             rows = [row for cluster in clusters for row in cluster["rows"]]
             if not rows:
                 continue
@@ -675,7 +746,7 @@ def save_configuration_plot(grouped_clusters, path=PLOT_PATH):
                     fontsize=8,
                     va="center",
                 )
-            ax.set_title(f"{spin_case}: representative high-C13 alignment configs")
+            ax.set_title(f"{spin_case} {region_name}: representative high-C13 configs")
             ax.set_xlabel(r"$\phi_{e,\rm in}$ [rad]")
             ax.set_ylabel(r"$\phi_{\gamma}'$ [rad]")
             ax.set_xlim(0.0, 2.0 * math.pi)
@@ -687,7 +758,28 @@ def save_configuration_plot(grouped_clusters, path=PLOT_PATH):
     return path
 
 
-def build_report(input_path, total_rows, grouped_clusters, examples):
+def save_polarization_plots(grouped_clusters, base_path=PLOT_PATH):
+    """Write one configuration plot PDF per selected polarization."""
+    outputs = []
+    spin_cases = []
+    for spin_case, _region_name, _clusters in grouped_clusters:
+        if spin_case not in spin_cases:
+            spin_cases.append(spin_case)
+    for spin_case in spin_cases:
+        spin_groups = [group for group in grouped_clusters if group[0] == spin_case]
+        path = polarization_output_path(base_path, spin_case)
+        outputs.append((spin_case, save_configuration_plot(spin_groups, path)))
+    return outputs
+
+
+def build_report(
+    input_path,
+    total_rows,
+    grouped_clusters,
+    examples,
+    polarization_outputs,
+    polarization_plot_outputs,
+):
     """Build the text report for the generated configurations."""
     lines = [
         "High-C13 user-frame configuration generator from AlignmentScan results",
@@ -695,19 +787,31 @@ def build_report(input_path, total_rows, grouped_clusters, examples):
         f"  top rows per spin case: {TOP_ROWS_PER_SPIN}",
         f"  cluster radius: {CLUSTER_RADIUS}",
         f"  total input rows: {total_rows}",
-        f"  spin cases: {len(grouped_clusters)}",
-        f"  clusters: {sum(len(clusters) for _spin, clusters in grouped_clusters)}",
+        f"  spin cases: {len({spin for spin, _region, _clusters in grouped_clusters})}",
+        f"  angular regions: {', '.join(region for region, _center in CONFIG_RELATIVE_REGIONS)}",
+        f"  angular region half width: {REGION_HALF_WIDTH:.6g} rad",
+        f"  clusters: {sum(len(clusters) for _spin, _region, clusters in grouped_clusters)}",
         f"  examples: {len(examples)}",
         f"  saved examples csv: {EXAMPLES_CSV_PATH}",
         f"  saved clusters csv: {CLUSTERS_CSV_PATH}",
         f"  saved momentum configuration csv: {MOMENTA_CSV_PATH}",
         f"  saved final-state amplitude decomposition csv: {AMPLITUDE_CSV_PATH}",
         f"  saved configuration plot: {PLOT_PATH}",
+        "  saved per-polarization csvs:",
+    ]
+    for label, outputs in polarization_outputs:
+        lines.append(f"    {label}:")
+        for spin_case, path in outputs:
+            lines.append(f"      {spin_case}: {path}")
+    lines.append("  saved per-polarization plot pdfs:")
+    for spin_case, path in polarization_plot_outputs:
+        lines.append(f"    {spin_case}: {path}")
+    lines.extend([
         "",
         "Cluster summaries:",
-    ]
-    for spin_case, clusters in grouped_clusters:
-        lines.append(f"  {spin_case}: {len(clusters)} clusters")
+    ])
+    for spin_case, region_name, clusters in grouped_clusters:
+        lines.append(f"  {spin_case} {region_name}: {len(clusters)} clusters")
         for cluster in clusters:
             best = cluster["best"]
             rows = cluster["rows"]
@@ -715,6 +819,7 @@ def build_report(input_path, total_rows, grouped_clusters, examples):
                 "    "
                 f"cluster {cluster['cluster_id']}: size={len(rows)}, "
                 f"max_C13={best['selected_C13']:.6g}, "
+                f"|phi_e-phi_gamma|={format_range(rows, 'electron_photon_delta')}, "
                 f"theta(e',gamma)={format_range(rows, 'theta_e_gamma_deg')}, "
                 f"s={format_range(rows, 's')}, "
                 f"theta_in={format_range(rows, 'theta_in')}, "
@@ -731,6 +836,7 @@ def build_report(input_path, total_rows, grouped_clusters, examples):
                 f"phi_p_in={parse_float(best.get('phi_in')):.6g}, "
                 f"qOut={parse_float(best.get('qOut')):.6g}, "
                 f"phi_gamma={parse_float(best.get('phiOut')):.6g}, "
+                f"|phi_e-phi_gamma|={best['electron_photon_delta']:.6g}, "
                 f"Q2={parse_float(best.get('Q2')):.6g}, "
                 f"xB={parse_float(best.get('xB')):.6g}, "
                 f"t={parse_float(best.get('t')):.6g}"
@@ -746,10 +852,15 @@ def main():
     rows = read_csv_rows(input_path)
     grouped_clusters = []
     for key in c13_columns(rows):
-        candidates = candidate_rows(rows, key)
-        if not candidates:
-            continue
-        grouped_clusters.append((spin_label_from_key(key), cluster_candidates(candidates)))
+        for region_name, region_center in CONFIG_RELATIVE_REGIONS:
+            candidates = candidate_rows(rows, key, region_name, region_center)
+            if not candidates:
+                continue
+            grouped_clusters.append((
+                spin_label_from_key(key),
+                region_name,
+                cluster_candidates(candidates),
+            ))
 
     if not grouped_clusters:
         raise RuntimeError(f"No finite C13 candidates found in {input_path}.")
@@ -757,13 +868,40 @@ def main():
     examples = example_rows(grouped_clusters)
     summaries = cluster_summary_rows(grouped_clusters)
     details = representative_rows(grouped_clusters)
+    momentum_rows = momentum_configuration_rows(details)
+    amplitude_rows = amplitude_decomposition_rows(details)
+    spin_cases = []
+    for spin_case, _region_name, _clusters in grouped_clusters:
+        if spin_case not in spin_cases:
+            spin_cases.append(spin_case)
+
     write_dict_csv(EXAMPLES_CSV_PATH, examples)
     write_dict_csv(CLUSTERS_CSV_PATH, summaries)
-    write_dict_csv(MOMENTA_CSV_PATH, momentum_configuration_rows(details))
-    write_dict_csv(AMPLITUDE_CSV_PATH, amplitude_decomposition_rows(details))
+    write_dict_csv(MOMENTA_CSV_PATH, momentum_rows)
+    write_dict_csv(AMPLITUDE_CSV_PATH, amplitude_rows)
+    polarization_outputs = [
+        ("examples", write_polarization_csvs(EXAMPLES_CSV_PATH, examples, spin_cases)),
+        ("clusters", write_polarization_csvs(CLUSTERS_CSV_PATH, summaries, spin_cases)),
+        (
+            "momentum configurations",
+            write_polarization_csvs(MOMENTA_CSV_PATH, momentum_rows, spin_cases),
+        ),
+        (
+            "final-state amplitude decomposition",
+            write_polarization_csvs(AMPLITUDE_CSV_PATH, amplitude_rows, spin_cases),
+        ),
+    ]
     save_configuration_plot(grouped_clusters)
+    polarization_plot_outputs = save_polarization_plots(grouped_clusters)
 
-    log_text = build_report(input_path, len(rows), grouped_clusters, examples)
+    log_text = build_report(
+        input_path,
+        len(rows),
+        grouped_clusters,
+        examples,
+        polarization_outputs,
+        polarization_plot_outputs,
+    )
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     LOG_PATH.write_text(log_text, encoding="utf-8")
     print(log_text, end="")

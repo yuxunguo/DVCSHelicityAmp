@@ -1,31 +1,67 @@
 High-C13 user-frame configuration generator from AlignmentScan results
-  input csv: Output\AlignmentScan\ConcurrenceScan\electron_photon_c13_top.csv
+  input csv: Output/AlignmentScan/ConcurrenceScan/electron_photon_concurrence_phase_space.csv
   top rows per spin case: 60
   cluster radius: 0.42
-  total input rows: 300
+  total input rows: 15872
   spin cases: 2
-  clusters: 6
-  examples: 12
-  saved examples csv: Output\ConfigGen\high_c13_configuration_examples.csv
-  saved clusters csv: Output\ConfigGen\high_c13_cluster_summary.csv
-  saved momentum configuration csv: Output\ConfigGen\high_c13_momentum_configurations.csv
-  saved final-state amplitude decomposition csv: Output\ConfigGen\high_c13_final_state_amplitude_decomposition.csv
-  saved configuration plot: Output\ConfigGen\high_c13_user_frame_configurations.pdf
+  angular regions: aligned, opposite
+  angular region half width: 0.25 rad
+  clusters: 14
+  examples: 28
+  saved examples csv: Output/ConfigGen/high_c13_configuration_examples.csv
+  saved clusters csv: Output/ConfigGen/high_c13_cluster_summary.csv
+  saved momentum configuration csv: Output/ConfigGen/high_c13_momentum_configurations.csv
+  saved final-state amplitude decomposition csv: Output/ConfigGen/high_c13_final_state_amplitude_decomposition.csv
+  saved configuration plot: Output/ConfigGen/high_c13_user_frame_configurations.pdf
+  saved per-polarization csvs:
+    examples:
+      Tx: Output/ConfigGen/high_c13_tx_configuration_examples.csv
+      Ty: Output/ConfigGen/high_c13_ty_configuration_examples.csv
+    clusters:
+      Tx: Output/ConfigGen/high_c13_tx_cluster_summary.csv
+      Ty: Output/ConfigGen/high_c13_ty_cluster_summary.csv
+    momentum configurations:
+      Tx: Output/ConfigGen/high_c13_tx_momentum_configurations.csv
+      Ty: Output/ConfigGen/high_c13_ty_momentum_configurations.csv
+    final-state amplitude decomposition:
+      Tx: Output/ConfigGen/high_c13_tx_final_state_amplitude_decomposition.csv
+      Ty: Output/ConfigGen/high_c13_ty_final_state_amplitude_decomposition.csv
+  saved per-polarization plot pdfs:
+    Tx: Output/ConfigGen/high_c13_tx_user_frame_configurations.pdf
+    Ty: Output/ConfigGen/high_c13_ty_user_frame_configurations.pdf
 
 Cluster summaries:
-  Tx: 3 clusters
-    cluster 0: size=6, max_C13=0.928651, theta(e',gamma)=16.2107..18.242, s=16.7824..25.3887, theta_in=1.57079..1.57079, qOut=0.75..0.75, Q2=0.0308293..0.0346994, xB=0.00411716..0.00569867, t=-2.87478e-05..-1.49816e-05
-      best: s=16.7824, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=0.75, phi_gamma=4.51604, Q2=0.0346994, xB=0.00569867, t=-2.87478e-05
-    cluster 1: size=33, max_C13=0.919126, theta(e',gamma)=22.9194..112.469, s=21.5158..25.3887, theta_in=1.57079..1.57079, qOut=1.25..1.75, Q2=0.00858287..6.09626, xB=0.000551475..0.347662, t=-5.89094..-8.38112e-05
-      best: s=21.5158, theta_in=1.57079, phi_e_in=4.12334, phi_p_in=0.981748, qOut=1.75, phi_gamma=4.51604, Q2=1.69626, xB=0.0983273, t=-1.60898
-    cluster 2: size=21, max_C13=0.914945, theta(e',gamma)=38.7814..112.469, s=21.5158..25.3887, theta_in=1.57079..1.57079, qOut=1.75..1.75, Q2=0.00858287..6.09626, xB=0.000551475..0.347662, t=-5.89094..-0.179664
-      best: s=21.5158, theta_in=1.57079, phi_e_in=5.49779, phi_p_in=2.35619, qOut=1.75, phi_gamma=4.90874, Q2=2.16338, xB=0.122099, t=-2.79555
-  Ty: 3 clusters
-    cluster 0: size=6, max_C13=0.928651, theta(e',gamma)=16.2107..18.242, s=16.7824..25.3887, theta_in=1.57079..1.57079, qOut=0.75..0.75, Q2=0.0308293..0.0346994, xB=0.00411716..0.00569867, t=-2.87478e-05..-1.49816e-05
-      best: s=16.7824, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=0.75, phi_gamma=4.51604, Q2=0.0346994, xB=0.00569867, t=-2.87478e-05
-    cluster 1: size=33, max_C13=0.919126, theta(e',gamma)=22.9194..112.469, s=21.5158..25.3887, theta_in=1.57079..1.57079, qOut=1.25..1.75, Q2=0.00858287..6.09626, xB=0.000551475..0.347662, t=-5.89094..-8.38112e-05
-      best: s=21.5158, theta_in=1.57079, phi_e_in=4.12334, phi_p_in=0.981748, qOut=1.75, phi_gamma=4.51604, Q2=1.69626, xB=0.0983273, t=-1.60898
-    cluster 2: size=21, max_C13=0.914945, theta(e',gamma)=38.7814..112.469, s=21.5158..25.3887, theta_in=1.57079..1.57079, qOut=1.75..1.75, Q2=0.00858287..6.09626, xB=0.000551475..0.347662, t=-5.89094..-0.179664
-      best: s=21.5158, theta_in=1.57079, phi_e_in=5.49779, phi_p_in=2.35619, qOut=1.75, phi_gamma=4.90874, Q2=2.16338, xB=0.122099, t=-2.79555
+  Tx aligned: 3 clusters
+    cluster 0: size=12, max_C13=0.928651, |phi_e-phi_gamma|=0.19635..0.19635, theta(e',gamma)=16.2107..18.242, s=16.7824..25.3887, theta_in=1.57079..1.57079, qOut=0.75..0.75, Q2=0.0308293..0.0346994, xB=0.00411716..0.00569867, t=-2.87478e-05..-1.49816e-05
+      best: s=16.7824, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=0.75, phi_gamma=4.51604, |phi_e-phi_gamma|=0.19635, Q2=0.0346994, xB=0.00569867, t=-2.87478e-05
+    cluster 1: size=46, max_C13=0.917461, |phi_e-phi_gamma|=0..0.19635, theta(e',gamma)=22.9194..112.469, s=21.5158..25.3887, theta_in=1.57079..1.57079, qOut=1.25..1.75, Q2=0.121213..6.85901, xB=0.00971254..0.374855, t=-2.21254..-8.38112e-05
+      best: s=21.5158, theta_in=1.57079, phi_e_in=5.10509, phi_p_in=1.9635, qOut=1.75, phi_gamma=4.90874, |phi_e-phi_gamma|=0.19635, Q2=1.25759, xB=0.0748011, t=-0.727273
+    cluster 2: size=2, max_C13=0.852221, |phi_e-phi_gamma|=0.19635..0.19635, theta(e',gamma)=112.469..112.469, s=21.5158..21.5158, theta_in=1.57079..1.57079, qOut=1.75..1.75, Q2=6.85901..6.85901, xB=0.374855..0.374855, t=-2.21254..-2.21254
+      best: s=21.5158, theta_in=1.57079, phi_e_in=3.92699, phi_p_in=0.785398, qOut=1.75, phi_gamma=4.12334, |phi_e-phi_gamma|=0.19635, Q2=6.85901, xB=0.374855, t=-2.21254
+  Tx opposite: 4 clusters
+    cluster 0: size=24, max_C13=0.0633214, |phi_e-phi_gamma|=2.94524..2.94524, theta(e',gamma)=58.7132..129.697, s=16.7824..25.3887, theta_in=1.57079..1.57079, qOut=1.25..1.75, Q2=1.23532..6.08777, xB=0.119444..0.386457, t=-19.6569..-9.10299
+      best: s=21.5158, theta_in=1.57079, phi_e_in=2.35619, phi_p_in=5.49779, qOut=1.75, phi_gamma=5.30144, |phi_e-phi_gamma|=2.94524, Q2=1.96215, xB=0.146419, t=-12.5874
+    cluster 1: size=24, max_C13=0.0633214, |phi_e-phi_gamma|=2.94524..2.94524, theta(e',gamma)=58.7132..129.697, s=16.7824..25.3887, theta_in=1.57079..1.57079, qOut=1.25..1.75, Q2=1.23532..6.08777, xB=0.119444..0.386457, t=-19.6569..-9.10299
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0.785398, phi_p_in=3.92699, qOut=1.75, phi_gamma=4.12334, |phi_e-phi_gamma|=2.94524, Q2=1.96215, xB=0.146419, t=-12.5874
+    cluster 2: size=6, max_C13=0.0492278, |phi_e-phi_gamma|=2.94524..2.94524, theta(e',gamma)=150.762..161.364, s=16.7824..16.7824, theta_in=1.57079..1.57079, qOut=1.25..1.25, Q2=0.879045..1.49844, xB=0.31068..0.357326, t=-3.56332..-2.19925
+      best: s=16.7824, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=1.25, phi_gamma=2.94524, |phi_e-phi_gamma|=2.94524, Q2=1.49844, xB=0.357326, t=-3.56332
+    cluster 3: size=6, max_C13=0.0492278, |phi_e-phi_gamma|=2.94524..2.94524, theta(e',gamma)=150.762..161.364, s=16.7824..16.7824, theta_in=1.57079..1.57079, qOut=1.25..1.25, Q2=0.879045..1.49844, xB=0.31068..0.357326, t=-3.56332..-2.19925
+      best: s=16.7824, theta_in=1.57079, phi_e_in=3.14159, phi_p_in=0, qOut=1.25, phi_gamma=0.19635, |phi_e-phi_gamma|=2.94524, Q2=1.49844, xB=0.357326, t=-3.56332
+  Ty aligned: 3 clusters
+    cluster 0: size=12, max_C13=0.928651, |phi_e-phi_gamma|=0.19635..0.19635, theta(e',gamma)=16.2107..18.242, s=16.7824..25.3887, theta_in=1.57079..1.57079, qOut=0.75..0.75, Q2=0.0308293..0.0346994, xB=0.00411716..0.00569867, t=-2.87478e-05..-1.49816e-05
+      best: s=16.7824, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=0.75, phi_gamma=4.51604, |phi_e-phi_gamma|=0.19635, Q2=0.0346994, xB=0.00569867, t=-2.87478e-05
+    cluster 1: size=46, max_C13=0.917461, |phi_e-phi_gamma|=0..0.19635, theta(e',gamma)=22.9194..112.469, s=21.5158..25.3887, theta_in=1.57079..1.57079, qOut=1.25..1.75, Q2=0.121213..6.85901, xB=0.00971254..0.374855, t=-2.21254..-8.38112e-05
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.31969, phi_p_in=1.1781, qOut=1.75, phi_gamma=4.51604, |phi_e-phi_gamma|=0.19635, Q2=1.25759, xB=0.0748011, t=-0.727273
+    cluster 2: size=2, max_C13=0.852221, |phi_e-phi_gamma|=0.19635..0.19635, theta(e',gamma)=112.469..112.469, s=21.5158..21.5158, theta_in=1.57079..1.57079, qOut=1.75..1.75, Q2=6.85901..6.85901, xB=0.374855..0.374855, t=-2.21254..-2.21254
+      best: s=21.5158, theta_in=1.57079, phi_e_in=5.49779, phi_p_in=2.35619, qOut=1.75, phi_gamma=5.30144, |phi_e-phi_gamma|=0.19635, Q2=6.85901, xB=0.374855, t=-2.21254
+  Ty opposite: 4 clusters
+    cluster 0: size=24, max_C13=0.0633214, |phi_e-phi_gamma|=2.94524..2.94524, theta(e',gamma)=58.7132..129.697, s=16.7824..25.3887, theta_in=1.57079..1.57079, qOut=1.25..1.75, Q2=1.23532..6.08777, xB=0.119444..0.386457, t=-19.6569..-9.10299
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0.785398, phi_p_in=3.92699, qOut=1.75, phi_gamma=4.12334, |phi_e-phi_gamma|=2.94524, Q2=1.96215, xB=0.146419, t=-12.5874
+    cluster 1: size=24, max_C13=0.0633214, |phi_e-phi_gamma|=2.94524..2.94524, theta(e',gamma)=58.7132..129.697, s=16.7824..25.3887, theta_in=1.57079..1.57079, qOut=1.25..1.75, Q2=1.23532..6.08777, xB=0.119444..0.386457, t=-19.6569..-9.10299
+      best: s=21.5158, theta_in=1.57079, phi_e_in=2.35619, phi_p_in=5.49779, qOut=1.75, phi_gamma=5.30144, |phi_e-phi_gamma|=2.94524, Q2=1.96215, xB=0.146419, t=-12.5874
+    cluster 2: size=6, max_C13=0.0492278, |phi_e-phi_gamma|=2.94524..2.94524, theta(e',gamma)=150.762..161.364, s=16.7824..16.7824, theta_in=1.57079..1.57079, qOut=1.25..1.25, Q2=0.879045..1.49844, xB=0.31068..0.357326, t=-3.56332..-2.19925
+      best: s=16.7824, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=1.25, phi_gamma=2.94524, |phi_e-phi_gamma|=2.94524, Q2=1.49844, xB=0.357326, t=-3.56332
+    cluster 3: size=6, max_C13=0.0492278, |phi_e-phi_gamma|=2.94524..2.94524, theta(e',gamma)=150.762..161.364, s=16.7824..16.7824, theta_in=1.57079..1.57079, qOut=1.25..1.25, Q2=0.879045..1.49844, xB=0.31068..0.357326, t=-3.56332..-2.19925
+      best: s=16.7824, theta_in=1.57079, phi_e_in=3.14159, phi_p_in=0, qOut=1.25, phi_gamma=0.19635, |phi_e-phi_gamma|=2.94524, Q2=1.49844, xB=0.357326, t=-3.56332
 
-Saved log: Output\ConfigGen.log
+Saved log: Output/ConfigGen.log
