@@ -1,42 +1,124 @@
-High-C13 user-frame configuration generator from AlignmentScan results
-  input csv: Output\AlignmentScan\ConcurrenceScan\electron_photon_c13_top.csv
-  top rows per spin case: 60
+Max pairwise-concurrence configuration generator from AlignmentScan results
+  input csv: Output\AlignmentScan\ConcurrenceScan\electron_photon_concurrence_phase_space.csv
+  total input rows: 27360
+  data csv folder: Output\ConfigGen\Data
+  per-E_gamma config folder: Output\ConfigGen\ByEgamma
+  per-E_gamma/target PDFs: 9
+  targets: C_{ep}, C_{p\gamma}, C_{e\gamma}
+  max spin cases per target: 2
+  top rows per target/spin case: 80
   cluster radius: 0.42
-  total input rows: 300
-  spin cases: 2
-  angular regions: near_azimuth, back_to_back_azimuth
-  angular region criterion: shortest azimuthal separation |phi_e_in - phi_gamma|
-  angular region half width: 0.25 rad
-  clusters: 2
-  examples: 4
-  saved examples csv: Output\ConfigGen\high_c13_configuration_examples.csv
-  saved clusters csv: Output\ConfigGen\high_c13_cluster_summary.csv
-  saved momentum configuration csv: Output\ConfigGen\high_c13_momentum_configurations.csv
-  saved final-state amplitude decomposition csv: Output\ConfigGen\high_c13_final_state_amplitude_decomposition.csv
-  saved configuration plot: Output\ConfigGen\high_c13_user_frame_configurations.pdf
-  saved per-polarization csvs:
-    examples:
-      Tx: Output\ConfigGen\high_c13_tx_configuration_examples.csv
-      Ty: Output\ConfigGen\high_c13_ty_configuration_examples.csv
-    clusters:
-      Tx: Output\ConfigGen\high_c13_tx_cluster_summary.csv
-      Ty: Output\ConfigGen\high_c13_ty_cluster_summary.csv
-    momentum configurations:
-      Tx: Output\ConfigGen\high_c13_tx_momentum_configurations.csv
-      Ty: Output\ConfigGen\high_c13_ty_momentum_configurations.csv
-    final-state amplitude decomposition:
-      Tx: Output\ConfigGen\high_c13_tx_final_state_amplitude_decomposition.csv
-      Ty: Output\ConfigGen\high_c13_ty_final_state_amplitude_decomposition.csv
-  saved per-polarization plot pdfs:
-    Tx: Output\ConfigGen\high_c13_tx_user_frame_configurations.pdf
-    Ty: Output\ConfigGen\high_c13_ty_user_frame_configurations.pdf
+  max clusters per target/spin case: 4
+  no PDF combines different E_gamma values
+  saved per-E_gamma/target config PDFs:
+    low_Egamma C_{ep}: Output\ConfigGen\ByEgamma\low_egamma\max_c_ep_regions.pdf (2 regions)
+    low_Egamma C_{p\gamma}: Output\ConfigGen\ByEgamma\low_egamma\max_c_p_gamma_regions.pdf (4 regions)
+    low_Egamma C_{e\gamma}: Output\ConfigGen\ByEgamma\low_egamma\max_c_e_gamma_regions.pdf (1 regions)
+    mid_Egamma C_{ep}: Output\ConfigGen\ByEgamma\mid_egamma\max_c_ep_regions.pdf (2 regions)
+    mid_Egamma C_{p\gamma}: Output\ConfigGen\ByEgamma\mid_egamma\max_c_p_gamma_regions.pdf (2 regions)
+    mid_Egamma C_{e\gamma}: Output\ConfigGen\ByEgamma\mid_egamma\max_c_e_gamma_regions.pdf (1 regions)
+    high_Egamma C_{ep}: Output\ConfigGen\ByEgamma\high_egamma\max_c_ep_regions.pdf (4 regions)
+    high_Egamma C_{p\gamma}: Output\ConfigGen\ByEgamma\high_egamma\max_c_p_gamma_regions.pdf (2 regions)
+    high_Egamma C_{e\gamma}: Output\ConfigGen\ByEgamma\high_egamma\max_c_e_gamma_regions.pdf (1 regions)
 
-Cluster summaries:
-  Tx near_azimuth: 1 clusters
-    cluster 0: size=24, max_C13=0.910096, |phi_e-phi_gamma|=0..0.19635, theta(e',gamma)=38.7814..87.2586, s=21.5158..25.3887, theta_in=1.57079..1.57079, qOut=1.75..1.75, Q2=0.792029..3.78122, xB=0.0443524..0.215471, t=-1.4634..-0.184322
-      best: s=21.5158, theta_in=1.57079, phi_e_in=5.10509, phi_p_in=1.9635, qOut=1.75, phi_gamma=4.90874, |phi_e-phi_gamma|=0.19635, Q2=1.25759, xB=0.0748011, t=-0.727273
-  Ty near_azimuth: 1 clusters
-    cluster 0: size=24, max_C13=0.910096, |phi_e-phi_gamma|=0..0.19635, theta(e',gamma)=38.7814..87.2586, s=21.5158..25.3887, theta_in=1.57079..1.57079, qOut=1.75..1.75, Q2=0.792029..3.78122, xB=0.0443524..0.215471, t=-1.4634..-0.184322
-      best: s=21.5158, theta_in=1.57079, phi_e_in=4.31969, phi_p_in=1.1781, qOut=1.75, phi_gamma=4.51604, |phi_e-phi_gamma|=0.19635, Q2=1.25759, xB=0.0748011, t=-0.727273
+Target C_{ep}:
+  selected spin cases: double_transverse, Ty
+  clusters: 6
+  per-E_gamma region detail rows: 8
+  examples: 12
+  saved examples csv: Output\ConfigGen\Data\max_c_ep_configuration_examples.csv
+  saved clusters csv: Output\ConfigGen\Data\max_c_ep_cluster_summary.csv
+  saved momentum configuration csv: Output\ConfigGen\Data\max_c_ep_momentum_configurations.csv
+  saved final-state amplitude decomposition csv: Output\ConfigGen\Data\max_c_ep_final_state_amplitude_decomposition.csv
+  saved per-spin csvs:
+    examples:
+      double_transverse: Output\ConfigGen\Data\max_c_ep_configuration_examples_double_transverse.csv
+      Ty: Output\ConfigGen\Data\max_c_ep_configuration_examples_ty.csv
+    clusters:
+      double_transverse: Output\ConfigGen\Data\max_c_ep_cluster_summary_double_transverse.csv
+      Ty: Output\ConfigGen\Data\max_c_ep_cluster_summary_ty.csv
+    momentum configurations:
+      double_transverse: Output\ConfigGen\Data\max_c_ep_momentum_configurations_double_transverse.csv
+      Ty: Output\ConfigGen\Data\max_c_ep_momentum_configurations_ty.csv
+    final-state amplitude decomposition:
+      double_transverse: Output\ConfigGen\Data\max_c_ep_final_state_amplitude_decomposition_double_transverse.csv
+      Ty: Output\ConfigGen\Data\max_c_ep_final_state_amplitude_decomposition_ty.csv
+  enhanced regions:
+    double_transverse region 0: size=44, max_C_{ep}=0.968441, phi_p_in=4.64694..4.77784, phi_gamma=0.850848..2.29074, final_pair_delta_xy=2.98781..3.14159, Q2=19.1123..19.5602, xB=0.966135..0.987788, t=-15.6033..-15.1473
+      best: s=21.5158, theta_in=1.57079, phi_e_in=1.5708, phi_p_in=4.71239, qOut=0.5, phi_gamma=1.5708, pair_delta_xy=3.14159, Q2=19.5602, xB=0.987788, t=-15.1635
+    double_transverse region 1: size=36, max_C_{ep}=0.96844, phi_p_in=4.64694..4.77784, phi_gamma=4.05789..5.36689, final_pair_delta_xy=2.97037..3.12263, Q2=15.3478..15.8505, xB=0.768152..0.795954, t=-19.7857..-19.1722
+      best: s=21.5158, theta_in=1.57079, phi_e_in=1.5708, phi_p_in=4.71239, qOut=0.5, phi_gamma=4.77784, pair_delta_xy=3.12263, Q2=15.3478, xB=0.768152, t=-19.7857
+    Ty region 0: size=16, max_C_{ep}=0.678302, phi_p_in=1.5708..1.5708, phi_gamma=4.18879..5.23599, final_pair_delta_xy=1.71138..2.86694, Q2=0.07238..3.47721, xB=0.00433893..0.221751, t=-0.0548743..-1.66317e-05
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=1.8, phi_gamma=4.77784, pair_delta_xy=2.86694, Q2=0.07238, xB=0.00433893, t=-1.66317e-05
+    Ty region 1: size=30, max_C_{ep}=0.6174, phi_p_in=1.5708..1.5708, phi_gamma=3.73064..5.69414, final_pair_delta_xy=2.57581..3.08823, Q2=0.00776484..1.07528, xB=0.000837856..0.146847, t=-0.0225932..-6.1819e-07
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=1, phi_gamma=4.51604, pair_delta_xy=2.98374, Q2=0.068646, xB=0.00746834, t=-4.94515e-05
+    Ty region 2: size=32, max_C_{ep}=0.556451, phi_p_in=1.5708..3.27249, phi_gamma=3.66519..5.75959, final_pair_delta_xy=2.90769..3.1038, Q2=0.00548781..11.1275, xB=0.00118797..0.763703, t=-10.5635..-1.2435e-06
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=0.5, phi_gamma=4.97419, pair_delta_xy=3.06693, Q2=0.021502, xB=0.00471252, t=-1.96521e-05
+    Ty region 3: size=2, max_C_{ep}=0.236456, phi_p_in=6.15229..6.15229, phi_gamma=3.73064..3.79609, final_pair_delta_xy=2.91535..2.92415, Q2=10.9724..11.1275, xB=0.754093..0.763703, t=-10.5635..-10.4839
+      best: s=21.5158, theta_in=1.57079, phi_e_in=3.01069, phi_p_in=6.15229, qOut=0.5, phi_gamma=3.73064, pair_delta_xy=2.91535, Q2=11.1275, xB=0.763703, t=-10.4839
+
+Target C_{p\gamma}:
+  selected spin cases: double_transverse, unpolarized
+  clusters: 6
+  per-E_gamma region detail rows: 8
+  examples: 12
+  saved examples csv: Output\ConfigGen\Data\max_c_p_gamma_configuration_examples.csv
+  saved clusters csv: Output\ConfigGen\Data\max_c_p_gamma_cluster_summary.csv
+  saved momentum configuration csv: Output\ConfigGen\Data\max_c_p_gamma_momentum_configurations.csv
+  saved final-state amplitude decomposition csv: Output\ConfigGen\Data\max_c_p_gamma_final_state_amplitude_decomposition.csv
+  saved per-spin csvs:
+    examples:
+      double_transverse: Output\ConfigGen\Data\max_c_p_gamma_configuration_examples_double_transverse.csv
+      unpolarized: Output\ConfigGen\Data\max_c_p_gamma_configuration_examples_unpolarized.csv
+    clusters:
+      double_transverse: Output\ConfigGen\Data\max_c_p_gamma_cluster_summary_double_transverse.csv
+      unpolarized: Output\ConfigGen\Data\max_c_p_gamma_cluster_summary_unpolarized.csv
+    momentum configurations:
+      double_transverse: Output\ConfigGen\Data\max_c_p_gamma_momentum_configurations_double_transverse.csv
+      unpolarized: Output\ConfigGen\Data\max_c_p_gamma_momentum_configurations_unpolarized.csv
+    final-state amplitude decomposition:
+      double_transverse: Output\ConfigGen\Data\max_c_p_gamma_final_state_amplitude_decomposition_double_transverse.csv
+      unpolarized: Output\ConfigGen\Data\max_c_p_gamma_final_state_amplitude_decomposition_unpolarized.csv
+  enhanced regions:
+    double_transverse region 0: size=29, max_C_{p\gamma}=0.999931, phi_p_in=1.5708..1.5708, phi_gamma=0.654498..2.48709, final_pair_delta_xy=0..0.916298, Q2=8.60837e-12..0.166233, xB=3.55992e-11..0.151761, t=-0.0521317..-0.0353977
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=0.5, phi_gamma=1.5708, pair_delta_xy=0, Q2=8.60837e-12, xB=3.55992e-11, t=-0.0521317
+    double_transverse region 1: size=51, max_C_{p\gamma}=0.999461, phi_p_in=1.50535..1.63625, phi_gamma=0.850848..2.29074, final_pair_delta_xy=0..0.719948, Q2=8.42892e-12..0.474752, xB=1.26385e-11..0.276167, t=-0.298537..-0.235688
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=1, phi_gamma=1.5708, pair_delta_xy=0, Q2=8.42892e-12, xB=1.26385e-11, t=-0.287559
+    unpolarized region 0: size=32, max_C_{p\gamma}=0.992373, phi_p_in=1.5708..1.5708, phi_gamma=3.59974..5.82504, final_pair_delta_xy=2.02895..3.01069, Q2=0.00548781..0.240947, xB=0.00118797..0.0708079, t=-0.00488574..-1.2435e-06
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=0.5, phi_gamma=4.97419, pair_delta_xy=2.87979, Q2=0.021502, xB=0.00471252, t=-1.96521e-05
+    unpolarized region 1: size=8, max_C_{p\gamma}=0.99037, phi_p_in=1.5708..1.5708, phi_gamma=4.45059..4.97419, final_pair_delta_xy=2.87979..3.07614, Q2=0.07238..1.07657, xB=0.00433893..0.0655252, t=-0.00402555..-1.66317e-05
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=1.8, phi_gamma=4.77784, pair_delta_xy=3.07614, Q2=0.07238, xB=0.00433893, t=-1.66317e-05
+    unpolarized region 2: size=28, max_C_{p\gamma}=0.98676, phi_p_in=1.50535..1.63625, phi_gamma=3.27249..6.15229, final_pair_delta_xy=1.7017..3.07614, Q2=0.00776484..1.64635, xB=0.000837856..0.284514, t=-0.0903935..-6.1819e-07
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=1, phi_gamma=4.51604, pair_delta_xy=2.94524, Q2=0.068646, xB=0.00746834, t=-4.94515e-05
+    unpolarized region 3: size=12, max_C_{p\gamma}=0.390395, phi_p_in=1.50535..1.63625, phi_gamma=0.981748..2.15984, final_pair_delta_xy=0.261799..0.589049, Q2=0.0755067..0.180826, xB=0.20159..0.254509, t=-0.0668238..-0.0611394
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.77784, phi_p_in=1.63625, qOut=0.5, phi_gamma=1.11265, pair_delta_xy=0.458149, Q2=0.135041, xB=0.244831, t=-0.0638688
+
+Target C_{e\gamma}:
+  selected spin cases: double_transverse, Ty
+  clusters: 2
+  per-E_gamma region detail rows: 3
+  examples: 4
+  saved examples csv: Output\ConfigGen\Data\max_c_e_gamma_configuration_examples.csv
+  saved clusters csv: Output\ConfigGen\Data\max_c_e_gamma_cluster_summary.csv
+  saved momentum configuration csv: Output\ConfigGen\Data\max_c_e_gamma_momentum_configurations.csv
+  saved final-state amplitude decomposition csv: Output\ConfigGen\Data\max_c_e_gamma_final_state_amplitude_decomposition.csv
+  saved per-spin csvs:
+    examples:
+      double_transverse: Output\ConfigGen\Data\max_c_e_gamma_configuration_examples_double_transverse.csv
+      Ty: Output\ConfigGen\Data\max_c_e_gamma_configuration_examples_ty.csv
+    clusters:
+      double_transverse: Output\ConfigGen\Data\max_c_e_gamma_cluster_summary_double_transverse.csv
+      Ty: Output\ConfigGen\Data\max_c_e_gamma_cluster_summary_ty.csv
+    momentum configurations:
+      double_transverse: Output\ConfigGen\Data\max_c_e_gamma_momentum_configurations_double_transverse.csv
+      Ty: Output\ConfigGen\Data\max_c_e_gamma_momentum_configurations_ty.csv
+    final-state amplitude decomposition:
+      double_transverse: Output\ConfigGen\Data\max_c_e_gamma_final_state_amplitude_decomposition_double_transverse.csv
+      Ty: Output\ConfigGen\Data\max_c_e_gamma_final_state_amplitude_decomposition_ty.csv
+  enhanced regions:
+    double_transverse region 0: size=80, max_C_{e\gamma}=0.930653, phi_p_in=0.916298..2.22529, phi_gamma=4.51604..4.90874, final_pair_delta_xy=0.340106..0.958887, Q2=0.000159597..1.76985, xB=9.60888e-06..0.10005, t=-2.03538..-0.0210568
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.45059, phi_p_in=1.309, qOut=1.8, phi_gamma=4.64694, pair_delta_xy=0.340106, Q2=0.271268, xB=0.01607, t=-0.335629
+    Ty region 0: size=80, max_C_{e\gamma}=0.930653, phi_p_in=0.916298..2.22529, phi_gamma=4.51604..4.90874, final_pair_delta_xy=0.340106..0.958887, Q2=0.000159597..1.76985, xB=9.60888e-06..0.10005, t=-2.03538..-0.0210568
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.97419, phi_p_in=1.8326, qOut=1.8, phi_gamma=4.77784, pair_delta_xy=0.340106, Q2=0.271268, xB=0.01607, t=-0.335629
 
 Saved log: Output\ConfigGen.log

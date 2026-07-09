@@ -10,6 +10,9 @@ C_{ep}/C_{e\gamma}/C_{p\gamma}/C_{e|p\gamma}/C_{p|e\gamma}/C_{\gamma|ep}/M_e/M_p
   form factor model: YAHL 2018 proton lookup with F1(t), F2(t)
   phi_e_in scan: 96 values from 0 to 6.21774
   phi_gamma scan: 96 values from 0 to 6.21774
+  heatmap x coordinate: phi_p_in
+  heatmap guide lines: phi_p_in=pi/2 and phi_gamma=pi/2
+  heatmap color scales: 0..1 for nonnegative observables, -1..1 for signed observables
   valid points: 27360
   aligned points: 576
   theta range: 4.8362 to 180 deg
@@ -17,126 +20,126 @@ C_{ep}/C_{e\gamma}/C_{p\gamma}/C_{e|p\gamma}/C_{p|e\gamma}/C_{\gamma|ep}/M_e/M_p
 Top C_{ep}/C_{e\gamma}/C_{p\gamma}/C_{e|p\gamma}/C_{p|e\gamma}/C_{\gamma|ep}/M_e/M_p/M_\gamma/F_3 locator points:
   C_{ep}:
     Unpolarized:
-    unpolarized_C_{ep}=1.28310757455e-11, s=21.515844, theta_in=1.570795, phi_e_in=0.78539816, phi_p_in=3.9269908, qOut=1.8, phiOut=0.78539816, Q2=16.824504, xB=0.84508007, t=-3.2101059, theta(e',gamma)=177.27882 deg
+    unpolarized_C_{ep}=1.491029519e-11, s=21.515844, theta_in=1.570795, phi_e_in=2.8797933, phi_p_in=6.0213859, qOut=1.8, phiOut=2.8797933, Q2=16.604203, xB=0.83577912, t=-3.1680725, theta(e',gamma)=173.18803 deg
     Longitudinal polarized:
-    longitudinal_polarized_C_{ep}=2.29833394037e-12, s=21.515844, theta_in=1.570795, phi_e_in=3.7960911, phi_p_in=0.65449847, qOut=1, phiOut=3.7960911, Q2=6.0478062, xB=0.47975562, t=-3.3289795, theta(e',gamma)=84.020721 deg
+    longitudinal_polarized_C_{ep}=2.72251380666e-12, s=21.515844, theta_in=1.570795, phi_e_in=4.3851397, phi_p_in=1.2435471, qOut=1.8, phiOut=4.3851397, Q2=2.5061989, xB=0.14590567, t=-0.47818134, theta(e',gamma)=82.881417 deg
     Tx:
-    Tx_C_{ep}=0.67830167279, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.7778388, Q2=0.072380033, xB=0.0043389315, t=-1.6631723e-05, theta(e',gamma)=19.486634 deg
+    Tx_C_{ep}=0.678301652426, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.7778388, Q2=0.072380033, xB=0.0043389315, t=-1.6631723e-05, theta(e',gamma)=19.486634 deg
     Ty:
-    Ty_C_{ep}=0.678301668393, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.7778388, Q2=0.072380033, xB=0.0043389315, t=-1.6631723e-05, theta(e',gamma)=19.486634 deg
+    Ty_C_{ep}=0.678301676837, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.7778388, Q2=0.072380033, xB=0.0043389315, t=-1.6631723e-05, theta(e',gamma)=19.486634 deg
     Double transverse:
     double_transverse_C_{ep}=0.968440918336, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.5, phiOut=1.5707963, Q2=19.56021, xB=0.98778843, t=-15.163506, theta(e',gamma)=180 deg
   C_{e\gamma}:
     Unpolarized:
-    unpolarized_C_{e\gamma}=1.10898545678e-10, s=21.515844, theta_in=1.570795, phi_e_in=3.4688419, phi_p_in=0.32724923, qOut=1.8, phiOut=3.4688419, Q2=14.686082, xB=0.75310311, t=-2.8020963, theta(e',gamma)=159.33282 deg
+    unpolarized_C_{e\gamma}=1.01881556215e-10, s=21.515844, theta_in=1.570795, phi_e_in=5.9559361, phi_p_in=2.8143434, qOut=1.8, phiOut=5.9559361, Q2=14.686082, xB=0.75310311, t=-2.8020963, theta(e',gamma)=159.33282 deg
     Longitudinal polarized:
-    longitudinal_polarized_C_{e\gamma}=6.77096957771e-11, s=21.515844, theta_in=1.570795, phi_e_in=5.3668874, phi_p_in=2.2252948, qOut=1.8, phiOut=5.3668874, Q2=7.7050078, xB=0.42407968, t=-1.4701112, theta(e',gamma)=125.41538 deg
+    longitudinal_polarized_C_{e\gamma}=2.86025843917e-11, s=21.515844, theta_in=1.570795, phi_e_in=6.0868358, phi_p_in=2.9452431, qOut=1.8, phiOut=6.0868358, Q2=15.45245, xB=0.78650505, t=-2.9483189, theta(e',gamma)=163.70616 deg
     Tx:
-    Tx_C_{e\gamma}=0.93065251198, s=21.515844, theta_in=1.570795, phi_e_in=4.4505896, phi_p_in=1.3089969, qOut=1.8, phiOut=4.6469391, Q2=0.27126838, xB=0.01607, t=-0.33562906, theta(e',gamma)=19.486634 deg
+    Tx_C_{e\gamma}=0.930652508897, s=21.515844, theta_in=1.570795, phi_e_in=4.9741884, phi_p_in=1.8325957, qOut=1.8, phiOut=4.7778388, Q2=0.27126838, xB=0.01607, t=-0.33562906, theta(e',gamma)=19.486634 deg
     Ty:
-    Ty_C_{e\gamma}=0.930652508265, s=21.515844, theta_in=1.570795, phi_e_in=4.9741884, phi_p_in=1.8325957, qOut=1.8, phiOut=4.7778388, Q2=0.27126838, xB=0.01607, t=-0.33562906, theta(e',gamma)=19.486634 deg
+    Ty_C_{e\gamma}=0.930652512006, s=21.515844, theta_in=1.570795, phi_e_in=4.9741884, phi_p_in=1.8325957, qOut=1.8, phiOut=4.7778388, Q2=0.27126838, xB=0.01607, t=-0.33562906, theta(e',gamma)=19.486634 deg
     Double transverse:
-    double_transverse_C_{e\gamma}=0.930652522429, s=21.515844, theta_in=1.570795, phi_e_in=4.4505896, phi_p_in=1.3089969, qOut=1.8, phiOut=4.6469391, Q2=0.27126838, xB=0.01607, t=-0.33562906, theta(e',gamma)=19.486634 deg
+    double_transverse_C_{e\gamma}=0.930652520906, s=21.515844, theta_in=1.570795, phi_e_in=4.4505896, phi_p_in=1.3089969, qOut=1.8, phiOut=4.6469391, Q2=0.27126838, xB=0.01607, t=-0.33562906, theta(e',gamma)=19.486634 deg
   C_{p\gamma}:
     Unpolarized:
-    unpolarized_C_{p\gamma}=0.992373316355, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.9741884, Q2=0.021501999, xB=0.0047125171, t=-1.9652054e-05, theta(e',gamma)=19.277767 deg
+    unpolarized_C_{p\gamma}=0.99237331634, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.9741884, Q2=0.021501999, xB=0.0047125171, t=-1.9652054e-05, theta(e',gamma)=19.277767 deg
     Longitudinal polarized:
-    longitudinal_polarized_C_{p\gamma}=0.965515356131, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.5160394, Q2=0.068645974, xB=0.0074683368, t=-4.9451546e-05, theta(e',gamma)=20.294457 deg
+    longitudinal_polarized_C_{p\gamma}=0.965515362531, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.5160394, Q2=0.068645974, xB=0.0074683368, t=-4.9451546e-05, theta(e',gamma)=20.294457 deg
     Tx:
-    Tx_C_{p\gamma}=0.678523943306, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.6469391, Q2=0.072380033, xB=0.0043389315, t=-1.6631723e-05, theta(e',gamma)=19.486634 deg
+    Tx_C_{p\gamma}=0.67852394347, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.7778388, Q2=0.072380033, xB=0.0043389315, t=-1.6631723e-05, theta(e',gamma)=19.486634 deg
     Ty:
-    Ty_C_{p\gamma}=0.678523942911, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.7778388, Q2=0.072380033, xB=0.0043389315, t=-1.6631723e-05, theta(e',gamma)=19.486634 deg
+    Ty_C_{p\gamma}=0.678523943502, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.6469391, Q2=0.072380033, xB=0.0043389315, t=-1.6631723e-05, theta(e',gamma)=19.486634 deg
     Double transverse:
-    double_transverse_C_{p\gamma}=0.99993053429, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=1.5707963, Q2=8.6083697e-12, xB=3.5599155e-11, t=-0.052131716, theta(e',gamma)=180 deg
+    double_transverse_C_{p\gamma}=0.999930534289, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=1.5707963, Q2=8.6083697e-12, xB=3.5599156e-11, t=-0.052131716, theta(e',gamma)=180 deg
   C_{e|p\gamma}:
     Unpolarized:
-    unpolarized_C_{e|p\gamma}=3.33200093731e-08, s=21.515844, theta_in=1.570795, phi_e_in=2.2252948, phi_p_in=5.3668874, qOut=0.5, phiOut=2.7488936, Q2=17.646419, xB=0.92852144, t=-14.664357, theta(e',gamma)=125.34425 deg
+    unpolarized_C_{e|p\gamma}=3.33200093731e-08, s=21.515844, theta_in=1.570795, phi_e_in=0.9817477, phi_p_in=4.1233404, qOut=0.5, phiOut=3.3379422, Q2=14.415292, xB=0.84826466, t=-16.152662, theta(e',gamma)=93.342343 deg
     Longitudinal polarized:
-    longitudinal_polarized_C_{e|p\gamma}=3.33200093731e-08, s=21.515844, theta_in=1.570795, phi_e_in=2.2252948, phi_p_in=5.3668874, qOut=0.5, phiOut=4.3851397, Q2=14.296941, xB=0.76110807, t=-17.606097, theta(e',gamma)=24.047685 deg
+    longitudinal_polarized_C_{e|p\gamma}=3.33200093731e-08, s=21.515844, theta_in=1.570795, phi_e_in=2.0943951, phi_p_in=5.2359878, qOut=0.5, phiOut=3.9924407, Q2=15.545802, xB=0.79731297, t=-17.798657, theta(e',gamma)=51.812729 deg
     Tx:
-    Tx_C_{e|p\gamma}=0.950523752103, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.5814893, Q2=0.030851752, xB=0.0033393013, t=-9.84463e-06, theta(e',gamma)=13.582475 deg
+    Tx_C_{e|p\gamma}=0.950523752114, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.8432887, Q2=0.030851752, xB=0.0033393013, t=-9.84463e-06, theta(e',gamma)=13.582475 deg
     Ty:
-    Ty_C_{e|p\gamma}=0.950523752103, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.5814893, Q2=0.030851752, xB=0.0033393013, t=-9.84463e-06, theta(e',gamma)=13.582475 deg
+    Ty_C_{e|p\gamma}=0.950523752114, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.8432887, Q2=0.030851752, xB=0.0033393013, t=-9.84463e-06, theta(e',gamma)=13.582475 deg
     Double transverse:
     double_transverse_C_{e|p\gamma}=1, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1, phiOut=1.5707963, Q2=19.152485, xB=0.96635, t=-10.542373, theta(e',gamma)=180 deg
   C_{p|e\gamma}:
     Unpolarized:
-    unpolarized_C_{p|e\gamma}=0.992373316372, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.4505896, Q2=0.021501999, xB=0.0047125171, t=-1.9652054e-05, theta(e',gamma)=19.277767 deg
+    unpolarized_C_{p|e\gamma}=0.992373316372, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.9741884, Q2=0.021501999, xB=0.0047125171, t=-1.9652054e-05, theta(e',gamma)=19.277767 deg
     Longitudinal polarized:
-    longitudinal_polarized_C_{p|e\gamma}=0.965515362549, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.9087385, Q2=0.068645974, xB=0.0074683368, t=-4.9451546e-05, theta(e',gamma)=20.294457 deg
+    longitudinal_polarized_C_{p|e\gamma}=0.965515362551, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.9087385, Q2=0.068645974, xB=0.0074683368, t=-4.9451546e-05, theta(e',gamma)=20.294457 deg
     Tx:
-    Tx_C_{p|e\gamma}=0.969150531736, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.6469391, Q2=0.072380033, xB=0.0043389315, t=-1.6631723e-05, theta(e',gamma)=19.486634 deg
+    Tx_C_{p|e\gamma}=0.969150531734, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.6469391, Q2=0.072380033, xB=0.0043389315, t=-1.6631723e-05, theta(e',gamma)=19.486634 deg
     Ty:
-    Ty_C_{p|e\gamma}=0.969150531736, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.6469391, Q2=0.072380033, xB=0.0043389315, t=-1.6631723e-05, theta(e',gamma)=19.486634 deg
+    Ty_C_{p|e\gamma}=0.969150531734, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.6469391, Q2=0.072380033, xB=0.0043389315, t=-1.6631723e-05, theta(e',gamma)=19.486634 deg
     Double transverse:
-    double_transverse_C_{p|e\gamma}=1, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.5, phiOut=1.5707963, Q2=19.56021, xB=0.98778843, t=-15.163506, theta(e',gamma)=180 deg
+    double_transverse_C_{p|e\gamma}=1, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=1.5707963, Q2=8.6083697e-12, xB=3.5599156e-11, t=-0.052131716, theta(e',gamma)=180 deg
   C_{\gamma|ep}:
     Unpolarized:
-    unpolarized_C_{\gamma|ep}=0.992373316372, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.4505896, Q2=0.021501999, xB=0.0047125171, t=-1.9652054e-05, theta(e',gamma)=19.277767 deg
+    unpolarized_C_{\gamma|ep}=0.992373316372, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.9741884, Q2=0.021501999, xB=0.0047125171, t=-1.9652054e-05, theta(e',gamma)=19.277767 deg
     Longitudinal polarized:
-    longitudinal_polarized_C_{\gamma|ep}=0.965515362549, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.9087385, Q2=0.068645974, xB=0.0074683368, t=-4.9451546e-05, theta(e',gamma)=20.294457 deg
+    longitudinal_polarized_C_{\gamma|ep}=0.965515362551, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.9087385, Q2=0.068645974, xB=0.0074683368, t=-4.9451546e-05, theta(e',gamma)=20.294457 deg
     Tx:
-    Tx_C_{\gamma|ep}=0.951753148781, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.8432887, Q2=0.030851752, xB=0.0033393013, t=-9.84463e-06, theta(e',gamma)=13.582475 deg
+    Tx_C_{\gamma|ep}=0.951753148778, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.5814893, Q2=0.030851752, xB=0.0033393013, t=-9.84463e-06, theta(e',gamma)=13.582475 deg
     Ty:
-    Ty_C_{\gamma|ep}=0.951753148781, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.8432887, Q2=0.030851752, xB=0.0033393013, t=-9.84463e-06, theta(e',gamma)=13.582475 deg
+    Ty_C_{\gamma|ep}=0.951753148778, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.5814893, Q2=0.030851752, xB=0.0033393013, t=-9.84463e-06, theta(e',gamma)=13.582475 deg
     Double transverse:
-    double_transverse_C_{\gamma|ep}=1, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=1.5707963, Q2=8.6083697e-12, xB=3.5599155e-11, t=-0.052131716, theta(e',gamma)=180 deg
+    double_transverse_C_{\gamma|ep}=1, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=1.5707963, Q2=8.6083697e-12, xB=3.5599156e-11, t=-0.052131716, theta(e',gamma)=180 deg
   M_e:
     Unpolarized:
-    unpolarized_M_e=1.11022302463e-15, s=21.515844, theta_in=1.570795, phi_e_in=2.2252948, phi_p_in=5.3668874, qOut=0.5, phiOut=2.7488936, Q2=17.646419, xB=0.92852144, t=-14.664357, theta(e',gamma)=125.34425 deg
+    unpolarized_M_e=1.11022302463e-15, s=21.515844, theta_in=1.570795, phi_e_in=0.9817477, phi_p_in=4.1233404, qOut=0.5, phiOut=3.3379422, Q2=14.415292, xB=0.84826466, t=-16.152662, theta(e',gamma)=93.342343 deg
     Longitudinal polarized:
-    longitudinal_polarized_M_e=1.11022302463e-15, s=21.515844, theta_in=1.570795, phi_e_in=1.5053465, phi_p_in=4.6469391, qOut=1, phiOut=1.701696, Q2=19.058575, xB=0.9652793, t=-10.552553, theta(e',gamma)=175.97971 deg
+    longitudinal_polarized_M_e=1.11022302463e-15, s=21.515844, theta_in=1.570795, phi_e_in=1.1780972, phi_p_in=4.3196899, qOut=1, phiOut=0.78539816, Q2=18.48079, xB=0.93158207, t=-10.899682, theta(e',gamma)=154.89296 deg
     Tx:
-    Tx_M_e=0.187956604465, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.9741884, Q2=0.021501999, xB=0.0047125171, t=-1.9652054e-05, theta(e',gamma)=19.277767 deg
+    Tx_M_e=0.187956609241, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.4505896, Q2=0.021501999, xB=0.0047125171, t=-1.9652054e-05, theta(e',gamma)=19.277767 deg
     Ty:
-    Ty_M_e=0.187956596995, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.9741884, Q2=0.021501999, xB=0.0047125171, t=-1.9652054e-05, theta(e',gamma)=19.277767 deg
+    Ty_M_e=0.187956602825, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.4505896, Q2=0.021501999, xB=0.0047125171, t=-1.9652054e-05, theta(e',gamma)=19.277767 deg
     Double transverse:
-    double_transverse_M_e=0.868646102251, s=21.515844, theta_in=1.570795, phi_e_in=2.1598449, phi_p_in=5.3014376, qOut=1.8, phiOut=2.6179939, Q2=16.176258, xB=0.83767964, t=-3.437963, theta(e',gamma)=175.72055 deg
+    double_transverse_M_e=0.868646101146, s=21.515844, theta_in=1.570795, phi_e_in=2.1598449, phi_p_in=5.3014376, qOut=1.8, phiOut=2.6179939, Q2=16.176258, xB=0.83767964, t=-3.437963, theta(e',gamma)=175.72055 deg
   M_p:
     Unpolarized:
-    unpolarized_M_p=1.63740118131e-08, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.9087385, Q2=0.012241675, xB=0.0026636761, t=-6.2628863e-06, theta(e',gamma)=14.481664 deg
+    unpolarized_M_p=1.92477287442e-08, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.9087385, Q2=0.068645974, xB=0.0074683368, t=-4.9451546e-05, theta(e',gamma)=20.294457 deg
     Longitudinal polarized:
-    longitudinal_polarized_M_p=1.63539701555e-08, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.9087385, Q2=0.012241675, xB=0.0026636761, t=-6.2628863e-06, theta(e',gamma)=14.481664 deg
+    longitudinal_polarized_M_p=1.92423459719e-08, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.9087385, Q2=0.068645974, xB=0.0074683368, t=-4.9451546e-05, theta(e',gamma)=20.294457 deg
     Tx:
-    Tx_M_p=0.187956604022, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.9741884, Q2=0.021501999, xB=0.0047125171, t=-1.9652054e-05, theta(e',gamma)=19.277767 deg
+    Tx_M_p=0.187956606157, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.4505896, Q2=0.021501999, xB=0.0047125171, t=-1.9652054e-05, theta(e',gamma)=19.277767 deg
     Ty:
-    Ty_M_p=0.187956596158, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.9741884, Q2=0.021501999, xB=0.0047125171, t=-1.9652054e-05, theta(e',gamma)=19.277767 deg
+    Ty_M_p=0.187956604, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.4505896, Q2=0.021501999, xB=0.0047125171, t=-1.9652054e-05, theta(e',gamma)=19.277767 deg
     Double transverse:
-    double_transverse_M_p=0.868646102175, s=21.515844, theta_in=1.570795, phi_e_in=2.1598449, phi_p_in=5.3014376, qOut=1.8, phiOut=2.6179939, Q2=16.176258, xB=0.83767964, t=-3.437963, theta(e',gamma)=175.72055 deg
+    double_transverse_M_p=0.868646101146, s=21.515844, theta_in=1.570795, phi_e_in=2.1598449, phi_p_in=5.3014376, qOut=1.8, phiOut=2.6179939, Q2=16.176258, xB=0.83767964, t=-3.437963, theta(e',gamma)=175.72055 deg
   M_\gamma:
     Unpolarized:
-    unpolarized_M_\gamma=1.63740120351e-08, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.9087385, Q2=0.012241675, xB=0.0026636761, t=-6.2628863e-06, theta(e',gamma)=14.481664 deg
+    unpolarized_M_\gamma=1.92477287442e-08, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.9087385, Q2=0.068645974, xB=0.0074683368, t=-4.9451546e-05, theta(e',gamma)=20.294457 deg
     Longitudinal polarized:
-    longitudinal_polarized_M_\gamma=1.63539703776e-08, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.9087385, Q2=0.012241675, xB=0.0026636761, t=-6.2628863e-06, theta(e',gamma)=14.481664 deg
+    longitudinal_polarized_M_\gamma=1.92423459719e-08, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.9087385, Q2=0.068645974, xB=0.0074683368, t=-4.9451546e-05, theta(e',gamma)=20.294457 deg
     Tx:
-    Tx_M_\gamma=0.187956593268, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.9741884, Q2=0.021501999, xB=0.0047125171, t=-1.9652054e-05, theta(e',gamma)=19.277767 deg
+    Tx_M_\gamma=0.187956590513, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.4505896, Q2=0.021501999, xB=0.0047125171, t=-1.9652054e-05, theta(e',gamma)=19.277767 deg
     Ty:
-    Ty_M_\gamma=0.187956593021, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.9741884, Q2=0.021501999, xB=0.0047125171, t=-1.9652054e-05, theta(e',gamma)=19.277767 deg
+    Ty_M_\gamma=0.187956595923, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.4505896, Q2=0.021501999, xB=0.0047125171, t=-1.9652054e-05, theta(e',gamma)=19.277767 deg
     Double transverse:
-    double_transverse_M_\gamma=0.868646097448, s=21.515844, theta_in=1.570795, phi_e_in=0.9817477, phi_p_in=4.1233404, qOut=1.8, phiOut=0.52359878, Q2=16.176258, xB=0.83767964, t=-3.437963, theta(e',gamma)=175.72055 deg
+    double_transverse_M_\gamma=0.868646097433, s=21.515844, theta_in=1.570795, phi_e_in=0.9817477, phi_p_in=4.1233404, qOut=1.8, phiOut=0.52359878, Q2=16.176258, xB=0.83767964, t=-3.437963, theta(e',gamma)=175.72055 deg
   F_3:
     Unpolarized:
-    unpolarized_F_3=2.35477220901e-08, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.8432887, Q2=0.030851752, xB=0.0033393013, t=-9.84463e-06, theta(e',gamma)=13.582475 deg
+    unpolarized_F_3=2.36970907485e-08, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.9087385, Q2=0.012241675, xB=0.0026636761, t=-6.2628863e-06, theta(e',gamma)=14.481664 deg
     Longitudinal polarized:
-    longitudinal_polarized_F_3=2.35477220901e-08, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.8432887, Q2=0.030851752, xB=0.0033393013, t=-9.84463e-06, theta(e',gamma)=13.582475 deg
+    longitudinal_polarized_F_3=2.36970907485e-08, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.5, phiOut=4.9087385, Q2=0.012241675, xB=0.0026636761, t=-6.2628863e-06, theta(e',gamma)=14.481664 deg
     Tx:
-    Tx_F_3=0.86688441951, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.6469391, Q2=0.072380033, xB=0.0043389315, t=-1.6631723e-05, theta(e',gamma)=19.486634 deg
+    Tx_F_3=0.866884419507, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.6469391, Q2=0.072380033, xB=0.0043389315, t=-1.6631723e-05, theta(e',gamma)=19.486634 deg
     Ty:
-    Ty_F_3=0.86688441951, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.6469391, Q2=0.072380033, xB=0.0043389315, t=-1.6631723e-05, theta(e',gamma)=19.486634 deg
+    Ty_F_3=0.866884419507, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.6469391, Q2=0.072380033, xB=0.0043389315, t=-1.6631723e-05, theta(e',gamma)=19.486634 deg
     Double transverse:
     double_transverse_F_3=0.95255187553, s=21.515844, theta_in=1.570795, phi_e_in=1.5053465, phi_p_in=4.6469391, qOut=1.8, phiOut=1.9634954, Q2=16.066701, xB=0.84016932, t=-3.250341, theta(e',gamma)=178.8158 deg
   aligned <hOut*lambda> range: -0.547539 to 0.541329
-  saved full csv: Output/AlignmentScan/electron_photon_spin_correlation_phase_space.csv
-  saved aligned csv: Output/AlignmentScan/electron_photon_spin_correlation_aligned.csv
-  saved concurrence full csv: Output/AlignmentScan/ConcurrenceScan/electron_photon_concurrence_phase_space.csv
-  saved concurrence aligned csv: Output/AlignmentScan/ConcurrenceScan/electron_photon_concurrence_aligned.csv
-  saved ranked concurrence csv: Output/AlignmentScan/ConcurrenceScan/electron_photon_concurrence_top.csv
-  saved ranked electron-photon csv: Output/AlignmentScan/ConcurrenceScan/electron_photon_e_gamma_top.csv
-  saved unpolarized concurrence plot: Output/AlignmentScan/ConcurrenceScan/concurrence_scan_unpolarized.pdf
-  saved longitudinal polarized concurrence plot: Output/AlignmentScan/ConcurrenceScan/concurrence_scan_longitudinal_polarized.pdf
-  saved tx concurrence plot: Output/AlignmentScan/ConcurrenceScan/concurrence_scan_Tx.pdf
-  saved ty concurrence plot: Output/AlignmentScan/ConcurrenceScan/concurrence_scan_Ty.pdf
-  saved double transverse concurrence plot: Output/AlignmentScan/ConcurrenceScan/concurrence_scan_double_transverse.pdf
+  saved full csv: Output\AlignmentScan\electron_photon_spin_correlation_phase_space.csv
+  saved aligned csv: Output\AlignmentScan\electron_photon_spin_correlation_aligned.csv
+  saved concurrence full csv: Output\AlignmentScan\ConcurrenceScan\electron_photon_concurrence_phase_space.csv
+  saved concurrence aligned csv: Output\AlignmentScan\ConcurrenceScan\electron_photon_concurrence_aligned.csv
+  saved ranked concurrence csv: Output\AlignmentScan\ConcurrenceScan\electron_photon_concurrence_top.csv
+  saved ranked electron-photon csv: Output\AlignmentScan\ConcurrenceScan\electron_photon_e_gamma_top.csv
+  saved unpolarized concurrence plot: Output\AlignmentScan\ConcurrenceScan\concurrence_scan_unpolarized.pdf
+  saved longitudinal polarized concurrence plot: Output\AlignmentScan\ConcurrenceScan\concurrence_scan_longitudinal_polarized.pdf
+  saved tx concurrence plot: Output\AlignmentScan\ConcurrenceScan\concurrence_scan_Tx.pdf
+  saved ty concurrence plot: Output\AlignmentScan\ConcurrenceScan\concurrence_scan_Ty.pdf
+  saved double transverse concurrence plot: Output\AlignmentScan\ConcurrenceScan\concurrence_scan_double_transverse.pdf
   invalid phase-space points: 288
     point=high_s_high_theta_in_low_Egamma, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.5, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
     point=high_s_high_theta_in_low_Egamma, s=21.515844, theta_in=1.570795, phi_e_in=0.065449847, phi_p_in=3.2070425, qOut=0.5, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
@@ -149,4 +152,4 @@ Top C_{ep}/C_{e\gamma}/C_{p\gamma}/C_{e|p\gamma}/C_{p|e\gamma}/C_{\gamma|ep}/M_e
     point=high_s_high_theta_in_low_Egamma, s=21.515844, theta_in=1.570795, phi_e_in=0.52359878, phi_p_in=3.6651914, qOut=0.5, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
     point=high_s_high_theta_in_low_Egamma, s=21.515844, theta_in=1.570795, phi_e_in=0.58904862, phi_p_in=3.7306413, qOut=0.5, phiOut=4.712389: final-state lepton propagator is singular for this kinematics.
 
-Saved log: Output/AlignmentScan.log
+Saved log: Output\AlignmentScan.log

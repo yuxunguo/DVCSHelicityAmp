@@ -17,7 +17,7 @@ Kinematics.py     Four-momentum builders and kinematic validation checks.
 BHHelicityAmp.py  Bethe-Heitler amplitudes and benchmark log generation.
 SpinDensityMat.py Spin-density matrix scans and entanglement observables.
 AlignmentScan.py  C_e_p/C_e_gamma/C_p_gamma, M_e/M_p/M_gamma, and F3 scan at characteristic kinematics.
-ConfigGen.py      Representative high-C_e_gamma configs from AlignmentScan CSVs.
+ConfigGen.py      Max C_e_p/C_p_gamma/C_e_gamma configuration scans from AlignmentScan CSVs.
 Output/           Generated logs, scan data, CSV files, and plots.
 ```
 
@@ -57,7 +57,7 @@ Run the C_e_p/C_e_gamma/C_p_gamma, M_e/M_p/M_gamma, and F3 scan at characteristi
 python AlignmentScan.py
 ```
 
-Generate representative high-C_e_gamma configurations from the alignment scan:
+Generate max C_e_p, C_p_gamma, and C_e_gamma configuration scans from the alignment scan:
 
 ```sh
 python ConfigGen.py
@@ -343,6 +343,14 @@ CSVs and PDFs. It covers unpolarized, longitudinal polarized, transverse Tx
 polarized, and transverse Ty polarized incoming-electron spin cases, plus a
 double-transverse case where the incoming electron and proton are both
 polarized along the same transverse Tx direction.
+Set `HEATMAP_PLOT_STYLE` in `AlignmentScan.py` to `"grid"` for binned cell
+plots or `"contour"` for filled contour plots. AlignmentScan heatmaps plot
+the incoming proton azimuth `phi_in` on the x axis and `phi_gamma` on the y
+axis, with guide lines at `phi_in = pi/2` and `phi_gamma = pi/2`.
+`HEATMAP_MAX_BINS` controls the plotted bin count per angular axis, and
+`HEATMAP_CONTOUR_LEVELS` controls the number of filled contour bands.
+Heatmap color scales are fixed to absolute ranges: `0..1` for nonnegative
+observables and `-1..1` for signed observables.
 
 The top-level spin-density log records the scan settings, particle map, trace
 benchmark, normalization convention, saved paths, and invalid kinematic
@@ -447,28 +455,45 @@ downstream configuration generator. The concurrence/F3/monogamy PDFs include onl
 `phi_in_electron` by `phi_gamma` maps for every configured characteristic
 anchor.
 
-`ConfigGen.py` reads `Output/AlignmentScan/ConcurrenceScan/electron_photon_e_gamma_top.csv`
-directly, or falls back to the full concurrence phase-space CSV, and writes:
+`ConfigGen.py` reads
+`Output/AlignmentScan/ConcurrenceScan/electron_photon_concurrence_phase_space.csv`
+when available, then falls back to ranked locator CSVs. It finds the strongest
+spin cases for each target observable `C_e_p`, `C_p_gamma`, and `C_e_gamma`,
+clusters the enhanced regions in each fixed-`E_gamma` `phi_in` by
+`phi_gamma` scan, and writes the numerical configuration data under
+`Output/ConfigGen/Data`:
 
 ```text
 Output/ConfigGen.log
-Output/ConfigGen/high_e_gamma_configuration_examples.csv
-Output/ConfigGen/high_e_gamma_cluster_summary.csv
-Output/ConfigGen/high_e_gamma_momentum_configurations.csv
-Output/ConfigGen/high_e_gamma_final_state_amplitude_decomposition.csv
-Output/ConfigGen/high_e_gamma_user_frame_configurations.pdf
+Output/ConfigGen/Data/max_c_ep_configuration_examples.csv
+Output/ConfigGen/Data/max_c_ep_cluster_summary.csv
+Output/ConfigGen/Data/max_c_ep_momentum_configurations.csv
+Output/ConfigGen/Data/max_c_ep_final_state_amplitude_decomposition.csv
+Output/ConfigGen/Data/max_c_p_gamma_*.csv
+Output/ConfigGen/Data/max_c_e_gamma_*.csv
+Output/ConfigGen/ByEgamma/<E_gamma>/max_c_ep_regions.pdf
+Output/ConfigGen/ByEgamma/<E_gamma>/max_c_p_gamma_regions.pdf
+Output/ConfigGen/ByEgamma/<E_gamma>/max_c_e_gamma_regions.pdf
 ```
 
-The ConfigGen PDF focuses on the polarized `Tx` and `Ty` high-C_e_gamma clusters.
-Its angular regions are based on the shortest azimuthal separation
-`|phi_in_electron - phi_gamma|`: `near_azimuth` is centered at zero and
-`back_to_back_azimuth` is centered at `pi`. These are not the same as the
-3D `theta(e', gamma)` alignment cut. The PDF starts with angular cluster maps,
-then adds one characteristic page per selected cluster. Each characteristic
-page shows the rebuilt user-frame
-momentum configuration as a 3D vector plot and as a transverse `px-py`
-projection, with incoming `k` and `p` arrows ending at the origin. The plotted
-momenta are `k`, `p`, `kp`, `pp`, and `qout`; the virtual photon `q` is omitted
-from these configuration plots. The page also lists the corresponding
-kinematic variables and four-momenta and plots the final-state helicity-
-amplitude decomposition.
+Each PDF fixes one `E_gamma` value and one target concurrence. No PDF combines
+different `E_gamma` values. The first page is the fixed-energy concurrence
+scan map for that target, with the located maximum-concurrence regions marked;
+the map uses the incoming proton azimuth `phi_in` as the x coordinate, draws
+guide lines at `phi_in = pi/2` and `phi_gamma = pi/2`, and uses a fixed
+`0..1` concurrence color scale;
+the following pages show the reconstructed momentum configuration, kinematics,
+and final-state helicity-amplitude decomposition for each selected region.
+The target CSVs include the corresponding per-`E_gamma` region rows in the
+momentum and amplitude tables, and per-spin CSV files are also written for the
+selected strongest spin cases.
+
+Each characteristic page shows the rebuilt user-frame momentum configuration
+as a 3D vector plot and as a transverse `p_x-p_y` projection. The plotted
+momenta are displayed as `\ell`, `P`, `\ell'`, `P'`, and `q_gamma`; the
+virtual photon `q` is omitted from these configuration plots. The momentum
+drawings use dashed lines for electrons, solid lines for protons, and wavy
+transverse lines for photons; the 3D panel uses a dotted photon line. The
+pages also list kinematic variables and four-momenta with math labels and
+include the final-state helicity-amplitude decomposition using `h_e`, `h_p`,
+and `h_gamma`, with positive helicities written as `+1`.

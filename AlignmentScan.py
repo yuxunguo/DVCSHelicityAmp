@@ -83,6 +83,7 @@ COARSE_CONCURRENCE_NAMES = (
     "M_gamma",
     "F3",
 )
+SIGNED_CONCURRENCE_OBSERVABLES = {"M_e", "M_p", "M_gamma"}
 COARSE_CONCURRENCE_TOP_N = 60
 COARSE_E_GAMMA_TOP_N = COARSE_CONCURRENCE_TOP_N
 OBSERVABLE_LATEX_LABELS = {
@@ -106,6 +107,9 @@ PLOT_AXIS_LABEL_FONTSIZE = 12
 PLOT_TICK_FONTSIZE = 10
 PLOT_SUPTITLE_FONTSIZE = 17
 PLOT_COLORBAR_FONTSIZE = 12
+HEATMAP_MAX_BINS = 96
+HEATMAP_PLOT_STYLE = "grid"  # "grid" or "contour"
+HEATMAP_CONTOUR_LEVELS = 12
 
 
 def observable_latex_label(name):
@@ -516,7 +520,7 @@ def save_alignment_scan_csv_files(alignment_scan, output_dir=ALIGNMENT_OUTPUT_DI
     return paths
 
 
-def _bin_edges_from_values(values, max_bins=18):
+def _bin_edges_from_values(values, max_bins=HEATMAP_MAX_BINS):
     """Return plotting bin edges adapted to discrete or continuous values."""
     values = np.asarray(values, dtype=float)
     values = values[np.isfinite(values)]
@@ -556,6 +560,75 @@ def _binned_mean_2d(x_values, y_values, z_values, x_edges, y_edges):
     mean = np.full_like(sums, np.nan, dtype=float)
     np.divide(sums, counts, out=mean, where=counts > 0)
     return np.ma.masked_invalid(mean.T), counts.T
+
+
+def _heatmap_style(style):
+    """Return a normalized heatmap style name."""
+    style = str(style).strip().lower()
+    aliases = {
+        "cell": "grid",
+        "cells": "grid",
+        "mesh": "grid",
+        "pcolormesh": "grid",
+        "filled_contour": "contour",
+        "contourf": "contour",
+    }
+    style = aliases.get(style, style)
+    if style not in {"grid", "contour"}:
+        raise ValueError("Heatmap style must be 'grid' or 'contour'.")
+    return style
+
+
+def _draw_heatmap(ax, x_edges, y_edges, values, cmap, vmin, vmax, style):
+    """Draw one binned heatmap as either cell grid or filled contours."""
+    style = _heatmap_style(style)
+    if style == "grid":
+        return ax.pcolormesh(
+            x_edges,
+            y_edges,
+            values,
+            shading="auto",
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
+        )
+
+    x_centers = 0.5 * (x_edges[:-1] + x_edges[1:])
+    y_centers = 0.5 * (y_edges[:-1] + y_edges[1:])
+    x_grid, y_grid = np.meshgrid(x_centers, y_centers)
+    if values.shape[0] < 2 or values.shape[1] < 2:
+        return ax.pcolormesh(
+            x_edges,
+            y_edges,
+            values,
+            shading="auto",
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
+        )
+    levels = np.linspace(vmin, vmax, HEATMAP_CONTOUR_LEVELS + 1)
+    return ax.contourf(x_grid, y_grid, values, levels=levels, cmap=cmap, extend="neither")
+
+
+def _scan_x_phi(row):
+    """Return the incoming proton azimuth used as the heatmap x coordinate."""
+    value = row.get("phi_in", np.nan)
+    if np.isfinite(value):
+        return value
+    return proton_phi_from_electron(row.get("phi_in_electron", np.nan))
+
+
+def _add_pi_over_two_reference_lines(ax):
+    """Draw the requested pi/2 guide lines on heatmaps."""
+    ax.axvline(0.5 * np.pi, color="white", linestyle="--", linewidth=0.9, alpha=0.9)
+    ax.axhline(0.5 * np.pi, color="white", linestyle="--", linewidth=0.9, alpha=0.9)
+
+
+def _heatmap_color_scale(prefix, observable):
+    """Return fixed absolute heatmap scale and colormap for an observable."""
+    if prefix == "longitudinal_polarized" or observable in SIGNED_CONCURRENCE_OBSERVABLES:
+        return -1.0, 1.0, "coolwarm"
+    return 0.0, 1.0, "viridis"
 
 
 def _concurrence_csv_headers():
@@ -759,8 +832,10 @@ def save_concurrence_scan_plot(
     prefix,
     title_prefix,
     output_path=None,
+    plot_style=HEATMAP_PLOT_STYLE,
 ):
     """Save binned concurrence heatmaps for one alignment spin case."""
+    plot_style = _heatmap_style(plot_style)
     plt, PdfPages = _require_matplotlib()
     if output_path is None:
         output_path = CONCURRENCE_OUTPUT_DIR / f"concurrence_scan_{prefix}.pdf"
@@ -785,17 +860,7 @@ def save_concurrence_scan_plot(
 
     with PdfPages(output_path) as pdf:
         for name in COARSE_CONCURRENCE_NAMES:
-            values = np.asarray([row[f"{prefix}_{name}"] for row in rows], dtype=float)
-            finite_values = values[np.isfinite(values)]
-            if finite_values.size == 0:
-                vmin, vmax, cmap = 0.0, 1.0, "viridis"
-            elif np.nanmin(finite_values) < 0.0:
-                limit = float(np.nanmax(np.abs(finite_values)))
-                vmin, vmax, cmap = -limit, limit, "coolwarm"
-            else:
-                vmin, vmax, cmap = 0.0, float(np.nanmax(finite_values)), "viridis"
-            if abs(vmax - vmin) <= 1.0e-14:
-                vmax = vmin + 1.0
+            vmin, vmax, cmap = _heatmap_color_scale(prefix, name)
 
             anchors = alignment_scan.get("kinematic_points", [])
             if anchors:
@@ -821,7 +886,7 @@ def save_concurrence_scan_plot(
                     if not point_rows:
                         ax.set_axis_off()
                         continue
-                    x_values = np.asarray([row["phi_in_electron"] for row in point_rows], dtype=float)
+                    x_values = np.asarray([_scan_x_phi(row) for row in point_rows], dtype=float)
                     y_values = np.asarray([row["phiOut"] for row in point_rows], dtype=float)
                     point_values = np.asarray([row[f"{prefix}_{name}"] for row in point_rows], dtype=float)
                     x_edges = _bin_edges_from_values(x_values)
@@ -833,16 +898,18 @@ def save_concurrence_scan_plot(
                         x_edges,
                         y_edges,
                     )
-                    mesh = ax.pcolormesh(
+                    mesh = _draw_heatmap(
+                        ax,
                         x_edges,
                         y_edges,
                         mean_grid,
-                        shading="auto",
-                        cmap=cmap,
-                        vmin=vmin,
-                        vmax=vmax,
+                        cmap,
+                        vmin,
+                        vmax,
+                        plot_style,
                     )
                     ax.set_box_aspect(1)
+                    _add_pi_over_two_reference_lines(ax)
                     anchor_meshes.append(mesh)
                     best = max(point_rows, key=lambda row: row[f"{prefix}_{name}"])
                     ax.set_title(
@@ -853,7 +920,7 @@ def save_concurrence_scan_plot(
                         fontsize=ANCHOR_TITLE_FONTSIZE,
                     )
                     if index // ncols == nrows - 1:
-                        ax.set_xlabel(r"$\phi_{e,\rm in}$", fontsize=PLOT_AXIS_LABEL_FONTSIZE)
+                        ax.set_xlabel(r"$\phi_{P,\rm in}$", fontsize=PLOT_AXIS_LABEL_FONTSIZE)
                     else:
                         ax.set_xticklabels([])
                     if index % ncols == 0:
@@ -883,10 +950,15 @@ def save_concurrence_scan_plot(
     return output_path
 
 
-def save_concurrence_scan_plots(alignment_scan):
+def save_concurrence_scan_plots(alignment_scan, plot_style=HEATMAP_PLOT_STYLE):
     """Save selected concurrence scan PDFs for all alignment spin cases."""
     return {
-        prefix: save_concurrence_scan_plot(alignment_scan, prefix, label)
+        prefix: save_concurrence_scan_plot(
+            alignment_scan,
+            prefix,
+            label,
+            plot_style=plot_style,
+        )
         for prefix, label, _spin_case in ALIGNMENT_SPIN_CASES
     }
 
@@ -926,6 +998,9 @@ def build_alignment_report(alignment_scan, alignment_paths):
         f"{alignment_scan['phi_in_electron_values'][0]:.6g} to {alignment_scan['phi_in_electron_values'][-1]:.6g}",
         f"  phi_gamma scan: {len(alignment_scan['phiOut_values'])} values from "
         f"{alignment_scan['phiOut_values'][0]:.6g} to {alignment_scan['phiOut_values'][-1]:.6g}",
+        "  heatmap x coordinate: phi_p_in",
+        "  heatmap guide lines: phi_p_in=pi/2 and phi_gamma=pi/2",
+        "  heatmap color scales: 0..1 for nonnegative observables, -1..1 for signed observables",
         f"  valid points: {len(rows)}",
         f"  aligned points: {len(aligned_rows)}",
     ]
@@ -984,10 +1059,13 @@ def build_alignment_report(alignment_scan, alignment_paths):
     return "\n".join(lines)
 
 
-def regenerate_concurrence_plots_from_csv(csv_path=CONCURRENCE_PHASE_SPACE_CSV):
+def regenerate_concurrence_plots_from_csv(
+    csv_path=CONCURRENCE_PHASE_SPACE_CSV,
+    plot_style=HEATMAP_PLOT_STYLE,
+):
     """Regenerate concurrence plot PDFs from a saved concurrence scan CSV."""
     alignment_scan = load_concurrence_scan_csv(csv_path)
-    plots = save_concurrence_scan_plots(alignment_scan)
+    plots = save_concurrence_scan_plots(alignment_scan, plot_style=plot_style)
     return alignment_scan, plots
 
 
@@ -998,6 +1076,10 @@ def main():
         lines = [
             "Regenerated concurrence plots from saved CSV without recalculating amplitudes.",
             f"  source csv: {alignment_scan['source_csv']}",
+            f"  heatmap plot style: {_heatmap_style(HEATMAP_PLOT_STYLE)}",
+            "  heatmap x coordinate: phi_p_in",
+            "  heatmap guide lines: phi_p_in=pi/2 and phi_gamma=pi/2",
+            "  heatmap color scales: 0..1 for nonnegative observables, -1..1 for signed observables",
             f"  rows loaded: {len(alignment_scan['rows'])}",
             f"  characteristic kinematic anchors: {len(alignment_scan['kinematic_points'])}",
         ]
