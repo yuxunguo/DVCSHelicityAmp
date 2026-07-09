@@ -1,4 +1,4 @@
-"""C13 kinematic scan at fixed theta_in with forward/backward phi_e regions.
+"""Electron-photon concurrence kinematic scan at fixed theta_in with forward/backward phi_e regions.
 
 The scan fixes ``theta_in = pi/2`` and scans ``s`` and ``qOut``.  For each
 kinematic point it samples incoming-electron azimuths near two regions:
@@ -9,7 +9,7 @@ kinematic point it samples incoming-electron azimuths near two regions:
 The real-photon azimuth ``phi_gamma`` is scanned over the full ``[0, 2*pi)``
 range in both regions and is kept as one of the scanned kinematic coordinates.
 Outputs include the full phase-space CSV and a reduced CSV selecting the best
-C13 point over the local ``phi_e_in`` samples for each
+``C_e_gamma`` point over the local ``phi_e_in`` samples for each
 ``(s, qOut, phi_gamma, region)`` kinematic point.
 """
 
@@ -23,23 +23,25 @@ import numpy as np
 
 from AlignmentScan import (
     ALIGNMENT_SPIN_CASES,
-    COARSE_C13_TOP_N,
+    COARSE_E_GAMMA_TOP_N,
     _concurrence_csv_headers,
     _concurrence_csv_row,
     normalize_azimuth,
+    observable_latex_label,
+    observable_text_label,
     scan_final_electron_photon_alignment,
 )
 from SpinDensityMat import USER_S_CENTER
 
 
-OUTPUT_DIR = Path("Output") / "C13KinematicScan"
-LOG_PATH = Path("Output") / "C13KinematicScan.log"
-FULL_CSV_PATH = OUTPUT_DIR / "theta_pi_over_2_phi_e_regions_c13_phase_space.csv"
-FORWARD_CSV_PATH = OUTPUT_DIR / "theta_pi_over_2_forward_c13_phase_space.csv"
-BACKWARD_CSV_PATH = OUTPUT_DIR / "theta_pi_over_2_backward_c13_phase_space.csv"
-BEST_CSV_PATH = OUTPUT_DIR / "theta_pi_over_2_c13_best_by_kinematics.csv"
-TOP_CSV_PATH = OUTPUT_DIR / "theta_pi_over_2_c13_top.csv"
-PLOT_PREFIX = "theta_pi_over_2_c13_kinematic_scan"
+OUTPUT_DIR = Path("Output") / "EGammaKinematicScan"
+LOG_PATH = Path("Output") / "EGammaKinematicScan.log"
+FULL_CSV_PATH = OUTPUT_DIR / "theta_pi_over_2_phi_e_regions_e_gamma_phase_space.csv"
+FORWARD_CSV_PATH = OUTPUT_DIR / "theta_pi_over_2_forward_e_gamma_phase_space.csv"
+BACKWARD_CSV_PATH = OUTPUT_DIR / "theta_pi_over_2_backward_e_gamma_phase_space.csv"
+BEST_CSV_PATH = OUTPUT_DIR / "theta_pi_over_2_e_gamma_best_by_kinematics.csv"
+TOP_CSV_PATH = OUTPUT_DIR / "theta_pi_over_2_e_gamma_top.csv"
+PLOT_PREFIX = "theta_pi_over_2_e_gamma_kinematic_scan"
 
 THETA_IN = 0.5 * math.pi
 S_VALUES = np.linspace(0.65 * USER_S_CENTER, 1.30 * USER_S_CENTER, 7)
@@ -105,7 +107,7 @@ def annotate_region_rows(rows, region_name, region_center):
 
 
 def scan_region(region_name, region_center, points):
-    """Run the C13 scan for one forward/backward phi_e region."""
+    """Run the electron-photon concurrence scan for one forward/backward phi_e region."""
     scan = scan_final_electron_photon_alignment(
         kinematic_points=points,
         phi_in_electron_values=region_phi_e_values(region_center),
@@ -117,7 +119,7 @@ def scan_region(region_name, region_center, points):
 
 
 def scan_all_regions():
-    """Run the fixed-theta kinematic C13 scan for all regions."""
+    """Run the fixed-theta kinematic electron-photon concurrence scan for all regions."""
     points = kinematic_points()
     rows = []
     failures = []
@@ -136,7 +138,7 @@ def scan_all_regions():
 
 
 def full_csv_headers():
-    """Return CSV headers for the full regional C13 scan."""
+    """Return CSV headers for the full regional electron-photon concurrence scan."""
     return [
         "phi_e_region",
         "phi_e_region_center",
@@ -156,7 +158,7 @@ def full_csv_row(row):
 
 
 def write_full_csv(path, rows):
-    """Write a full regional C13 phase-space CSV."""
+    """Write a full regional electron-photon concurrence phase-space CSV."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
@@ -178,7 +180,7 @@ def best_rows_by_kinematics(rows):
             for phi_gamma in phi_gamma_values:
                 gamma_rows = [row for row in point_rows if row["phiOut"] == phi_gamma]
                 for prefix, label, _spin_case in ALIGNMENT_SPIN_CASES:
-                    key = f"{prefix}_C13"
+                    key = f"{prefix}_C_e_gamma"
                     finite_rows = [row for row in gamma_rows if np.isfinite(row.get(key, np.nan))]
                     if not finite_rows:
                         continue
@@ -187,8 +189,8 @@ def best_rows_by_kinematics(rows):
                         "phi_e_region": region_name,
                         "spin_case": prefix,
                         "spin_label": label,
-                        "best_C13_key": key,
-                        "best_C13": best[key],
+                        "best_C_e_gamma_key": key,
+                        "best_C_e_gamma": best[key],
                         "kinematic_point": best["kinematic_point"],
                         "s": best["s"],
                         "sqrt_s": best["sqrt_s"],
@@ -215,8 +217,8 @@ def best_csv_headers():
         "phi_e_region",
         "spin_case",
         "spin_label",
-        "best_C13_key",
-        "best_C13",
+        "best_C_e_gamma_key",
+        "best_C_e_gamma",
         "kinematic_point",
         "s",
         "sqrt_s",
@@ -255,7 +257,7 @@ def write_best_csv(path, rows):
     return path
 
 
-def write_top_csv(path, best_rows, top_n=COARSE_C13_TOP_N):
+def write_top_csv(path, best_rows, top_n=COARSE_E_GAMMA_TOP_N):
     """Write globally ranked best-by-kinematics rows for each region and spin."""
     path.parent.mkdir(parents=True, exist_ok=True)
     headers = ["rank", *best_csv_headers()]
@@ -268,7 +270,7 @@ def write_top_csv(path, best_rows, top_n=COARSE_C13_TOP_N):
                     row for row in best_rows
                     if row["phi_e_region"] == region_name and row["spin_case"] == prefix
                 ]
-                ordered = sorted(region_spin_rows, key=lambda row: row["best_C13"], reverse=True)
+                ordered = sorted(region_spin_rows, key=lambda row: row["best_C_e_gamma"], reverse=True)
                 for rank, row in enumerate(ordered[:top_n], start=1):
                     item = {"rank": rank}
                     item.update({
@@ -289,15 +291,16 @@ def spin_plot_path(prefix):
 
 
 def save_spin_plot(path, best_rows, prefix, label):
-    """Save kinematic C13 plots for one polarization/spin case."""
+    """Save kinematic electron-photon concurrence plots for one polarization/spin case."""
     plt, PdfPages = _require_matplotlib()
+    observable_label = observable_latex_label("C_e_gamma")
     path.parent.mkdir(parents=True, exist_ok=True)
     spin_rows = [row for row in best_rows if row["spin_case"] == prefix]
     s_values_unique = sorted({row["s"] for row in spin_rows})
-    c13_all = np.asarray([row["best_C13"] for row in spin_rows], dtype=float)
-    c13_max = float(np.nanmax(c13_all)) if c13_all.size else 1.0
-    if c13_max <= 0.0:
-        c13_max = 1.0
+    e_gamma_all = np.asarray([row["best_C_e_gamma"] for row in spin_rows], dtype=float)
+    e_gamma_max = float(np.nanmax(e_gamma_all)) if e_gamma_all.size else 1.0
+    if e_gamma_max <= 0.0:
+        e_gamma_max = 1.0
     with PdfPages(path) as pdf:
         for s_value in s_values_unique:
             fig, axes = plt.subplots(
@@ -320,25 +323,27 @@ def save_spin_plot(path, best_rows, prefix, label):
                     ax.set_axis_off()
                     continue
                 qout_values = np.asarray([row["qOut"] for row in rows], dtype=float)
-                c13_values = np.asarray([row["best_C13"] for row in rows], dtype=float)
+                e_gamma_values = np.asarray([row["best_C_e_gamma"] for row in rows], dtype=float)
                 phi_gamma_values = np.asarray([row["phiOut"] for row in rows], dtype=float)
                 scatter = ax.scatter(
                     phi_gamma_values,
                     qout_values,
-                    c=c13_values,
+                    c=e_gamma_values,
                     cmap="viridis",
                     vmin=0.0,
-                    vmax=c13_max,
+                    vmax=e_gamma_max,
                     s=58,
                 )
-                ax.set_title(region_name)
-                ax.set_xlabel("phi_gamma [rad]")
+                ax.set_title(region_name, fontsize=13)
+                ax.set_xlabel("phi_gamma [rad]", fontsize=12)
                 ax.set_xlim(0.0, 2.0 * math.pi)
                 ax.set_ylim(float(np.min(QOUT_VALUES)), float(np.max(QOUT_VALUES)))
-            axes[0].set_ylabel("qOut [GeV]")
-            fig.suptitle(f"{label}: C13 at s={s_value:.6g}")
+                ax.tick_params(labelsize=10)
+            axes[0].set_ylabel("qOut [GeV]", fontsize=12)
+            fig.suptitle(f"{label}: {observable_label} at s={s_value:.6g}", fontsize=16)
             if scatter is not None:
-                fig.colorbar(scatter, ax=axes, label="C13")
+                colorbar = fig.colorbar(scatter, ax=axes, label=observable_label)
+                colorbar.set_label(observable_label, fontsize=12)
                 pdf.savefig(fig)
             plt.close(fig)
     return path
@@ -353,10 +358,11 @@ def save_plots(best_rows):
 
 
 def build_report(scan, paths, best_rows):
-    """Return a text report for the fixed-theta C13 kinematic scan."""
+    """Return a text report for the fixed-theta electron-photon concurrence scan."""
     rows = scan["rows"]
+    observable_label = observable_text_label("C_e_gamma")
     lines = [
-        "Fixed-theta C13 kinematic scan",
+        f"Fixed-theta {observable_label} kinematic scan",
         f"  theta_in: {THETA_IN:.16e} rad",
         f"  s scan: {len(S_VALUES)} values from {S_VALUES[0]:.6g} to {S_VALUES[-1]:.6g}",
         f"  qOut scan: {len(QOUT_VALUES)} values from {QOUT_VALUES[0]:.6g} to {QOUT_VALUES[-1]:.6g}",
@@ -375,7 +381,7 @@ def build_report(scan, paths, best_rows):
         lines.append(f"    {prefix}: {path}")
     lines.extend([
         "",
-        "Top best-by-kinematics C13 rows:",
+        f"Top best-by-kinematics {observable_label} rows:",
     ])
     for region_name, _region_center in REGIONS:
         lines.append(f"  {region_name}:")
@@ -386,10 +392,10 @@ def build_report(scan, paths, best_rows):
             ]
             if not spin_rows:
                 continue
-            best = max(spin_rows, key=lambda row: row["best_C13"])
+            best = max(spin_rows, key=lambda row: row["best_C_e_gamma"])
             lines.append(
                 "    "
-                f"{label}: C13={best['best_C13']:.8g}, "
+                f"{label}: {observable_label}={best['best_C_e_gamma']:.8g}, "
                 f"s={best['s']:.8g}, qOut={best['qOut']:.8g}, "
                 f"phi_e_in={best['phi_in_electron']:.8g}, "
                 f"phi_gamma={best['phiOut']:.8g}, "
@@ -412,7 +418,7 @@ def build_report(scan, paths, best_rows):
 
 
 def main():
-    """Generate fixed-theta forward/backward C13 kinematic scan outputs."""
+    """Generate fixed-theta forward/backward electron-photon concurrence scan outputs."""
     scan = scan_all_regions()
     rows = scan["rows"]
     forward_rows = [row for row in rows if row["phi_e_region"] == "forward"]

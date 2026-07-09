@@ -38,12 +38,10 @@ from SpinDensityMat import (
 
 
 CHARACTERISTIC_S_POINTS = (
-    ("low_s", 0.78 * USER_S_CENTER),
-    ("mid_s", 1.00 * USER_S_CENTER),
+    #("mid_s", 1.00 * USER_S_CENTER),
     ("high_s", 1.18 * USER_S_CENTER),
 )
 CHARACTERISTIC_THETA_IN_POINTS = (
-    ("low_theta_in", 3.14159/2),
     ("high_theta_in", 3.14159/2),
 )
 CHARACTERISTIC_QOUT_POINTS = (
@@ -52,15 +50,13 @@ CHARACTERISTIC_QOUT_POINTS = (
     ("high_Egamma", 1.75),
 )
 
-PHASE_SPACE_PHI_IN_VALUES = np.linspace(0.0, 2.0 * np.pi, 32, endpoint=False)
-PHASE_SPACE_PHIOUT_VALUES = np.linspace(0.0, 2.0 * np.pi, 32, endpoint=False)
+PHASE_SPACE_PHI_IN_VALUES = np.linspace(0.0, 2.0 * np.pi, 48, endpoint=False)
+PHASE_SPACE_PHIOUT_VALUES = np.linspace(0.0, 2.0 * np.pi, 48, endpoint=False)
 ALIGNMENT_ANGLE_MAX_DEG = 10.0
 ALIGNMENT_ANGLE_MAX_RAD = np.deg2rad(ALIGNMENT_ANGLE_MAX_DEG)
 
 OUTPUT_ROOT = OUTPUT_DIR.parent
-LEGACY_ALIGNMENT_OUTPUT_DIR = OUTPUT_DIR / "AlignmentScan"
 ALIGNMENT_OUTPUT_DIR = OUTPUT_ROOT / "AlignmentScan"
-LEGACY_ALIGNMENT_LOG_PATH = ALIGNMENT_OUTPUT_DIR / "AlignmentScan.log"
 ALIGNMENT_LOG_PATH = OUTPUT_ROOT / "AlignmentScan.log"
 CONCURRENCE_OUTPUT_DIR = ALIGNMENT_OUTPUT_DIR / "ConcurrenceScan"
 ALIGNMENT_SPIN_CASES = (
@@ -70,9 +66,48 @@ ALIGNMENT_SPIN_CASES = (
     ("Ty", "Ty", SPIN_CASE_TRANSVERSE_TY),
     ("double_transverse", "Double transverse", SPIN_CASE_DOUBLE_TRANSVERSE),
 )
-COARSE_CONCURRENCE_NAMES = ("C12", "C13", "C23", "M1", "M2", "M3", "F3")
+COARSE_CONCURRENCE_NAMES = (
+    "C_e_p",
+    "C_e_gamma",
+    "C_p_gamma",
+    "M_e",
+    "M_p",
+    "M_gamma",
+    "F3",
+)
 COARSE_CONCURRENCE_TOP_N = 60
-COARSE_C13_TOP_N = COARSE_CONCURRENCE_TOP_N
+COARSE_E_GAMMA_TOP_N = COARSE_CONCURRENCE_TOP_N
+OBSERVABLE_LATEX_LABELS = {
+    "C_e_p": r"$C_{ep}$",
+    "C_e_gamma": r"$C_{e\gamma}$",
+    "C_p_gamma": r"$C_{p\gamma}$",
+    "C_e_rest": r"$C_{e|p\gamma}$",
+    "C_p_rest": r"$C_{p|e\gamma}$",
+    "C_gamma_rest": r"$C_{\gamma|ep}$",
+    "M_e": r"$M_e$",
+    "M_p": r"$M_p$",
+    "M_gamma": r"$M_\gamma$",
+    "F3": r"$F_3$",
+}
+OBSERVABLE_TEXT_LABELS = {
+    name: label.replace("$", "")
+    for name, label in OBSERVABLE_LATEX_LABELS.items()
+}
+ANCHOR_TITLE_FONTSIZE = 11
+PLOT_AXIS_LABEL_FONTSIZE = 12
+PLOT_TICK_FONTSIZE = 10
+PLOT_SUPTITLE_FONTSIZE = 17
+PLOT_COLORBAR_FONTSIZE = 12
+
+
+def observable_latex_label(name):
+    """Return a LaTeX display label for an observable key."""
+    return OBSERVABLE_LATEX_LABELS.get(name, name)
+
+
+def observable_text_label(name):
+    """Return a plain text report label using LaTeX-style subscripts."""
+    return OBSERVABLE_TEXT_LABELS.get(name, name)
 
 
 def characteristic_kinematic_points():
@@ -129,10 +164,6 @@ def clean_alignment_outputs():
     """Remove generated alignment-scan outputs before regenerating."""
     if ALIGNMENT_OUTPUT_DIR.exists():
         shutil.rmtree(ALIGNMENT_OUTPUT_DIR)
-    if LEGACY_ALIGNMENT_OUTPUT_DIR.exists():
-        shutil.rmtree(LEGACY_ALIGNMENT_OUTPUT_DIR)
-    if LEGACY_ALIGNMENT_LOG_PATH.exists():
-        LEGACY_ALIGNMENT_LOG_PATH.unlink()
     if ALIGNMENT_LOG_PATH.exists():
         ALIGNMENT_LOG_PATH.unlink()
 
@@ -200,8 +231,6 @@ def _scan_alignment_point_task(task):
             ),
         )
         momenta = kin["momenta"]
-        user_params = kin["user_params"]
-        user_independent = kin["user_independent"]
         angle_rad = spatial_opening_angle(momenta["kp"], momenta["qout"])
         k_dot_qout = real_scalar(mdot(momenta["k"], momenta["qout"]), "k dot qout")
         kp_dot_qout = real_scalar(mdot(momenta["kp"], momenta["qout"]), "kp dot qout")
@@ -211,15 +240,15 @@ def _scan_alignment_point_task(task):
             "s_regime": anchor["s_regime"],
             "theta_in_regime": anchor["theta_in_regime"],
             "qOut_regime": anchor["qOut_regime"],
-            "s": float(user_independent["s"]),
+            "s": float(kin["s"]),
             "sqrt_s": float(kin["sqrt_s"]),
-            "pIn": float(user_params["pIn"]),
-            "pOut": float(user_params["pOut"]),
-            "qOut": float(user_independent["qOut"]),
-            "theta_in": float(user_independent["theta_in"]),
-            "phi_in": float(user_independent["phi_in"]),
-            "phi_in_electron": electron_phi_from_proton(user_independent["phi_in"]),
-            "phiOut": float(user_independent["phiOut"]),
+            "pIn": float(kin["pIn"]),
+            "pOut": float(kin["pOut"]),
+            "qOut": float(kin["qOut"]),
+            "theta_in": float(kin["theta_in"]),
+            "phi_in": float(kin["phi_in"]),
+            "phi_in_electron": electron_phi_from_proton(kin["phi_in"]),
+            "phiOut": float(kin["phiOut"]),
             "Q2": float(kin["Q2"]),
             "xB": float(kin["xB"]),
             "t": float(kin["t"]),
@@ -357,7 +386,6 @@ def scan_final_electron_photon_alignment(
         "normalized_by_squared_amplitude": normalize_trace,
         "entanglement_initial_state": entanglement_initial_state,
         "spin_cases": ALIGNMENT_SPIN_CASES,
-        "scan_parameterization": "user_frame_independent",
     }
 
 
@@ -563,9 +591,8 @@ def _concurrence_top_csv_headers():
     ]
 
 
-def _concurrence_top_csv_row(rank_group, rank, row):
+def _concurrence_top_csv_row(rank_group, rank, row, prefix, observable):
     """Return one ranked coarse concurrence CSV row."""
-    prefix, observable = rank_group.rsplit("_", 1)
     return [
         rank_group,
         rank,
@@ -600,13 +627,13 @@ def save_concurrence_top_csv(
                 finite_rows = [row for row in rows if np.isfinite(row.get(key, np.nan))]
                 ordered = sorted(finite_rows, key=lambda row: row[key], reverse=True)
                 for rank, row in enumerate(ordered[:top_n], start=1):
-                    writer.writerow(_concurrence_top_csv_row(key, rank, row))
+                    writer.writerow(_concurrence_top_csv_row(key, rank, row, prefix, observable))
     return output_path
 
 
-def save_c13_top_csv(rows, output_path, top_n=COARSE_C13_TOP_N):
-    """Save top coarse C13 rows for each spin case."""
-    return save_concurrence_top_csv(rows, output_path, top_n=top_n, observables=("C13",))
+def save_e_gamma_top_csv(rows, output_path, top_n=COARSE_E_GAMMA_TOP_N):
+    """Save top coarse electron-photon concurrence rows for each spin case."""
+    return save_concurrence_top_csv(rows, output_path, top_n=top_n, observables=("C_e_gamma",))
 
 
 def save_concurrence_scan_csv_files(
@@ -619,7 +646,7 @@ def save_concurrence_scan_csv_files(
         "all_csv": output_dir / "electron_photon_concurrence_phase_space.csv",
         "aligned_csv": output_dir / "electron_photon_concurrence_aligned.csv",
         "top_concurrence_csv": output_dir / "electron_photon_concurrence_top.csv",
-        "top_c13_csv": output_dir / "electron_photon_c13_top.csv",
+        "top_e_gamma_csv": output_dir / "electron_photon_e_gamma_top.csv",
     }
     headers = _concurrence_csv_headers()
     aligned_rows = [row for row in alignment_scan["rows"] if row["aligned"]]
@@ -630,7 +657,7 @@ def save_concurrence_scan_csv_files(
             for row in rows:
                 writer.writerow(_concurrence_csv_row(row))
     save_concurrence_top_csv(alignment_scan["rows"], paths["top_concurrence_csv"])
-    save_c13_top_csv(alignment_scan["rows"], paths["top_c13_csv"])
+    save_e_gamma_top_csv(alignment_scan["rows"], paths["top_e_gamma_csv"])
     return paths
 
 
@@ -650,7 +677,14 @@ def save_concurrence_scan_plot(
     if not rows:
         with PdfPages(output_path) as pdf:
             fig, ax = plt.subplots(figsize=(7.0, 5.0), constrained_layout=True)
-            ax.text(0.5, 0.5, "No valid phase-space points", ha="center", va="center")
+            ax.text(
+                0.5,
+                0.5,
+                "No valid phase-space points",
+                ha="center",
+                va="center",
+                fontsize=PLOT_SUPTITLE_FONTSIZE,
+            )
             ax.set_axis_off()
             pdf.savefig(fig)
             plt.close(fig)
@@ -672,14 +706,17 @@ def save_concurrence_scan_plot(
 
             anchors = alignment_scan.get("kinematic_points", [])
             if anchors:
+                ncols = min(3, len(anchors))
+                nrows = int(np.ceil(len(anchors) / ncols))
                 fig, axes = plt.subplots(
-                    3,
-                    6,
-                    figsize=(18.0, 9.8),
+                    nrows,
+                    ncols,
+                    figsize=(5.4 * ncols, 4.2 * nrows),
                     constrained_layout=True,
                 )
-                axes_flat = axes.ravel()
+                axes_flat = np.atleast_1d(axes).ravel()
                 anchor_meshes = []
+                label = observable_latex_label(name)
                 for index, anchor in enumerate(anchors):
                     ax = axes_flat[index]
                     point_rows = [
@@ -711,30 +748,33 @@ def save_concurrence_scan_plot(
                         vmin=vmin,
                         vmax=vmax,
                     )
+                    ax.set_box_aspect(1)
                     anchor_meshes.append(mesh)
                     best = max(point_rows, key=lambda row: row[f"{prefix}_{name}"])
                     ax.set_title(
                         f"{anchor['s_regime']}, {anchor['theta_in_regime']}\n"
-                        f"{anchor['qOut_regime']}, max={best[f'{prefix}_{name}']:.3f}",
-                        fontsize=8,
+                        f"{anchor['qOut_regime']}, max {label}={best[f'{prefix}_{name}']:.3f}",
+                        fontsize=ANCHOR_TITLE_FONTSIZE,
                     )
-                    if index // 6 == 2:
-                        ax.set_xlabel(r"$\phi_{e,\rm in}$", fontsize=8)
+                    if index // ncols == nrows - 1:
+                        ax.set_xlabel(r"$\phi_{e,\rm in}$", fontsize=PLOT_AXIS_LABEL_FONTSIZE)
                     else:
                         ax.set_xticklabels([])
-                    if index % 6 == 0:
-                        ax.set_ylabel(r"$\phi_{\gamma}'$", fontsize=8)
+                    if index % ncols == 0:
+                        ax.set_ylabel(r"$\phi_{\gamma}'$", fontsize=PLOT_AXIS_LABEL_FONTSIZE)
                     else:
                         ax.set_yticklabels([])
-                    ax.tick_params(labelsize=7)
+                    ax.tick_params(labelsize=PLOT_TICK_FONTSIZE)
                 for ax in axes_flat[len(anchors):]:
                     ax.set_axis_off()
                 fig.suptitle(
-                    f"{title_prefix}: {name} two-angle scans at characteristic kinematics",
-                    fontsize=14,
+                    f"{title_prefix}: {label} two-angle scans at characteristic kinematics",
+                    fontsize=PLOT_SUPTITLE_FONTSIZE,
                 )
                 if anchor_meshes:
-                    fig.colorbar(anchor_meshes[-1], ax=axes, label=name, shrink=0.82)
+                    colorbar = fig.colorbar(anchor_meshes[-1], ax=axes_flat, label=label, shrink=0.86)
+                    colorbar.ax.tick_params(labelsize=PLOT_TICK_FONTSIZE)
+                    colorbar.set_label(label, fontsize=PLOT_COLORBAR_FONTSIZE)
                 pdf.savefig(fig)
                 plt.close(fig)
     return output_path
@@ -748,10 +788,12 @@ def save_concurrence_scan_plots(alignment_scan):
     }
 
 
-def concurrence_summary_line(row, key):
+def concurrence_summary_line(row, key, display_key=None):
     """Return a compact coarse concurrence maximum summary line."""
+    if display_key is None:
+        display_key = key
     return (
-        f"    {key}={row[key]:.12g}, s={row['s']:.8g}, "
+        f"    {display_key}={row[key]:.12g}, s={row['s']:.8g}, "
         f"theta_in={row['theta_in']:.8g}, phi_e_in={row['phi_in_electron']:.8g}, "
         f"phi_p_in={row['phi_in']:.8g}, "
         f"qOut={row['qOut']:.8g}, phiOut={row['phiOut']:.8g}, "
@@ -764,13 +806,13 @@ def build_alignment_report(alignment_scan, alignment_paths):
     """Build a text report for the final electron-photon alignment scan."""
     rows = alignment_scan["rows"]
     aligned_rows = [row for row in rows if row["aligned"]]
-    locator_label = "/".join(COARSE_CONCURRENCE_NAMES)
+    locator_label = "/".join(observable_text_label(name) for name in COARSE_CONCURRENCE_NAMES)
     lines = [
         f"{locator_label}-focused user-frame phase-space scan",
         "  anchor variables: s, theta_in, qOut",
         "  scanned variables per anchor: phi_in_electron, phi_gamma",
         "  locator observables: "
-        f"{', '.join(COARSE_CONCURRENCE_NAMES)}",
+        f"{', '.join(observable_text_label(name) for name in COARSE_CONCURRENCE_NAMES)}",
         f"  angle cut: theta(e', gamma) <= {alignment_scan['angle_max_deg']:.6g} deg",
         f"  characteristic kinematic anchors: {len(alignment_scan['kinematic_points'])}",
         f"  s anchor range: {min(alignment_scan['s_values']):.6g} to {max(alignment_scan['s_values']):.6g}",
@@ -791,14 +833,15 @@ def build_alignment_report(alignment_scan, alignment_paths):
         lines.append("")
         lines.append(f"Top {locator_label} locator points:")
         for observable in COARSE_CONCURRENCE_NAMES:
-            lines.append(f"  {observable}:")
+            observable_label = observable_text_label(observable)
+            lines.append(f"  {observable_label}:")
             for prefix, label, _spin_case in ALIGNMENT_SPIN_CASES:
                 key = f"{prefix}_{observable}"
                 finite_rows = [row for row in rows if np.isfinite(row.get(key, np.nan))]
                 if finite_rows:
                     best = max(finite_rows, key=lambda row: row[key])
                     lines.append(f"    {label}:")
-                    lines.append(concurrence_summary_line(best, key))
+                    lines.append(concurrence_summary_line(best, key, f"{prefix}_{observable_label}"))
     if aligned_rows:
         correlations = [row["unpolarized_h_lambda"] for row in aligned_rows]
         lines.append(
@@ -819,8 +862,8 @@ def build_alignment_report(alignment_scan, alignment_paths):
         f"{alignment_paths['concurrence_csv']['aligned_csv']}",
         "  saved ranked concurrence csv: "
         f"{alignment_paths['concurrence_csv']['top_concurrence_csv']}",
-        "  saved ranked C13 csv: "
-        f"{alignment_paths['concurrence_csv']['top_c13_csv']}",
+        "  saved ranked electron-photon csv: "
+        f"{alignment_paths['concurrence_csv']['top_e_gamma_csv']}",
     ])
     for prefix, label, _spin_case in ALIGNMENT_SPIN_CASES:
         lines.append(

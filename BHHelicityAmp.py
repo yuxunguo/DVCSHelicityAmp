@@ -258,7 +258,7 @@ def bh_amplitude_table(
 
 
 def bh_amplitude_user(
-    pIn, pOut, qOut, th, ph, phOut,
+    pIn, pOut, qOut, theta_in, phi_in, phiOut,
     hIn, hOut,
     sIn, sOut,
     lam,
@@ -266,11 +266,11 @@ def bh_amplitude_user(
 ):
     """Evaluate a fixed-helicity amplitude from user-frame variables.
 
-    The variables ``pIn``, ``pOut``, ``qOut``, ``th``, ``ph``, and ``phOut``
-    are converted with :func:`Kinematics.momenta_user`; photon polarization is
-    then built from the resulting ``qout`` momentum.
+    The variables ``pIn``, ``pOut``, ``qOut``, ``theta_in``, ``phi_in``, and
+    ``phiOut`` are converted with :func:`Kinematics.momenta_user`; photon
+    polarization is then built from the resulting ``qout`` momentum.
     """
-    mom = momenta_user(pIn, pOut, qOut, th, ph, phOut, m)
+    mom = momenta_user(pIn, pOut, qOut, theta_in, phi_in, phiOut, m)
     return bh_amplitude_core(
         mom["k"], mom["kp"], mom["qout"],
         mom["p"], mom["pp"],
@@ -282,12 +282,12 @@ def bh_amplitude_user(
 
 
 def bh_unpolarized_squared_amplitude_user(
-    pIn, pOut, qOut, th, ph, phOut,
+    pIn, pOut, qOut, theta_in, phi_in, phiOut,
     m, F1, F2,
     average_initial=True,
 ):
     """Return the unpolarized squared amplitude from user-frame variables."""
-    mom = momenta_user(pIn, pOut, qOut, th, ph, phOut, m)
+    mom = momenta_user(pIn, pOut, qOut, theta_in, phi_in, phiOut, m)
     return bh_unpolarized_squared_amplitude_core(
         mom["k"], mom["kp"], mom["qout"],
         mom["p"], mom["pp"],
@@ -297,13 +297,13 @@ def bh_unpolarized_squared_amplitude_user(
 
 
 def bh_amplitude_same_electron_helicity(
-    pIn, pOut, qOut, th, ph, phOut,
+    pIn, pOut, qOut, theta_in, phi_in, phiOut,
     h, sIn, sOut, lam,
     m, F1, F2,
 ):
     """Evaluate a user-frame amplitude with ``hIn == hOut == h``."""
     return bh_amplitude_user(
-        pIn, pOut, qOut, th, ph, phOut,
+        pIn, pOut, qOut, theta_in, phi_in, phiOut,
         h, h, sIn, sOut, lam,
         m, F1, F2,
     )
@@ -513,12 +513,11 @@ def main():
     def row_from(case, source, keys):
         return [case["id"], *values_from(case[source], keys)]
 
-    def backend_row(case):
-        params = case["kin"]["user_params"]
+    def solved_row(case):
         return [
             case["id"],
-            *values_from(params, ("pIn", "pOut", "qOut", "th", "ph", "phOut")),
-            fmt(case["kin"]["user_rebuild_residual"]),
+            *values_from(case["kin"], ("pIn", "pOut", "qOut", "theta_in", "phi_in", "phiOut")),
+            fmt(case["kin"]["energy_residual"]),
         ]
 
     def kinematic_checks(case):
@@ -532,7 +531,7 @@ def main():
 
         rows = [
             row("s", case["input"]["s"], kin["s"], "GeV^2"),
-            row("user rebuild", 0.0, kin["user_rebuild_residual"], "GeV"),
+            row("energy residual", 0.0, kin["energy_residual"], "GeV"),
             row("energy balance", 0.0, conservation[0], "GeV"),
             row("|3-mom balance|", 0.0, np.linalg.norm(conservation[1:4]), "GeV"),
             row("k^2", 0.0, _real_scalar(mdot(mom["k"], mom["k"]), "k^2"), "GeV^2"),
@@ -559,7 +558,7 @@ def main():
         row_from(case, "kin", ("sqrt_s", "Q2", "xB", "t", "W2", "y"))
         for case in cases
     ]
-    backend_rows = [backend_row(case) for case in cases]
+    solved_rows = [solved_row(case) for case in cases]
     momentum_rows = [
         [case["id"], *vector_row(name, case["mom"][name])]
         for case in cases
@@ -644,10 +643,10 @@ def main():
              "W2 [GeV^2]", "y"],
             derived_rows,
         ),
-        "backend": (
-            ["case", "pIn [GeV]", "pOut [GeV]", "qOut [GeV]", "th [rad]",
-             "ph [rad]", "phOut [rad]", "rebuild diff [GeV]"],
-            backend_rows,
+        "solved": (
+            ["case", "pIn [GeV]", "pOut [GeV]", "qOut [GeV]", "theta_in [rad]",
+             "phi_in [rad]", "phiOut [rad]", "energy residual [GeV]"],
+            solved_rows,
         ),
         "momenta": (
             ["case", "vec", "E [GeV]", "px [GeV]", "py [GeV]", "pz [GeV]",
@@ -691,11 +690,11 @@ def main():
           pOut is solved from energy conservation for each row.
           Q2, xB, t, W2, and y are derived diagnostics.
           m: proton mass in GeV.
-          Backend: independent inputs are converted to pIn, pOut, qOut, th,
-          ph, and phOut, then built with momenta_user.
+          Independent inputs are converted to pIn and pOut, then built with
+          momenta_user.
           Four-momenta are reported in the user-kinematics COM frame as
           [E, px, py, pz] in GeV, with pp=(E,0,pOut,0) and
-          qout=qOut(1,cos(phOut),sin(phOut),0).
+          qout=qOut(1,cos(phiOut),sin(phiOut),0).
           phi_xy: atan2(py, px) in radians, shown for k, p, and qout.
           k, kp: incoming and outgoing electron momenta.
           p, pp: incoming and outgoing proton momenta.
@@ -739,13 +738,13 @@ def main():
         "Derived invariant diagnostics",
         tables["derived"],
         "",
-        "Derived user-kinematics backend variables",
-        tables["backend"],
+        "Solved user-kinematics variables",
+        tables["solved"],
         "",
-        "Four-momenta from momenta_user backend",
+        "Four-momenta from momenta_user",
         tables["momenta"],
         "",
-        "Four-momentum and backend checks",
+        "Four-momentum checks",
         tables["checks"],
         "",
         analytic_note,

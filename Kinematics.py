@@ -1,9 +1,9 @@
 """User-frame kinematic builders and validation checks.
 
-The repository uses a direct COM-frame backend specified by ``pIn``, ``pOut``,
-``qOut``, ``th``, ``ph``, and ``phOut``.  Scan scripts use the independent
-user-frame set ``(s, theta_in, phi_in, qOut, phiOut)`` and solve ``pOut`` from
-energy conservation.
+The repository uses a direct COM-frame parameterization specified by ``pIn``,
+``pOut``, ``qOut``, ``theta_in``, ``phi_in``, and ``phiOut``. Scan scripts use
+the independent user-frame set ``(s, theta_in, phi_in, qOut, phiOut)`` and
+solve ``pOut`` from energy conservation.
 
 All four-vectors are contravariant arrays in ``[E, px, py, pz]`` order. The
 massless external electron and photon are placed on shell by construction, and
@@ -25,40 +25,40 @@ from Algebra import (
 # User kinematics
 #
 # p' = (sqrt(pOut^2+m^2), 0, pOut, 0)
-# q' = qOut (1, cos phOut, sin phOut, 0)
-# k' = (sqrt(pOut^2+qOut^2+2 pOut qOut sin phOut),
-#       -qOut cos phOut, -pOut - qOut sin phOut, 0)
+# q' = qOut (1, cos phiOut, sin phiOut, 0)
+# k' = (sqrt(pOut^2+qOut^2+2 pOut qOut sin phiOut),
+#       -qOut cos phiOut, -pOut - qOut sin phiOut, 0)
 #
 # p = (sqrt(pIn^2+m^2),
-#      pIn sin th cos ph, pIn sin th sin ph, pIn cos th)
-# k = pIn (1, -sin th cos ph, -sin th sin ph, -cos th)
+#      pIn sin theta_in cos phi_in, pIn sin theta_in sin phi_in, pIn cos theta_in)
+# k = pIn (1, -sin theta_in cos phi_in, -sin theta_in sin phi_in, -cos theta_in)
 # ============================================================
 
-def k_user(pIn, th, ph):
+def k_user(pIn, theta_in, phi_in):
     """Return the incoming electron four-momentum in the user frame.
 
     ``pIn`` is the common incoming three-momentum magnitude in the COM frame.
     The electron is massless and points opposite to the incoming proton
-    direction defined by polar angle ``th`` and azimuth ``ph``.
+    direction defined by polar angle ``theta_in`` and azimuth ``phi_in``.
     """
     pIn = _validate_nonnegative_scalar(pIn, "pIn")
     return pIn * np.array([
         1.0,
-        -np.sin(th) * np.cos(ph),
-        -np.sin(th) * np.sin(ph),
-        -np.cos(th),
+        -np.sin(theta_in) * np.cos(phi_in),
+        -np.sin(theta_in) * np.sin(phi_in),
+        -np.cos(theta_in),
     ])
 
 
-def p_user(pIn, th, ph, m):
+def p_user(pIn, theta_in, phi_in, m):
     """Return the incoming proton four-momentum in the user frame."""
     pIn = _validate_nonnegative_scalar(pIn, "pIn")
     m = _validate_positive_scalar(m, "m")
     return np.array([
         np.sqrt(pIn**2 + m**2),
-        pIn * np.sin(th) * np.cos(ph),
-        pIn * np.sin(th) * np.sin(ph),
-        pIn * np.cos(th),
+        pIn * np.sin(theta_in) * np.cos(phi_in),
+        pIn * np.sin(theta_in) * np.sin(phi_in),
+        pIn * np.cos(theta_in),
     ])
 
 
@@ -78,13 +78,13 @@ def pp_user(pOut, m):
     ])
 
 
-def qout_user(qOut, phOut):
+def qout_user(qOut, phiOut):
     """Return the outgoing real-photon four-momentum in the user frame."""
     qOut = _validate_nonnegative_scalar(qOut, "qOut")
-    return qOut * np.array([1.0, np.cos(phOut), np.sin(phOut), 0.0])
+    return qOut * np.array([1.0, np.cos(phiOut), np.sin(phiOut), 0.0])
 
 
-def kp_user(pOut, qOut, phOut):
+def kp_user(pOut, qOut, phiOut):
     """Return the outgoing electron four-momentum from momentum conservation.
 
     The spatial momentum is fixed by ``k + p = kp + pp + qout`` in the user
@@ -93,14 +93,14 @@ def kp_user(pOut, qOut, phOut):
     pOut = _validate_nonnegative_scalar(pOut, "pOut")
     qOut = _validate_nonnegative_scalar(qOut, "qOut")
     kp3 = np.array([
-        -qOut * np.cos(phOut),
-        -pOut - qOut * np.sin(phOut),
+        -qOut * np.cos(phiOut),
+        -pOut - qOut * np.sin(phiOut),
         0.0,
     ])
     return np.concatenate([[np.linalg.norm(kp3)], kp3])
 
 
-def momenta_user(pIn, pOut, qOut, th, ph, phOut, m):
+def momenta_user(pIn, pOut, qOut, theta_in, phi_in, phiOut, m):
     """Return all user-frame external momenta as a dictionary.
 
     The returned keys are ``k`` (incoming electron), ``p`` (incoming proton),
@@ -108,11 +108,11 @@ def momenta_user(pIn, pOut, qOut, th, ph, phOut, m):
     (outgoing real photon).
     """
     return {
-        "k": k_user(pIn, th, ph),
-        "p": p_user(pIn, th, ph, m),
-        "kp": kp_user(pOut, qOut, phOut),
+        "k": k_user(pIn, theta_in, phi_in),
+        "p": p_user(pIn, theta_in, phi_in, m),
+        "kp": kp_user(pOut, qOut, phiOut),
         "pp": pp_user(pOut, m),
-        "qout": qout_user(qOut, phOut),
+        "qout": qout_user(qOut, phiOut),
     }
 
 
@@ -130,50 +130,50 @@ def p_in_from_s(s, m):
     return (s - m**2) / (2.0 * np.sqrt(s))
 
 
-def _user_energy_residual_for_pout(pOut, sqrt_s, qOut, phOut, m):
+def _user_energy_residual_for_pout(pOut, sqrt_s, qOut, phiOut, m):
     """Return final energy minus ``sqrt_s`` for a user-frame ``pOut`` trial."""
     proton_energy = np.sqrt(pOut**2 + m**2)
     electron_energy = np.sqrt(
-        pOut**2 + qOut**2 + 2.0 * pOut * qOut * np.sin(phOut)
+        pOut**2 + qOut**2 + 2.0 * pOut * qOut * np.sin(phiOut)
     )
     return proton_energy + electron_energy + qOut - sqrt_s
 
 
-def solve_pout_from_user_independent(s, qOut, phOut, m, tol=1.0e-12):
-    """Solve outgoing proton momentum from ``s``, photon energy and ``phOut``.
+def solve_pout_from_user_independent(s, qOut, phiOut, m, tol=1.0e-12):
+    """Solve outgoing proton momentum from ``s``, photon energy and ``phiOut``.
 
     The direct user frame conserves three-momentum by construction.  Energy
     conservation then fixes ``pOut`` for the independent set
-    ``(s, theta_in, phi_in, qOut, phOut)``.
+    ``(s, theta_in, phi_in, qOut, phiOut)``.
     """
     s = _validate_positive_scalar(s, "s")
     qOut = _validate_nonnegative_scalar(qOut, "qOut")
-    phOut = _validate_scalar(phOut, "phOut")
+    phiOut = _validate_scalar(phiOut, "phiOut")
     m = _validate_positive_scalar(m, "m")
     sqrt_s = np.sqrt(s)
 
     low = 0.0
-    low_value = _user_energy_residual_for_pout(low, sqrt_s, qOut, phOut, m)
+    low_value = _user_energy_residual_for_pout(low, sqrt_s, qOut, phiOut, m)
     if low_value > tol:
         raise ValueError(
-            "No physical pOut: photon energy is too large for this s and phOut."
+            "No physical pOut: photon energy is too large for this s and phiOut."
         )
     if abs(low_value) <= tol:
         return 0.0
 
     high = max(1.0, sqrt_s)
-    high_value = _user_energy_residual_for_pout(high, sqrt_s, qOut, phOut, m)
+    high_value = _user_energy_residual_for_pout(high, sqrt_s, qOut, phiOut, m)
     for _iteration in range(80):
         if high_value > 0.0:
             break
         high *= 2.0
-        high_value = _user_energy_residual_for_pout(high, sqrt_s, qOut, phOut, m)
+        high_value = _user_energy_residual_for_pout(high, sqrt_s, qOut, phiOut, m)
     else:
         raise ValueError("Could not bracket a physical pOut solution.")
 
     for _iteration in range(100):
         mid = 0.5 * (low + high)
-        mid_value = _user_energy_residual_for_pout(mid, sqrt_s, qOut, phOut, m)
+        mid_value = _user_energy_residual_for_pout(mid, sqrt_s, qOut, phiOut, m)
         if abs(mid_value) <= tol:
             return mid
         if mid_value > 0.0:
@@ -236,46 +236,38 @@ def kinematics_user_from_independent(s, theta_in, phi_in, qOut, phiOut, m, label
         "label": label,
         "m": m,
         "momenta": mom,
-        **{key: value for key, value in derived.items() if key != "q"},
-        "user_params": {
-            "pIn": pIn,
-            "pOut": pOut,
-            "qOut": qOut,
-            "th": _normalize_angle(theta_in),
-            "ph": phi_in,
-            "phOut": phiOut,
-        },
-        "user_independent": {
-            "s": s,
-            "theta_in": _normalize_angle(theta_in),
-            "phi_in": phi_in,
-            "qOut": qOut,
-            "phiOut": phiOut,
-        },
-        "user_rebuild_residual": abs(
+        "pIn": pIn,
+        "pOut": pOut,
+        "s": s,
+        "theta_in": _normalize_angle(theta_in),
+        "phi_in": phi_in,
+        "qOut": qOut,
+        "phiOut": phiOut,
+        **{key: value for key, value in derived.items() if key not in {"q", "s"}},
+        "energy_residual": abs(
             _user_energy_residual_for_pout(pOut, np.sqrt(s), qOut, phiOut, m)
         ),
     }
 
 
-def energy_balance(pIn, pOut, qOut, th, ph, phOut, m):
+def energy_balance(pIn, pOut, qOut, theta_in, phi_in, phiOut, m):
     """Return E_initial - E_final; energy conservation means this is zero."""
-    mom = momenta_user(pIn, pOut, qOut, th, ph, phOut, m)
+    mom = momenta_user(pIn, pOut, qOut, theta_in, phi_in, phiOut, m)
     return mom["k"][0] + mom["p"][0] - mom["kp"][0] - mom["pp"][0] - mom["qout"][0]
 
 
-def momentum_conservation_check(pIn, pOut, qOut, th, ph, phOut, m):
+def momentum_conservation_check(pIn, pOut, qOut, theta_in, phi_in, phiOut, m):
     """Return the residual three-momentum balance vector."""
-    mom = momenta_user(pIn, pOut, qOut, th, ph, phOut, m)
+    mom = momenta_user(pIn, pOut, qOut, theta_in, phi_in, phiOut, m)
     return (
         mom["k"][1:4] + mom["p"][1:4]
         - mom["kp"][1:4] - mom["pp"][1:4] - mom["qout"][1:4]
     )
 
 
-def onshell_check(pIn, pOut, qOut, th, ph, phOut, m):
+def onshell_check(pIn, pOut, qOut, theta_in, phi_in, phiOut, m):
     """Return mass-shell values for ``k``, ``kp``, ``qout``, ``p``, and ``pp``."""
-    mom = momenta_user(pIn, pOut, qOut, th, ph, phOut, m)
+    mom = momenta_user(pIn, pOut, qOut, theta_in, phi_in, phiOut, m)
     return [
         mdot(mom["k"], mom["k"]),
         mdot(mom["kp"], mom["kp"]),

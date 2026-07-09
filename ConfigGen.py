@@ -1,8 +1,8 @@
-"""Generate representative high-C13 configurations from AlignmentScan outputs.
+"""Generate representative high-C_e_gamma configurations from AlignmentScan outputs.
 
-This script reads the C13 CSVs written by ``AlignmentScan.py`` and builds a
+This script reads the electron-photon concurrence CSVs written by ``AlignmentScan.py`` and builds a
 small set of representative user-frame configurations directly from those
-coarse alignment results. It prefers the ranked ``electron_photon_c13_top.csv``
+coarse alignment results. It prefers the ranked ``electron_photon_e_gamma_top.csv``
 table and falls back to the full phase-space concurrence CSV when needed.
 """
 
@@ -14,6 +14,7 @@ import tempfile
 
 import numpy as np
 
+from AlignmentScan import observable_latex_label, observable_text_label
 from FormFactors import yahl_dirac_pauli_from_t
 from Kinematics import kinematics_user_from_independent
 from SpinDensityMat import (
@@ -29,16 +30,17 @@ from SpinDensityMat import (
 
 
 ALIGNMENT_CONCURRENCE_DIR = Path("Output") / "AlignmentScan" / "ConcurrenceScan"
-RANKED_C13_CSV = ALIGNMENT_CONCURRENCE_DIR / "electron_photon_c13_top.csv"
-FULL_C13_CSV = ALIGNMENT_CONCURRENCE_DIR / "electron_photon_concurrence_phase_space.csv"
+RANKED_E_GAMMA_CSV = ALIGNMENT_CONCURRENCE_DIR / "electron_photon_e_gamma_top.csv"
+LEGACY_RANKED_C13_CSV = ALIGNMENT_CONCURRENCE_DIR / "electron_photon_c13_top.csv"
+FULL_CONCURRENCE_CSV = ALIGNMENT_CONCURRENCE_DIR / "electron_photon_concurrence_phase_space.csv"
 
 OUTPUT_DIR = Path("Output") / "ConfigGen"
 LOG_PATH = Path("Output") / "ConfigGen.log"
-EXAMPLES_CSV_PATH = OUTPUT_DIR / "high_c13_configuration_examples.csv"
-CLUSTERS_CSV_PATH = OUTPUT_DIR / "high_c13_cluster_summary.csv"
-MOMENTA_CSV_PATH = OUTPUT_DIR / "high_c13_momentum_configurations.csv"
-AMPLITUDE_CSV_PATH = OUTPUT_DIR / "high_c13_final_state_amplitude_decomposition.csv"
-PLOT_PATH = OUTPUT_DIR / "high_c13_user_frame_configurations.pdf"
+EXAMPLES_CSV_PATH = OUTPUT_DIR / "high_e_gamma_configuration_examples.csv"
+CLUSTERS_CSV_PATH = OUTPUT_DIR / "high_e_gamma_cluster_summary.csv"
+MOMENTA_CSV_PATH = OUTPUT_DIR / "high_e_gamma_momentum_configurations.csv"
+AMPLITUDE_CSV_PATH = OUTPUT_DIR / "high_e_gamma_final_state_amplitude_decomposition.csv"
+PLOT_PATH = OUTPUT_DIR / "high_e_gamma_user_frame_configurations.pdf"
 
 TOP_ROWS_PER_SPIN = 60
 MAX_CLUSTERS_PER_SPIN = 8
@@ -52,7 +54,7 @@ CONFIG_RELATIVE_REGIONS = (
 REGION_HALF_WIDTH = 0.25
 DISPLAY_MOMENTA = ("k", "p", "kp", "pp", "qout")
 INCOMING_MOMENTA = ("k", "p")
-HIGH_C13_PREFIX = "high_c13_"
+HIGH_E_GAMMA_PREFIX = "high_e_gamma_"
 
 KINEMATIC_COLUMNS = (
     "kinematic_point",
@@ -114,32 +116,48 @@ def read_csv_rows(path):
 
 
 def alignment_input_path():
-    """Return the best available AlignmentScan C13 CSV path."""
-    if RANKED_C13_CSV.exists():
-        return RANKED_C13_CSV
-    if FULL_C13_CSV.exists():
-        return FULL_C13_CSV
+    """Return the best available AlignmentScan electron-photon concurrence CSV path."""
+    if RANKED_E_GAMMA_CSV.exists():
+        return RANKED_E_GAMMA_CSV
+    if LEGACY_RANKED_C13_CSV.exists():
+        return LEGACY_RANKED_C13_CSV
+    if FULL_CONCURRENCE_CSV.exists():
+        return FULL_CONCURRENCE_CSV
     raise FileNotFoundError(
-        "No AlignmentScan C13 CSV found. Run AlignmentScan.py first to create "
-        f"{RANKED_C13_CSV} or {FULL_C13_CSV}."
+        "No AlignmentScan electron-photon concurrence CSV found. Run AlignmentScan.py "
+        f"first to create {RANKED_E_GAMMA_CSV} or {FULL_CONCURRENCE_CSV}."
     )
 
 
-def c13_columns(rows):
-    """Return C13 observable columns present in the alignment CSV rows."""
+def e_gamma_columns(rows):
+    """Return electron-photon concurrence columns present in the alignment CSV rows."""
     if not rows:
         return []
-    columns = [name for name in rows[0] if name.endswith("_C13")]
-    preferred = [f"{spin_case}_C13" for spin_case in CONFIG_SPIN_CASES]
+    columns = [
+        name for name in rows[0]
+        if name.endswith("_C_e_gamma") or name.endswith("_C13")
+    ]
+    preferred = [f"{spin_case}_C_e_gamma" for spin_case in CONFIG_SPIN_CASES]
+    legacy_preferred = [f"{spin_case}_C13" for spin_case in CONFIG_SPIN_CASES]
     return [name for name in preferred if name in columns] + [
+        name for name in legacy_preferred if name in columns
+    ] + [
         name for name in columns
-        if name not in preferred and spin_label_from_key(name) in CONFIG_SPIN_CASES
+        if (
+            name not in preferred
+            and name not in legacy_preferred
+            and spin_label_from_key(name) in CONFIG_SPIN_CASES
+        )
     ]
 
 
 def spin_label_from_key(key):
-    """Return the spin-case prefix from a ``*_C13`` column name."""
-    return key[:-4] if key.endswith("_C13") else key
+    """Return the spin-case prefix from an electron-photon concurrence column name."""
+    if key.endswith("_C_e_gamma"):
+        return key[: -len("_C_e_gamma")]
+    if key.endswith("_C13"):
+        return key[:-4]
+    return key
 
 
 def electron_photon_delta(row):
@@ -155,7 +173,7 @@ def region_offset(delta, center):
 
 
 def candidate_rows(rows, key, region_name, region_center):
-    """Return ranked candidates for one spin C13 column."""
+    """Return ranked candidates for one spin electron-photon concurrence column."""
     if rows and "rank_group" in rows[0]:
         group_rows = [row for row in rows if row.get("rank_group") == key]
         source_rows = group_rows if group_rows else rows
@@ -178,14 +196,14 @@ def candidate_rows(rows, key, region_name, region_center):
         seen.add(identity)
         item = dict(row)
         item["selected_spin_case"] = spin_label_from_key(key)
-        item["selected_c13_key"] = key
-        item["selected_C13"] = value
+        item["selected_e_gamma_key"] = key
+        item["selected_C_e_gamma"] = value
         item["selected_region"] = region_name
         item["electron_photon_delta"] = delta
         item["electron_photon_region_center"] = region_center
         item["electron_photon_region_offset"] = offset
         candidates.append(item)
-    candidates.sort(key=lambda item: item["selected_C13"], reverse=True)
+    candidates.sort(key=lambda item: item["selected_C_e_gamma"], reverse=True)
     return candidates[:TOP_ROWS_PER_SPIN]
 
 
@@ -210,7 +228,7 @@ def row_distance(a, b):
 
 
 def cluster_candidates(candidates):
-    """Greedily cluster high-C13 candidate rows by user-frame coordinates."""
+    """Greedily cluster high-C_e_gamma candidate rows by user-frame coordinates."""
     clusters = []
     for row in candidates:
         best_index = None
@@ -222,7 +240,7 @@ def cluster_candidates(candidates):
                 best_distance = distance
         if best_index is not None and best_distance <= CLUSTER_RADIUS:
             clusters[best_index]["rows"].append(row)
-            if row["selected_C13"] > clusters[best_index]["best"]["selected_C13"]:
+            if row["selected_C_e_gamma"] > clusters[best_index]["best"]["selected_C_e_gamma"]:
                 clusters[best_index]["best"] = row
         elif len(clusters) < MAX_CLUSTERS_PER_SPIN:
             clusters.append({"best": row, "rows": [row]})
@@ -232,7 +250,7 @@ def cluster_candidates(candidates):
 
     for index, cluster in enumerate(clusters):
         cluster["cluster_id"] = index
-        cluster["rows"].sort(key=lambda item: item["selected_C13"], reverse=True)
+        cluster["rows"].sort(key=lambda item: item["selected_C_e_gamma"], reverse=True)
         cluster["best"] = cluster["rows"][0]
     return clusters
 
@@ -266,7 +284,7 @@ def cluster_summary_rows(grouped_clusters):
                 "selected_region": region_name,
                 "cluster_id": cluster["cluster_id"],
                 "size": len(rows),
-                "max_C13": f"{best['selected_C13']:.16e}",
+                "max_C_e_gamma": f"{best['selected_C_e_gamma']:.16e}",
                 "best_kinematic_point": best.get("kinematic_point", ""),
                 "best_electron_photon_delta": f"{best['electron_photon_delta']:.16e}",
                 "best_electron_photon_region_offset": (
@@ -308,7 +326,7 @@ def example_rows(grouped_clusters):
                     "selected_region": region_name,
                     "cluster_id": cluster["cluster_id"],
                     "example_rank": rank,
-                    "selected_C13": f"{row['selected_C13']:.16e}",
+                    "selected_C_e_gamma": f"{row['selected_C_e_gamma']:.16e}",
                     "electron_photon_delta": f"{row['electron_photon_delta']:.16e}",
                     "electron_photon_region_offset": (
                         f"{row['electron_photon_region_offset']:.16e}"
@@ -317,7 +335,7 @@ def example_rows(grouped_clusters):
                 for name in KINEMATIC_COLUMNS:
                     item[name] = row.get(name, "")
                 for key, value in row.items():
-                    if key.endswith("_C13"):
+                    if key.endswith("_C_e_gamma") or key.endswith("_C13"):
                         item[key] = value
                 examples.append(item)
     return examples
@@ -347,8 +365,8 @@ def polarization_output_path(base_path, spin_case):
     """Return the per-polarization output path next to an aggregate path."""
     tag = polarization_file_tag(spin_case)
     name = base_path.name
-    if name.startswith(HIGH_C13_PREFIX):
-        name = f"{HIGH_C13_PREFIX}{tag}_{name[len(HIGH_C13_PREFIX):]}"
+    if name.startswith(HIGH_E_GAMMA_PREFIX):
+        name = f"{HIGH_E_GAMMA_PREFIX}{tag}_{name[len(HIGH_E_GAMMA_PREFIX):]}"
     else:
         name = f"{base_path.stem}_{tag}{base_path.suffix}"
     return base_path.with_name(name)
@@ -416,7 +434,7 @@ def momentum_configuration_rows(detail_rows):
                 "selected_spin_case": row["selected_spin_case"],
                 "selected_region": row["selected_region"],
                 "cluster_id": row["cluster_id"],
-                "selected_C13": f"{row['selected_C13']:.16e}",
+                "selected_C_e_gamma": f"{row['selected_C_e_gamma']:.16e}",
                 "electron_photon_delta": f"{row['electron_photon_delta']:.16e}",
                 "electron_photon_region_offset": f"{row['electron_photon_region_offset']:.16e}",
                 "kinematic_point": row.get("kinematic_point", ""),
@@ -429,12 +447,12 @@ def momentum_configuration_rows(detail_rows):
                 "phi_xy": f"{vector_phi_xy(vector):.16e}",
                 "s": f"{kin['s']:.16e}",
                 "sqrt_s": f"{kin['sqrt_s']:.16e}",
-                "pIn": f"{kin['user_params']['pIn']:.16e}",
-                "pOut": f"{kin['user_params']['pOut']:.16e}",
-                "theta_in": f"{kin['user_independent']['theta_in']:.16e}",
-                "phi_in": f"{kin['user_independent']['phi_in']:.16e}",
-                "qOut": f"{kin['user_independent']['qOut']:.16e}",
-                "phiOut": f"{kin['user_independent']['phiOut']:.16e}",
+                "pIn": f"{kin['pIn']:.16e}",
+                "pOut": f"{kin['pOut']:.16e}",
+                "theta_in": f"{kin['theta_in']:.16e}",
+                "phi_in": f"{kin['phi_in']:.16e}",
+                "qOut": f"{kin['qOut']:.16e}",
+                "phiOut": f"{kin['phiOut']:.16e}",
                 "Q2": f"{kin['Q2']:.16e}",
                 "xB": f"{kin['xB']:.16e}",
                 "t": f"{kin['t']:.16e}",
@@ -502,7 +520,7 @@ def amplitude_decomposition(row):
             "selected_spin_case": row["selected_spin_case"],
             "selected_region": row["selected_region"],
             "cluster_id": row["cluster_id"],
-            "selected_C13": f"{row['selected_C13']:.16e}",
+            "selected_C_e_gamma": f"{row['selected_C_e_gamma']:.16e}",
             "electron_photon_delta": f"{row['electron_photon_delta']:.16e}",
             "electron_photon_region_offset": f"{row['electron_photon_region_offset']:.16e}",
             "kinematic_point": row.get("kinematic_point", ""),
@@ -572,7 +590,7 @@ def _plot_vector_2d(ax, vector, label, color, incoming=False):
         head_width=0.045,
         length_includes_head=True,
     )
-    ax.text(text_position[0], text_position[1], f" {label}", color=color, fontsize=8, va="center")
+    ax.text(text_position[0], text_position[1], f" {label}", color=color, fontsize=10, va="center")
 
 
 def _set_symmetric_limits_3d(ax, momenta):
@@ -630,7 +648,7 @@ def plot_configuration_text(ax, row, kin):
     ax.axis("off")
     momenta = kin["momenta"]
     lines = [
-        f"{row['detail_id']}  C13={row['selected_C13']:.6g}",
+        f"{row['detail_id']}  {observable_text_label('C_e_gamma')}={row['selected_C_e_gamma']:.6g}",
         (
             f"region: {row['selected_region']}  "
             f"|phi_e_in - phi_gamma|={row['electron_photon_delta']:.6g}"
@@ -640,16 +658,16 @@ def plot_configuration_text(ax, row, kin):
         "",
         (
             f"s={kin['s']:.6g}, sqrt(s)={kin['sqrt_s']:.6g}, "
-            f"pIn={kin['user_params']['pIn']:.6g}, pOut={kin['user_params']['pOut']:.6g}"
+            f"pIn={kin['pIn']:.6g}, pOut={kin['pOut']:.6g}"
         ),
         (
-            f"theta_in={kin['user_independent']['theta_in']:.6g}, "
+            f"theta_in={kin['theta_in']:.6g}, "
             f"phi_e_in={parse_float(row.get('phi_in_electron')):.6g}, "
-            f"phi_p_in={kin['user_independent']['phi_in']:.6g}"
+            f"phi_p_in={kin['phi_in']:.6g}"
         ),
         (
-            f"qOut={kin['user_independent']['qOut']:.6g}, "
-            f"phi_gamma={kin['user_independent']['phiOut']:.6g}"
+            f"qOut={kin['qOut']:.6g}, "
+            f"phi_gamma={kin['phiOut']:.6g}"
         ),
         (
             f"Q2={kin['Q2']:.6g}, xB={kin['xB']:.6g}, "
@@ -660,7 +678,7 @@ def plot_configuration_text(ax, row, kin):
         "four-momenta [E, px, py, pz] GeV:",
     ]
     lines.extend(format_vector_line(name, momenta[name]) for name in DISPLAY_MOMENTA)
-    ax.text(0.0, 1.0, "\n".join(lines), va="top", ha="left", family="monospace", fontsize=8)
+    ax.text(0.0, 1.0, "\n".join(lines), va="top", ha="left", family="monospace", fontsize=9)
 
 
 def plot_amplitude_decomposition(ax, row):
@@ -689,7 +707,7 @@ def plot_amplitude_decomposition(ax, row):
                 f"Im={parse_float(item['amplitude_imag']):.2e}"
             ),
             va="center",
-            fontsize=7,
+            fontsize=8,
         )
     ax.tick_params(axis="y", labelsize=8)
 
@@ -706,8 +724,8 @@ def save_detail_pages(pdf, plt, detail_rows):
         amp_ax = fig.add_subplot(grid[1, 1:])
         plot_amplitude_decomposition(amp_ax, row)
         fig.suptitle(
-            f"{row['selected_spin_case']} characteristic high-C13 configuration",
-            fontsize=13,
+            f"{row['selected_spin_case']} characteristic high-{observable_latex_label('C_e_gamma')} configuration",
+            fontsize=16,
         )
         pdf.savefig(fig)
         plt.close(fig)
@@ -725,7 +743,7 @@ def save_configuration_plot(grouped_clusters, path=PLOT_PATH):
                 continue
             x = np.asarray([parse_float(row.get("phi_in_electron")) for row in rows], dtype=float)
             y = np.asarray([parse_float(row.get("phiOut")) for row in rows], dtype=float)
-            c = np.asarray([row["selected_C13"] for row in rows], dtype=float)
+            c = np.asarray([row["selected_C_e_gamma"] for row in rows], dtype=float)
             fig, ax = plt.subplots(figsize=(7.2, 5.5), constrained_layout=True)
             scatter = ax.scatter(x, y, c=c, cmap="viridis", s=28, alpha=0.75)
             for cluster in clusters:
@@ -745,12 +763,17 @@ def save_configuration_plot(grouped_clusters, path=PLOT_PATH):
                     fontsize=8,
                     va="center",
                 )
-            ax.set_title(f"{spin_case} {region_name}: representative high-C13 configs")
-            ax.set_xlabel(r"$\phi_{e,\rm in}$ [rad]")
-            ax.set_ylabel(r"$\phi_{\gamma}'$ [rad]")
+            ax.set_title(
+                f"{spin_case} {region_name}: representative high-{observable_latex_label('C_e_gamma')} configs",
+                fontsize=14,
+            )
+            ax.set_xlabel(r"$\phi_{e,\rm in}$ [rad]", fontsize=12)
+            ax.set_ylabel(r"$\phi_{\gamma}'$ [rad]", fontsize=12)
             ax.set_xlim(0.0, 2.0 * math.pi)
             ax.set_ylim(0.0, 2.0 * math.pi)
-            fig.colorbar(scatter, ax=ax, label="C13")
+            ax.tick_params(labelsize=10)
+            colorbar = fig.colorbar(scatter, ax=ax, label=observable_latex_label("C_e_gamma"))
+            colorbar.set_label(observable_latex_label("C_e_gamma"), fontsize=12)
             pdf.savefig(fig)
             plt.close(fig)
         save_detail_pages(pdf, plt, detail_rows)
@@ -780,8 +803,9 @@ def build_report(
     polarization_plot_outputs,
 ):
     """Build the text report for the generated configurations."""
+    observable_label = observable_text_label("C_e_gamma")
     lines = [
-        "High-C13 user-frame configuration generator from AlignmentScan results",
+        f"High-{observable_label} user-frame configuration generator from AlignmentScan results",
         f"  input csv: {input_path}",
         f"  top rows per spin case: {TOP_ROWS_PER_SPIN}",
         f"  cluster radius: {CLUSTER_RADIUS}",
@@ -819,7 +843,7 @@ def build_report(
             lines.append(
                 "    "
                 f"cluster {cluster['cluster_id']}: size={len(rows)}, "
-                f"max_C13={best['selected_C13']:.6g}, "
+                f"max_{observable_label}={best['selected_C_e_gamma']:.6g}, "
                 f"|phi_e-phi_gamma|={format_range(rows, 'electron_photon_delta')}, "
                 f"theta(e',gamma)={format_range(rows, 'theta_e_gamma_deg')}, "
                 f"s={format_range(rows, 's')}, "
@@ -852,7 +876,7 @@ def main():
     input_path = alignment_input_path()
     rows = read_csv_rows(input_path)
     grouped_clusters = []
-    for key in c13_columns(rows):
+    for key in e_gamma_columns(rows):
         for region_name, region_center in CONFIG_RELATIVE_REGIONS:
             candidates = candidate_rows(rows, key, region_name, region_center)
             if not candidates:
@@ -864,7 +888,7 @@ def main():
             ))
 
     if not grouped_clusters:
-        raise RuntimeError(f"No finite C13 candidates found in {input_path}.")
+        raise RuntimeError(f"No finite C_e_gamma candidates found in {input_path}.")
 
     examples = example_rows(grouped_clusters)
     summaries = cluster_summary_rows(grouped_clusters)

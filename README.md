@@ -16,8 +16,8 @@ Algebra.py         Dirac algebra, spinors, photon polarization vectors.
 Kinematics.py     Four-momentum builders and kinematic validation checks.
 BHHelicityAmp.py  Bethe-Heitler amplitudes and benchmark log generation.
 SpinDensityMat.py Spin-density matrix scans and entanglement observables.
-AlignmentScan.py  C12/C13/C23, M1/M2/M3, and F3 scan at characteristic kinematics.
-ConfigGen.py      Representative high-C13 configs from AlignmentScan CSVs.
+AlignmentScan.py  C_e_p/C_e_gamma/C_p_gamma, M_e/M_p/M_gamma, and F3 scan at characteristic kinematics.
+ConfigGen.py      Representative high-C_e_gamma configs from AlignmentScan CSVs.
 Output/           Generated logs, scan data, CSV files, and plots.
 ```
 
@@ -37,43 +37,36 @@ matplotlib
 non-interactive `Agg` backend internally before plotting, so it can run without
 opening GUI windows.
 
-On this Windows checkout, the Python launcher may vary by environment. The
-working interpreter used for the current output regeneration was:
-
-```powershell
-C:\Users\sFerm\AppData\Local\Python\bin\python.exe
-```
-
 ## Running The Code
 
 Run the Bethe-Heitler benchmark:
 
-```powershell
-C:\Users\sFerm\AppData\Local\Python\bin\python.exe BHHelicityAmp.py
+```sh
+python BHHelicityAmp.py
 ```
 
 Run the spin-density matrix scans:
 
-```powershell
-C:\Users\sFerm\AppData\Local\Python\bin\python.exe SpinDensityMat.py
+```sh
+python SpinDensityMat.py
 ```
 
-Run the C12/C13/C23, M1/M2/M3, and F3 scan at characteristic kinematics:
+Run the C_e_p/C_e_gamma/C_p_gamma, M_e/M_p/M_gamma, and F3 scan at characteristic kinematics:
 
-```powershell
-C:\Users\sFerm\AppData\Local\Python\bin\python.exe AlignmentScan.py
+```sh
+python AlignmentScan.py
 ```
 
-Generate representative high-C13 configurations from the alignment scan:
+Generate representative high-C_e_gamma configurations from the alignment scan:
 
-```powershell
-C:\Users\sFerm\AppData\Local\Python\bin\python.exe ConfigGen.py
+```sh
+python ConfigGen.py
 ```
 
 Syntax-check all source files:
 
-```powershell
-C:\Users\sFerm\AppData\Local\Python\bin\python.exe -m py_compile Algebra.py Kinematics.py BHHelicityAmp.py SpinDensityMat.py AlignmentScan.py ConfigGen.py
+```sh
+python -m py_compile Algebra.py Kinematics.py BHHelicityAmp.py SpinDensityMat.py AlignmentScan.py ConfigGen.py
 ```
 
 ## Physics And Index Conventions
@@ -112,15 +105,12 @@ two-state outgoing degrees of freedom.
 
 `Kinematics.py` uses one user-frame COM parameterization.
 
-The direct backend variables are:
+The kinematics result exposes the direct momentum variables:
 
 ```text
 pIn    incoming COM three-momentum magnitude
 pOut   outgoing proton three-momentum magnitude
 qOut   outgoing real-photon momentum magnitude
-th     incoming proton polar angle
-ph     incoming proton azimuth
-phOut  outgoing real-photon azimuth in the user frame
 m      proton mass
 ```
 
@@ -164,7 +154,7 @@ columns alongside the kinematic invariants.
 The active scan grids are:
 
 ```text
-coarse alignment anchors  low/medium/high s, configured theta_in labels, low/medium/high qOut
+coarse alignment anchors  mid/high s, high theta_in, low/mid/high qOut
 coarse two-angle scan     phi_in_electron and phiOut at each anchor
 s scan values             user-frame COM energy grid in SpinDensityMat.py
 qOut scan values          outgoing photon energy grid in SpinDensityMat.py
@@ -267,22 +257,17 @@ concurrence definitions.
 The output columns are:
 
 ```text
-C12     two-body concurrence between outgoing particles 1 and 2
-C13     two-body concurrence between outgoing particles 1 and 3
-C23     two-body concurrence between outgoing particles 2 and 3
-C1_23   one-to-rest concurrence for particle 1 against particles 2 and 3
-C2_13   one-to-rest concurrence for particle 2 against particles 1 and 3
-C3_12   one-to-rest concurrence for particle 3 against particles 1 and 2
-F3      multipartite observable built from C1_23, C2_13, C3_12
-M1      CKW monogamy residual C1_23^2 - C12^2 - C13^2
-M2      CKW monogamy residual C2_13^2 - C12^2 - C23^2
-M3      CKW monogamy residual C3_12^2 - C13^2 - C23^2
+C_e_p       two-body concurrence between outgoing electron and proton
+C_e_gamma   two-body concurrence between outgoing electron and real photon
+C_p_gamma   two-body concurrence between outgoing proton and real photon
+C_e_rest    one-to-rest concurrence for electron against proton plus photon
+C_p_rest    one-to-rest concurrence for proton against electron plus photon
+C_gamma_rest one-to-rest concurrence for photon against electron plus proton
+F3          multipartite observable built from the three one-to-rest concurrences
+M_e         CKW monogamy residual C_e_rest^2 - C_e_p^2 - C_e_gamma^2
+M_p         CKW monogamy residual C_p_rest^2 - C_e_p^2 - C_p_gamma^2
+M_gamma     CKW monogamy residual C_gamma_rest^2 - C_e_gamma^2 - C_p_gamma^2
 ```
-
-With the particle map above, `C1_23` measures entanglement of the outgoing
-electron with the outgoing proton plus real photon, `C2_13` measures the
-outgoing proton against the other two, and `C3_12` measures the outgoing
-photon against the other two.
 
 ## Generated Output
 
@@ -344,13 +329,13 @@ Output/AlignmentScan/electron_photon_spin_correlation_aligned.csv
 Output/AlignmentScan/ConcurrenceScan/
 ```
 
-The main spin-correlation CSVs and C12/C13/C23 plus M1/M2/M3 and F3 locator
-outputs are still generated.
+The main spin-correlation CSVs and C_e_p/C_e_gamma/C_p_gamma plus
+M_e/M_p/M_gamma and F3 locator outputs are still generated.
 
-The alignment scan records the opening angle theta(e', gamma) over 18
+The alignment scan records the opening angle theta(e', gamma) over 6
 characteristic user-frame anchors. Each anchor fixes `s`, `theta_in`, and
 `qOut`, then scans the two remaining angular variables `phi_in_electron` and
-`phi_gamma` on a 32 by 32 grid. The stored outgoing-photon azimuth column is
+`phi_gamma` on a 48 by 48 grid. The stored outgoing-photon azimuth column is
 still named `phiOut`, and the internal proton azimuth is still written as
 `phi_in`.
 The `ConcurrenceScan` folder stores concurrence, F3, and monogamy-residual
@@ -408,8 +393,8 @@ columns:
 ```text
 spin_case,entanglement_mode,Q2,t,phi,squared_amplitude_M2,spin_signal_M2,
 trace,normalized_by_squared_amplitude,
-entanglement_h_in,entanglement_s_in,C12,C13,C23,C1_23,C2_13,C3_12,
-F3,M1,M2,M3
+entanglement_h_in,entanglement_s_in,C_e_p,C_e_gamma,C_p_gamma,
+C_e_rest,C_p_rest,C_gamma_rest,F3,M_e,M_p,M_gamma
 ```
 
 The per-point density-matrix CSV files include:
@@ -417,8 +402,9 @@ The per-point density-matrix CSV files include:
 ```text
 spin_case,entanglement_mode,Q2,t,phi,squared_amplitude_M2,spin_signal_M2,
 trace,normalized_by_squared_amplitude,
-entanglement_h_in,entanglement_s_in,C12,C13,C23,C1_23,C2_13,C3_12,
-F3,M1,M2,M3,row_index,row_h_out,row_s_out,row_lambda,col_index,
+entanglement_h_in,entanglement_s_in,C_e_p,C_e_gamma,C_p_gamma,
+C_e_rest,C_p_rest,C_gamma_rest,F3,M_e,M_p,M_gamma,
+row_index,row_h_out,row_s_out,row_lambda,col_index,
 col_h_out,col_s_out,col_lambda,rho_real,rho_imag,rho_abs,rho_phase
 ```
 
@@ -438,41 +424,42 @@ squared_amplitude_M2,
 <spin_case>_h_lambda,<spin_case>_h_lambda_connected
 ```
 
-The `AlignmentScan.py` `ConcurrenceScan` CSV files focus on the C12, C13, C23,
-M1, M2, M3, and F3 locator observables for each spin case:
+The `AlignmentScan.py` `ConcurrenceScan` CSV files focus on the C_e_p,
+C_e_gamma, C_p_gamma, M_e, M_p, M_gamma, and F3 locator observables for each
+spin case:
 
 ```text
-<spin_case>_C12
-<spin_case>_C13
-<spin_case>_C23
-<spin_case>_M1
-<spin_case>_M2
-<spin_case>_M3
+<spin_case>_C_e_p
+<spin_case>_C_e_gamma
+<spin_case>_C_p_gamma
+<spin_case>_M_e
+<spin_case>_M_p
+<spin_case>_M_gamma
 <spin_case>_F3
 ```
 
 The `<spin_case>` prefixes are `unpolarized`, `longitudinal_polarized`, `Tx`,
 `Ty`, and `double_transverse`. The same folder also writes
 `electron_photon_concurrence_top.csv`, a ranked locator table used to inspect
-the best C12, C13, C23, M1, M2, M3, and F3 points. It also keeps
-`electron_photon_c13_top.csv` for the C13-only downstream configuration
-generator. The concurrence/F3/monogamy PDFs include only two-angle
+the best C_e_p, C_e_gamma, C_p_gamma, M_e, M_p, M_gamma, and F3 points. It
+also writes `electron_photon_e_gamma_top.csv` for the electron-photon
+downstream configuration generator. The concurrence/F3/monogamy PDFs include only two-angle
 `phi_in_electron` by `phi_gamma` maps for every configured characteristic
 anchor.
 
-`ConfigGen.py` reads `Output/AlignmentScan/ConcurrenceScan/electron_photon_c13_top.csv`
+`ConfigGen.py` reads `Output/AlignmentScan/ConcurrenceScan/electron_photon_e_gamma_top.csv`
 directly, or falls back to the full concurrence phase-space CSV, and writes:
 
 ```text
 Output/ConfigGen.log
-Output/ConfigGen/high_c13_configuration_examples.csv
-Output/ConfigGen/high_c13_cluster_summary.csv
-Output/ConfigGen/high_c13_momentum_configurations.csv
-Output/ConfigGen/high_c13_final_state_amplitude_decomposition.csv
-Output/ConfigGen/high_c13_user_frame_configurations.pdf
+Output/ConfigGen/high_e_gamma_configuration_examples.csv
+Output/ConfigGen/high_e_gamma_cluster_summary.csv
+Output/ConfigGen/high_e_gamma_momentum_configurations.csv
+Output/ConfigGen/high_e_gamma_final_state_amplitude_decomposition.csv
+Output/ConfigGen/high_e_gamma_user_frame_configurations.pdf
 ```
 
-The ConfigGen PDF focuses on the polarized `Tx` and `Ty` high-C13 clusters.
+The ConfigGen PDF focuses on the polarized `Tx` and `Ty` high-C_e_gamma clusters.
 Its angular regions are based on the shortest azimuthal separation
 `|phi_in_electron - phi_gamma|`: `near_azimuth` is centered at zero and
 `back_to_back_azimuth` is centered at `pi`. These are not the same as the

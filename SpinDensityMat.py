@@ -73,16 +73,16 @@ SPIN_CASES = (
 )
 ENTANGLEMENT_INITIAL_STATE = (+1, +1)
 ENTANGLEMENT_NAMES = (
-    "C12",
-    "C13",
-    "C23",
-    "C1_23",
-    "C2_13",
-    "C3_12",
+    "C_e_p",
+    "C_e_gamma",
+    "C_p_gamma",
+    "C_e_rest",
+    "C_p_rest",
+    "C_gamma_rest",
     "F3",
-    "M1",
-    "M2",
-    "M3",
+    "M_e",
+    "M_p",
+    "M_gamma",
 )
 
 BENCHMARK_USER_KINEMATIC_INPUTS = (
@@ -323,15 +323,15 @@ def one_to_rest_concurrence(rho, traced_subsystem):
     return float(np.sqrt(max(0.0, 2.0 * (1.0 - purity))))
 
 
-def f3_from_one_to_rest(c1_23, c2_13, c3_12):
+def f3_from_one_to_rest(c_e_rest, c_p_rest, c_gamma_rest):
     """Concurrence-triangle area measure from Eq. (6) of arXiv:2310.01477v2."""
-    q_value = 0.5 * (c1_23 + c2_13 + c3_12)
+    q_value = 0.5 * (c_e_rest + c_p_rest + c_gamma_rest)
     area_argument = (
         (16.0 / 3.0)
         * q_value
-        * (q_value - c1_23)
-        * (q_value - c2_13)
-        * (q_value - c3_12)
+        * (q_value - c_e_rest)
+        * (q_value - c_p_rest)
+        * (q_value - c_gamma_rest)
     )
     return float(np.sqrt(max(0.0, area_argument)))
 
@@ -339,29 +339,29 @@ def f3_from_one_to_rest(c1_23, c2_13, c3_12):
 def entanglement_measures_from_state(state):
     """Compute concurrence observables and monogamy residuals.
 
-    The returned dictionary contains two-body concurrences ``C12``, ``C13``,
-    ``C23``; one-to-rest concurrences ``C1_23``, ``C2_13``, ``C3_12``; the
-    concurrence-triangle measure ``F3``; and CKW monogamy residuals ``M1``,
-    ``M2``, and ``M3``.
+    The returned dictionary contains two-body concurrences ``C_e_p``,
+    ``C_e_gamma``, ``C_p_gamma``; one-to-rest concurrences ``C_e_rest``,
+    ``C_p_rest``, ``C_gamma_rest``; the concurrence-triangle measure ``F3``;
+    and CKW monogamy residuals ``M_e``, ``M_p``, and ``M_gamma``.
     """
     rho = pure_density_matrix(state)
-    c12 = two_qubit_concurrence(reduced_density_matrix(rho, (0, 1)))
-    c13 = two_qubit_concurrence(reduced_density_matrix(rho, (0, 2)))
-    c23 = two_qubit_concurrence(reduced_density_matrix(rho, (1, 2)))
-    c1_23 = one_to_rest_concurrence(rho, 0)
-    c2_13 = one_to_rest_concurrence(rho, 1)
-    c3_12 = one_to_rest_concurrence(rho, 2)
+    c_e_p = two_qubit_concurrence(reduced_density_matrix(rho, (0, 1)))
+    c_e_gamma = two_qubit_concurrence(reduced_density_matrix(rho, (0, 2)))
+    c_p_gamma = two_qubit_concurrence(reduced_density_matrix(rho, (1, 2)))
+    c_e_rest = one_to_rest_concurrence(rho, 0)
+    c_p_rest = one_to_rest_concurrence(rho, 1)
+    c_gamma_rest = one_to_rest_concurrence(rho, 2)
     return {
-        "C12": c12,
-        "C13": c13,
-        "C23": c23,
-        "C1_23": c1_23,
-        "C2_13": c2_13,
-        "C3_12": c3_12,
-        "F3": f3_from_one_to_rest(c1_23, c2_13, c3_12),
-        "M1": c1_23**2 - c12**2 - c13**2,
-        "M2": c2_13**2 - c12**2 - c23**2,
-        "M3": c3_12**2 - c13**2 - c23**2,
+        "C_e_p": c_e_p,
+        "C_e_gamma": c_e_gamma,
+        "C_p_gamma": c_p_gamma,
+        "C_e_rest": c_e_rest,
+        "C_p_rest": c_p_rest,
+        "C_gamma_rest": c_gamma_rest,
+        "F3": f3_from_one_to_rest(c_e_rest, c_p_rest, c_gamma_rest),
+        "M_e": c_e_rest**2 - c_e_p**2 - c_e_gamma**2,
+        "M_p": c_p_rest**2 - c_e_p**2 - c_p_gamma**2,
+        "M_gamma": c_gamma_rest**2 - c_e_gamma**2 - c_p_gamma**2,
     }
 
 
@@ -654,8 +654,6 @@ def scan_spin_density_user_grid(
         x_index = result["x_index"]
         point = result["point"]
         kin = point["kinematics"]
-        user_params = kin["user_params"]
-        user_independent = kin["user_independent"]
         rho_grid[y_index, x_index] = point["rho"]
         squared_amplitude_grid[y_index, x_index] = point["squared_amplitude"]
         spin_signal_grid[y_index, x_index] = point["spin_signal"]
@@ -663,10 +661,10 @@ def scan_spin_density_user_grid(
         for name, value in point["entanglement"].items():
             entanglement_grid[name][y_index, x_index] = value
         for key in ("s", "theta_in", "phi_in", "qOut", "phiOut"):
-            kinematic_grids[key][y_index, x_index] = user_independent[key]
+            kinematic_grids[key][y_index, x_index] = kin[key]
         kinematic_grids["sqrt_s"][y_index, x_index] = kin["sqrt_s"]
-        kinematic_grids["pIn"][y_index, x_index] = user_params["pIn"]
-        kinematic_grids["pOut"][y_index, x_index] = user_params["pOut"]
+        kinematic_grids["pIn"][y_index, x_index] = kin["pIn"]
+        kinematic_grids["pOut"][y_index, x_index] = kin["pOut"]
         for key in ("Q2", "xB", "t", "W2", "y"):
             kinematic_grids[key][y_index, x_index] = kin[key]
         kinematic_grids["F1"][y_index, x_index] = point["form_factors"]["F1"]
@@ -678,8 +676,6 @@ def scan_spin_density_user_grid(
         "squared_amplitude": squared_amplitude_grid,
         "spin_signal": spin_signal_grid,
         "trace": trace_grid,
-        "t_grid": kinematic_grids["t"],
-        "phi_grid": kinematic_grids["phiOut"],
         "kinematic_grids": kinematic_grids,
         "entanglement": entanglement_grid,
         "entanglement_names": ENTANGLEMENT_NAMES,
@@ -702,7 +698,6 @@ def scan_spin_density_user_grid(
         "entanglement_defined": True,
         "entanglement_mode": entanglement_mode(spin_case),
         "spin_case": spin_case,
-        "scan_parameterization": "user_frame_independent",
     }
 
 
@@ -897,9 +892,10 @@ def _plot_scan_page(
         vmin=vmin,
         vmax=vmax,
     )
-    ax.set_title(title)
-    ax.set_xlabel(x_label)
-    ax.set_ylabel(y_label)
+    ax.set_title(title, fontsize=15)
+    ax.set_xlabel(x_label, fontsize=12)
+    ax.set_ylabel(y_label, fontsize=12)
+    ax.tick_params(labelsize=10)
     return image
 
 
@@ -915,12 +911,12 @@ def save_entanglement_plot(scan, output_path=None):
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     plot_specs = (
-        ("C12", r"$C_{12}$"),
-        ("C13", r"$C_{13}$"),
-        ("C23", r"$C_{23}$"),
-        ("C1_23", r"$C_{1(23)}$"),
-        ("C2_13", r"$C_{2(13)}$"),
-        ("C3_12", r"$C_{3(12)}$"),
+        ("C_e_p", r"$C_{ep}$"),
+        ("C_e_gamma", r"$C_{e\gamma}$"),
+        ("C_p_gamma", r"$C_{p\gamma}$"),
+        ("C_e_rest", r"$C_{e|p\gamma}$"),
+        ("C_p_rest", r"$C_{p|e\gamma}$"),
+        ("C_gamma_rest", r"$C_{\gamma|ep}$"),
         ("F3", r"$F_3$"),
     )
     is_polarized_difference = scan["entanglement_mode"] == "h_in_plus_minus_h_in_minus"
@@ -944,7 +940,9 @@ def save_entanglement_plot(scan, output_path=None):
                 vmin=vmin,
                 vmax=vmax,
             )
-            fig.colorbar(image, ax=ax, label=f"{title_prefix}{label}")
+            colorbar = fig.colorbar(image, ax=ax, label=f"{title_prefix}{label}")
+            colorbar.set_label(f"{title_prefix}{label}", fontsize=12)
+            colorbar.ax.tick_params(labelsize=10)
             pdf.savefig(fig)
             plt.close(fig)
     return output_path
@@ -979,8 +977,6 @@ def save_scan_npz(scan, path=None):
         valid=scan["valid"],
         x_values=scan["x_values"],
         y_values=scan["y_values"],
-        t_grid=scan["t_grid"],
-        phi_grid=scan["phi_grid"],
         **{
             f"grid_{name}": values
             for name, values in scan.get("kinematic_grids", {}).items()
@@ -988,7 +984,6 @@ def save_scan_npz(scan, path=None):
         scan_label=scan["label"],
         x_name=scan["x_name"],
         y_name=scan["y_name"],
-        scan_parameterization=scan["scan_parameterization"],
         out_states=np.asarray(scan["out_states"], dtype=int),
         initial_states=np.asarray(scan["initial_states"], dtype=int),
         incoming_spin_weights=scan["incoming_spin_weights"],
@@ -1010,7 +1005,6 @@ def _matrix_headers(include_matrix_indices):
     headers = [
         "spin_case",
         "entanglement_mode",
-        "scan_parameterization",
         "scan_x_name",
         "scan_x_value",
         "scan_y_name",
@@ -1068,7 +1062,6 @@ def _metadata_row(scan, y_index, x_index):
     return [
         scan["spin_case"],
         scan["entanglement_mode"],
-        scan["scan_parameterization"],
         scan["x_name"],
         f"{scan['x_values'][x_index]:.16e}",
         scan["y_name"],
@@ -1343,7 +1336,6 @@ def build_scan_report(scan, paths):
         "  particle map: 1 = outgoing electron hOut, 2 = outgoing proton sOut, 3 = outgoing photon lambda",
         f"  entanglement observables: {', '.join(scan['entanglement_names'])}",
         f"  entanglement mode: {scan['entanglement_mode']}",
-        f"  scan parameterization: {scan['scan_parameterization']}",
         f"  form factor model: {scan['form_factor_model']} with F1(t), F2(t)",
         f"  {scan['x_name']} grid: {scan['x_values'][0]:.6g} to {scan['x_values'][-1]:.6g}",
         f"  {scan['y_name']} grid: {y_values[0]:.6g} to {y_values[-1]:.6g}",
