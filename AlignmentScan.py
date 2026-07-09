@@ -39,19 +39,19 @@ from SpinDensityMat import (
 
 CHARACTERISTIC_S_POINTS = (
     #("mid_s", 1.00 * USER_S_CENTER),
-    ("high_s", 1.18 * USER_S_CENTER),
+    ("high_s", 1.00 * USER_S_CENTER),
 )
 CHARACTERISTIC_THETA_IN_POINTS = (
     ("high_theta_in", 3.14159/2),
 )
 CHARACTERISTIC_QOUT_POINTS = (
-    ("low_Egamma", 0.75),
-    ("mid_Egamma", 1.25),
-    ("high_Egamma", 1.75),
+    ("low_Egamma", 0.5),
+    ("mid_Egamma", 1.0),
+    ("high_Egamma", 1.8),
 )
 
-PHASE_SPACE_PHI_IN_VALUES = np.linspace(0.0, 2.0 * np.pi, 48, endpoint=False)
-PHASE_SPACE_PHIOUT_VALUES = np.linspace(0.0, 2.0 * np.pi, 48, endpoint=False)
+PHASE_SPACE_PHI_IN_VALUES = np.linspace(0.0, 2.0 * np.pi, 96, endpoint=False)
+PHASE_SPACE_PHIOUT_VALUES = np.linspace(0.0, 2.0 * np.pi, 96, endpoint=False)
 ALIGNMENT_ANGLE_MAX_DEG = 10.0
 ALIGNMENT_ANGLE_MAX_RAD = np.deg2rad(ALIGNMENT_ANGLE_MAX_DEG)
 
@@ -59,6 +59,11 @@ OUTPUT_ROOT = OUTPUT_DIR.parent
 ALIGNMENT_OUTPUT_DIR = OUTPUT_ROOT / "AlignmentScan"
 ALIGNMENT_LOG_PATH = OUTPUT_ROOT / "AlignmentScan.log"
 CONCURRENCE_OUTPUT_DIR = ALIGNMENT_OUTPUT_DIR / "ConcurrenceScan"
+CONCURRENCE_PHASE_SPACE_CSV = (
+    CONCURRENCE_OUTPUT_DIR / "electron_photon_concurrence_phase_space.csv"
+)
+REGENERATE_PLOTS_FROM_CSV = False
+REGENERATE_PLOTS_CSV_PATH = CONCURRENCE_PHASE_SPACE_CSV
 ALIGNMENT_SPIN_CASES = (
     ("unpolarized", "Unpolarized", SPIN_CASE_UNPOLARIZED),
     ("longitudinal_polarized", "Longitudinal polarized", SPIN_CASE_POLARIZED),
@@ -70,6 +75,9 @@ COARSE_CONCURRENCE_NAMES = (
     "C_e_p",
     "C_e_gamma",
     "C_p_gamma",
+    "C_e_rest",
+    "C_p_rest",
+    "C_gamma_rest",
     "M_e",
     "M_p",
     "M_gamma",
@@ -643,7 +651,7 @@ def save_concurrence_scan_csv_files(
     """Save full, aligned-only, and ranked coarse concurrence locator CSV files."""
     output_dir.mkdir(parents=True, exist_ok=True)
     paths = {
-        "all_csv": output_dir / "electron_photon_concurrence_phase_space.csv",
+        "all_csv": output_dir / CONCURRENCE_PHASE_SPACE_CSV.name,
         "aligned_csv": output_dir / "electron_photon_concurrence_aligned.csv",
         "top_concurrence_csv": output_dir / "electron_photon_concurrence_top.csv",
         "top_e_gamma_csv": output_dir / "electron_photon_e_gamma_top.csv",
@@ -661,6 +669,91 @@ def save_concurrence_scan_csv_files(
     return paths
 
 
+def _csv_float(row, key, default=np.nan):
+    """Return a float from a CSV row, using ``default`` for absent/blank values."""
+    value = row.get(key, "")
+    if value == "":
+        return default
+    return float(value)
+
+
+def _csv_bool(row, key):
+    """Return a bool from a CSV row written by the alignment scan."""
+    value = str(row.get(key, "")).strip().lower()
+    return value in {"1", "true", "yes"}
+
+
+def load_concurrence_scan_csv(csv_path=CONCURRENCE_PHASE_SPACE_CSV):
+    """Load saved concurrence scan rows for plot regeneration."""
+    csv_path = Path(csv_path)
+    rows = []
+    missing_observable_columns = set()
+    string_columns = {
+        "kinematic_point",
+        "s_regime",
+        "theta_in_regime",
+        "qOut_regime",
+    }
+    with csv_path.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        fieldnames = set(reader.fieldnames or [])
+        for raw in reader:
+            row = {}
+            for key in _kinematic_csv_headers():
+                if key in string_columns:
+                    row[key] = raw.get(key, "")
+                else:
+                    row[key] = _csv_float(raw, key)
+            row["aligned"] = _csv_bool(raw, "aligned")
+            row["squared_amplitude_M2"] = _csv_float(raw, "squared_amplitude_M2")
+            for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES:
+                for name in COARSE_CONCURRENCE_NAMES:
+                    key = f"{prefix}_{name}"
+                    if key not in fieldnames:
+                        missing_observable_columns.add(key)
+                    row[key] = _csv_float(raw, key)
+            rows.append(row)
+
+    kinematic_points = []
+    seen_points = set()
+    for row in rows:
+        point_id = row["kinematic_point"]
+        if point_id in seen_points:
+            continue
+        seen_points.add(point_id)
+        kinematic_points.append({
+            "kinematic_point": point_id,
+            "s_regime": row["s_regime"],
+            "theta_in_regime": row["theta_in_regime"],
+            "qOut_regime": row["qOut_regime"],
+            "s": row["s"],
+            "theta_in": row["theta_in"],
+            "qOut": row["qOut"],
+        })
+
+    return {
+        "rows": rows,
+        "failures": [],
+        "angle_max_rad": np.nan,
+        "angle_max_deg": np.nan,
+        "kinematic_points": kinematic_points,
+        "s_values": np.asarray([point["s"] for point in kinematic_points], dtype=float),
+        "theta_in_values": np.asarray([point["theta_in"] for point in kinematic_points], dtype=float),
+        "phi_in_electron_values": np.unique(np.asarray([
+            row["phi_in_electron"] for row in rows
+        ], dtype=float)),
+        "qOut_values": np.asarray([point["qOut"] for point in kinematic_points], dtype=float),
+        "phiOut_values": np.unique(np.asarray([row["phiOut"] for row in rows], dtype=float)),
+        "m": M,
+        "form_factor_model": YAHL_MODEL_NAME,
+        "normalized_by_squared_amplitude": NORMALIZE_TRACE,
+        "entanglement_initial_state": ENTANGLEMENT_INITIAL_STATE,
+        "spin_cases": ALIGNMENT_SPIN_CASES,
+        "source_csv": csv_path,
+        "missing_observable_columns": sorted(missing_observable_columns),
+    }
+
+
 def save_concurrence_scan_plot(
     alignment_scan,
     prefix,
@@ -676,7 +769,7 @@ def save_concurrence_scan_plot(
     rows = alignment_scan["rows"]
     if not rows:
         with PdfPages(output_path) as pdf:
-            fig, ax = plt.subplots(figsize=(7.0, 5.0), constrained_layout=True)
+            fig, ax = plt.subplots(figsize=(5.2, 3.6))
             ax.text(
                 0.5,
                 0.5,
@@ -686,7 +779,7 @@ def save_concurrence_scan_plot(
                 fontsize=PLOT_SUPTITLE_FONTSIZE,
             )
             ax.set_axis_off()
-            pdf.savefig(fig)
+            pdf.savefig(fig, bbox_inches="tight")
             plt.close(fig)
         return output_path
 
@@ -711,9 +804,10 @@ def save_concurrence_scan_plot(
                 fig, axes = plt.subplots(
                     nrows,
                     ncols,
-                    figsize=(5.4 * ncols, 4.2 * nrows),
-                    constrained_layout=True,
+                    figsize=(3.9 * ncols, 3.45 * nrows),
                 )
+                subplot_top = 0.78 if nrows == 1 else 0.86
+                fig.subplots_adjust(wspace=0.01, hspace=0.0, top=subplot_top)
                 axes_flat = np.atleast_1d(axes).ravel()
                 anchor_meshes = []
                 label = observable_latex_label(name)
@@ -752,8 +846,10 @@ def save_concurrence_scan_plot(
                     anchor_meshes.append(mesh)
                     best = max(point_rows, key=lambda row: row[f"{prefix}_{name}"])
                     ax.set_title(
-                        f"{anchor['s_regime']}, {anchor['theta_in_regime']}\n"
-                        f"{anchor['qOut_regime']}, max {label}={best[f'{prefix}_{name}']:.3f}",
+                        f"$s={anchor['s']:.3g}\\,{{\\rm GeV}}^2$, "
+                        f"$\\theta_{{\\rm in}}={anchor['theta_in']:.3g}\\,{{\\rm rad}}$\n"
+                        f"$E_\\gamma={anchor['qOut']:.3g}\\,{{\\rm GeV}}$, "
+                        f"max {label}={best[f'{prefix}_{name}']:.3f}",
                         fontsize=ANCHOR_TITLE_FONTSIZE,
                     )
                     if index // ncols == nrows - 1:
@@ -770,12 +866,19 @@ def save_concurrence_scan_plot(
                 fig.suptitle(
                     f"{title_prefix}: {label} two-angle scans at characteristic kinematics",
                     fontsize=PLOT_SUPTITLE_FONTSIZE,
+                    y=0.98,
                 )
                 if anchor_meshes:
-                    colorbar = fig.colorbar(anchor_meshes[-1], ax=axes_flat, label=label, shrink=0.86)
+                    colorbar = fig.colorbar(
+                        anchor_meshes[-1],
+                        ax=axes_flat,
+                        label=label,
+                        shrink=0.86,
+                        pad=0.01,
+                    )
                     colorbar.ax.tick_params(labelsize=PLOT_TICK_FONTSIZE)
                     colorbar.set_label(label, fontsize=PLOT_COLORBAR_FONTSIZE)
-                pdf.savefig(fig)
+                pdf.savefig(fig, bbox_inches="tight")
                 plt.close(fig)
     return output_path
 
@@ -881,8 +984,33 @@ def build_alignment_report(alignment_scan, alignment_paths):
     return "\n".join(lines)
 
 
+def regenerate_concurrence_plots_from_csv(csv_path=CONCURRENCE_PHASE_SPACE_CSV):
+    """Regenerate concurrence plot PDFs from a saved concurrence scan CSV."""
+    alignment_scan = load_concurrence_scan_csv(csv_path)
+    plots = save_concurrence_scan_plots(alignment_scan)
+    return alignment_scan, plots
+
+
 def main():
     """Regenerate final electron-photon alignment scan outputs."""
+    if REGENERATE_PLOTS_FROM_CSV:
+        alignment_scan, plots = regenerate_concurrence_plots_from_csv(REGENERATE_PLOTS_CSV_PATH)
+        lines = [
+            "Regenerated concurrence plots from saved CSV without recalculating amplitudes.",
+            f"  source csv: {alignment_scan['source_csv']}",
+            f"  rows loaded: {len(alignment_scan['rows'])}",
+            f"  characteristic kinematic anchors: {len(alignment_scan['kinematic_points'])}",
+        ]
+        if alignment_scan["missing_observable_columns"]:
+            lines.extend([
+                "  missing observable columns in source csv; affected plots use NaN values:",
+                "    " + ", ".join(alignment_scan["missing_observable_columns"]),
+            ])
+        for prefix, plot_path in plots.items():
+            lines.append(f"  saved {prefix} plot: {plot_path}")
+        print("\n".join(lines))
+        return
+
     clean_alignment_outputs()
     alignment_scan = scan_final_electron_photon_alignment()
     paths = save_alignment_scan_csv_files(alignment_scan)
