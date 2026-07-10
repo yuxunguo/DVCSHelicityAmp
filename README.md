@@ -458,10 +458,10 @@ anchor.
 `ConfigGen.py` reads
 `Output/AlignmentScan/ConcurrenceScan/electron_photon_concurrence_phase_space.csv`
 when available, then falls back to ranked locator CSVs. It finds the strongest
-spin cases for each target observable `C_e_p`, `C_p_gamma`, and `C_e_gamma`,
-clusters the enhanced regions in each fixed-`E_gamma` `phi_in` by
-`phi_gamma` scan, and writes the numerical configuration data under
-`Output/ConfigGen/Data`:
+regions for each target observable `C_e_p`, `C_p_gamma`, and `C_e_gamma`,
+clusters them in each fixed-`E_gamma` `phi_in` by
+`phi_gamma` scan for each polarization config, and writes the numerical
+configuration data under `Output/ConfigGen/Data`:
 
 ```text
 Output/ConfigGen.log
@@ -471,14 +471,15 @@ Output/ConfigGen/Data/max_c_ep_momentum_configurations.csv
 Output/ConfigGen/Data/max_c_ep_final_state_amplitude_decomposition.csv
 Output/ConfigGen/Data/max_c_p_gamma_*.csv
 Output/ConfigGen/Data/max_c_e_gamma_*.csv
-Output/ConfigGen/ByEgamma/<E_gamma>/max_c_ep_regions.pdf
-Output/ConfigGen/ByEgamma/<E_gamma>/max_c_p_gamma_regions.pdf
-Output/ConfigGen/ByEgamma/<E_gamma>/max_c_e_gamma_regions.pdf
+Output/ConfigGen/ByEgamma/<E_gamma>/<polarization>/max_c_ep_regions.pdf
+Output/ConfigGen/ByEgamma/<E_gamma>/<polarization>/max_c_p_gamma_regions.pdf
+Output/ConfigGen/ByEgamma/<E_gamma>/<polarization>/max_c_e_gamma_regions.pdf
 ```
 
-Each PDF fixes one `E_gamma` value and one target concurrence. No PDF combines
-different `E_gamma` values. The first page is the fixed-energy concurrence
-scan map for that target, with the located maximum-concurrence regions marked;
+Each PDF fixes one `E_gamma` value, one target concurrence, and one
+polarization config. No PDF combines different `E_gamma` values or different
+polarization configs. The first page is the fixed-energy concurrence scan map
+for that target and polarization, with the located maximum-concurrence regions marked;
 the map uses the incoming proton azimuth `phi_in` as the x coordinate, draws
 guide lines at `phi_in = pi/2` and `phi_gamma = pi/2`, and uses a fixed
 `0..1` concurrence color scale;
@@ -486,7 +487,7 @@ the following pages show the reconstructed momentum configuration, kinematics,
 and final-state helicity-amplitude decomposition for each selected region.
 The target CSVs include the corresponding per-`E_gamma` region rows in the
 momentum and amplitude tables, and per-spin CSV files are also written for the
-selected strongest spin cases.
+spin cases represented in those selected configuration rows.
 
 Each characteristic page shows the rebuilt user-frame momentum configuration
 as a 3D vector plot and as a transverse `p_x-p_y` projection. The plotted

@@ -620,8 +620,8 @@ def _scan_x_phi(row):
 
 def _add_pi_over_two_reference_lines(ax):
     """Draw the requested pi/2 guide lines on heatmaps."""
-    ax.axvline(0.5 * np.pi, color="white", linestyle="--", linewidth=0.9, alpha=0.9)
-    ax.axhline(0.5 * np.pi, color="white", linestyle="--", linewidth=0.9, alpha=0.9)
+    ax.axvline(0.5 * np.pi, color="white", linestyle="--", linewidth=0.45, alpha=0.45)
+    ax.axhline(0.5 * np.pi, color="white", linestyle="--", linewidth=0.45, alpha=0.45)
 
 
 def _heatmap_color_scale(prefix, observable):

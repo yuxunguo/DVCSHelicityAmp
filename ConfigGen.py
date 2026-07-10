@@ -40,7 +40,7 @@ LEGACY_RANKED_C13_CSV = ALIGNMENT_CONCURRENCE_DIR / "electron_photon_c13_top.csv
 
 OUTPUT_DIR = Path("Output") / "ConfigGen"
 DATA_DIR = OUTPUT_DIR / "Data"
-EGAMMA_CONFIG_DIR = OUTPUT_DIR / "ByEgamma"
+EGAMMA_CONFIG_DIR = OUTPUT_DIR / "Config_Plot_By_Egamma"
 LOG_PATH = Path("Output") / "ConfigGen.log"
 
 CONFIG_TARGETS = (
@@ -577,41 +577,43 @@ def rows_for_qout_group(rows, group_name):
     return [row for row in rows if qout_group_key(row)[0] == group_name]
 
 
-def target_egamma_candidates(rows, target):
-    """Return high-concurrence candidates for one target at one E_gamma."""
+def target_egamma_candidates(rows, target, key):
+    """Return high-concurrence candidates for one target/spin at one E_gamma."""
     observable, _file_tag = target
     candidates = []
     seen = set()
-    for key in target_columns(rows, observable):
-        for row in source_rows_for_key(rows, key):
-            value = parse_float(row.get("rank_value") if row.get("rank_group") == key else row.get(key))
-            if not np.isfinite(value):
-                continue
-            identity = (
-                key,
-                *tuple(row.get(name, "") for name in KINEMATIC_COLUMNS),
-            )
-            if identity in seen:
-                continue
-            seen.add(identity)
-            selected = selected_row(row, key, observable, value)
-            selected["qOut_group"] = qout_group_key(row)[0]
-            selected["qOut_group_value"] = qout_group_key(row)[1]
-            candidates.append(selected)
+    for row in source_rows_for_key(rows, key):
+        value = parse_float(row.get("rank_value") if row.get("rank_group") == key else row.get(key))
+        if not np.isfinite(value):
+            continue
+        identity = (
+            key,
+            *tuple(row.get(name, "") for name in KINEMATIC_COLUMNS),
+        )
+        if identity in seen:
+            continue
+        seen.add(identity)
+        selected = selected_row(row, key, observable, value)
+        selected["qOut_group"] = qout_group_key(row)[0]
+        selected["qOut_group_value"] = qout_group_key(row)[1]
+        candidates.append(selected)
     candidates.sort(key=lambda item: item["selected_concurrence"], reverse=True)
     return candidates[:TOP_ROWS_PER_TARGET_SPIN]
 
 
-def egamma_target_region_rows(target, group_name, clusters):
-    """Return representative detail rows for one E_gamma/target region set."""
+def egamma_target_region_rows(target, group_name, spin_case, clusters):
+    """Return representative detail rows for one E_gamma/target/spin region set."""
     observable, file_tag = target
     detail_rows = []
     for cluster in clusters:
         row = dict(cluster["best"])
         row["selected_observable"] = observable
-        row["selected_region"] = f"{group_name}_region_{cluster['cluster_id']}"
+        row["selected_region"] = f"{group_name}_{spin_case}_region_{cluster['cluster_id']}"
         row["cluster_id"] = cluster["cluster_id"]
-        row["detail_id"] = f"{file_tag}_{file_safe_label(group_name)}_region_{cluster['cluster_id']}"
+        row["detail_id"] = (
+            f"{file_tag}_{file_safe_label(group_name)}_"
+            f"{file_safe_label(spin_case)}_region_{cluster['cluster_id']}"
+        )
         row["detail_source"] = "egamma_region_max"
         detail_rows.append(row)
     return detail_rows
@@ -836,8 +838,8 @@ def _binned_mean_2d(x_values, y_values, z_values, x_edges, y_edges):
 
 def add_pi_over_two_reference_lines(ax):
     """Draw requested pi/2 reference lines on scan maps."""
-    ax.axvline(0.5 * math.pi, color="white", linestyle="--", linewidth=1.0, alpha=0.9)
-    ax.axhline(0.5 * math.pi, color="white", linestyle="--", linewidth=1.0, alpha=0.9)
+    ax.axvline(0.5 * math.pi, color="white", linestyle="--", linewidth=0.45, alpha=0.45)
+    ax.axhline(0.5 * math.pi, color="white", linestyle="--", linewidth=0.45, alpha=0.45)
 
 
 def plot_scan_map(plt, pdf, rows, key, observable, spin_case, clusters):
@@ -906,21 +908,19 @@ def plot_scan_map(plt, pdf, rows, key, observable, spin_case, clusters):
     plt.close(fig)
 
 
-def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, clusters):
-    """Append one fixed-E_gamma target scan map with region markers."""
+def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, spin_case, key, clusters):
+    """Append one fixed-E_gamma/target/spin scan map with region markers."""
     observable, _file_tag = target
     x_values = []
     y_values = []
     z_values = []
-    spin_labels = []
     for row in rows:
-        value, key = max_concurrence_for_row(row, observable)
+        value = parse_float(row.get("rank_value") if row.get("rank_group") == key else row.get(key))
         if not np.isfinite(value):
             continue
         x_values.append(scan_x_phi(row))
         y_values.append(parse_float(row.get("phiOut")))
         z_values.append(value)
-        spin_labels.append(spin_label_from_key(key, observable))
     x = np.asarray(x_values, dtype=float)
     y = np.asarray(y_values, dtype=float)
     z = np.asarray(z_values, dtype=float)
@@ -967,7 +967,7 @@ def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, clusters):
             va="center",
         )
     ax.set_title(
-        f"{group_name}: max {observable_latex_label(observable)} regions",
+        f"{group_name} {spin_case}: max {observable_latex_label(observable)} regions",
         fontsize=14,
     )
     add_pi_over_two_reference_lines(ax)
@@ -1347,43 +1347,58 @@ def save_egamma_config_pdfs(energy_rows, base_dir):
     return outputs
 
 
-def egamma_target_pdf_path(group_name, target):
-    """Return the PDF path for one fixed E_gamma and target concurrence."""
+def egamma_target_pdf_path(group_name, target, spin_case):
+    """Return the PDF path for one fixed E_gamma, target, and spin case."""
     _observable, file_tag = target
     return (
         EGAMMA_CONFIG_DIR
         / file_safe_label(group_name)
+        / file_safe_label(spin_case)
         / f"max_{file_tag}_regions.pdf"
     )
 
 
-def save_egamma_target_region_pdf(target, group_name, rows):
-    """Save one PDF for one E_gamma/target with clustered max-C regions."""
-    candidates = target_egamma_candidates(rows, target)
+def save_egamma_target_region_pdf(target, group_name, rows, key):
+    """Save one PDF for one E_gamma/target/spin with clustered max-C regions."""
+    observable, _file_tag = target
+    spin_case = spin_label_from_key(key, observable)
+    candidates = target_egamma_candidates(rows, target, key)
     if not candidates:
         return None, []
     clusters = cluster_candidates(candidates)
-    detail_rows = egamma_target_region_rows(target, group_name, clusters)
-    path = egamma_target_pdf_path(group_name, target)
+    detail_rows = egamma_target_region_rows(target, group_name, spin_case, clusters)
+    path = egamma_target_pdf_path(group_name, target, spin_case)
     plt, PdfPages = _require_matplotlib()
     path.parent.mkdir(parents=True, exist_ok=True)
     with PdfPages(path) as pdf:
-        plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, clusters)
+        plot_egamma_target_scan_map(
+            plt,
+            pdf,
+            rows,
+            target,
+            group_name,
+            spin_case,
+            key,
+            clusters,
+        )
         save_detail_pages(pdf, plt, detail_rows)
     return path, detail_rows
 
 
 def save_all_egamma_target_region_pdfs(rows):
-    """Write separate PDFs for every E_gamma and target concurrence."""
+    """Write separate PDFs for every E_gamma, target concurrence, and spin case."""
     outputs = []
     detail_rows = []
     for group_name, _qout in qout_groups(rows):
         group_rows = rows_for_qout_group(rows, group_name)
         for target in CONFIG_TARGETS:
-            path, details = save_egamma_target_region_pdf(target, group_name, group_rows)
-            if path is not None:
-                outputs.append((group_name, target[0], path, len(details)))
-                detail_rows.extend(details)
+            observable, _file_tag = target
+            for key in target_columns(group_rows, observable):
+                spin_case = spin_label_from_key(key, observable)
+                path, details = save_egamma_target_region_pdf(target, group_name, group_rows, key)
+                if path is not None:
+                    outputs.append((group_name, target[0], spin_case, path, len(details)))
+                    detail_rows.extend(details)
     return outputs, detail_rows
 
 
@@ -1538,18 +1553,18 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
         f"  total input rows: {total_rows}",
         f"  data csv folder: {DATA_DIR}",
         f"  per-E_gamma config folder: {EGAMMA_CONFIG_DIR}",
-        f"  per-E_gamma/target PDFs: {len(egamma_outputs)}",
+        f"  per-E_gamma/target/polarization PDFs: {len(egamma_outputs)}",
         f"  targets: {', '.join(observable_text_label(observable) for observable, _ in CONFIG_TARGETS)}",
         f"  max spin cases per target: {MAX_SPIN_CASES_PER_TARGET}",
         f"  top rows per target/spin case: {TOP_ROWS_PER_TARGET_SPIN}",
         f"  cluster radius: {CLUSTER_RADIUS}",
         f"  max clusters per target/spin case: {MAX_CLUSTERS_PER_TARGET_SPIN}",
-        "  no PDF combines different E_gamma values",
-        "  saved per-E_gamma/target config PDFs:",
+        "  no PDF combines different E_gamma values or polarization configs",
+        "  saved per-E_gamma/target/polarization config PDFs:",
     ]
-    for group_name, observable, path, region_count in egamma_outputs:
+    for group_name, observable, spin_case, path, region_count in egamma_outputs:
         label = observable_text_label(observable)
-        lines.append(f"    {group_name} {label}: {path} ({region_count} regions)")
+        lines.append(f"    {group_name} {spin_case} {label}: {path} ({region_count} regions)")
     lines.extend([
         "",
     ])

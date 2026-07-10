@@ -2,29 +2,65 @@ Max pairwise-concurrence configuration generator from AlignmentScan results
   input csv: Output\AlignmentScan\ConcurrenceScan\electron_photon_concurrence_phase_space.csv
   total input rows: 27360
   data csv folder: Output\ConfigGen\Data
-  per-E_gamma config folder: Output\ConfigGen\ByEgamma
-  per-E_gamma/target PDFs: 9
+  per-E_gamma config folder: Output\ConfigGen\Config_Plot_By_Egamma
+  per-E_gamma/target/polarization PDFs: 45
   targets: C_{ep}, C_{p\gamma}, C_{e\gamma}
   max spin cases per target: 2
   top rows per target/spin case: 80
   cluster radius: 0.42
   max clusters per target/spin case: 4
-  no PDF combines different E_gamma values
-  saved per-E_gamma/target config PDFs:
-    low_Egamma C_{ep}: Output\ConfigGen\ByEgamma\low_egamma\max_c_ep_regions.pdf (2 regions)
-    low_Egamma C_{p\gamma}: Output\ConfigGen\ByEgamma\low_egamma\max_c_p_gamma_regions.pdf (4 regions)
-    low_Egamma C_{e\gamma}: Output\ConfigGen\ByEgamma\low_egamma\max_c_e_gamma_regions.pdf (1 regions)
-    mid_Egamma C_{ep}: Output\ConfigGen\ByEgamma\mid_egamma\max_c_ep_regions.pdf (2 regions)
-    mid_Egamma C_{p\gamma}: Output\ConfigGen\ByEgamma\mid_egamma\max_c_p_gamma_regions.pdf (2 regions)
-    mid_Egamma C_{e\gamma}: Output\ConfigGen\ByEgamma\mid_egamma\max_c_e_gamma_regions.pdf (1 regions)
-    high_Egamma C_{ep}: Output\ConfigGen\ByEgamma\high_egamma\max_c_ep_regions.pdf (4 regions)
-    high_Egamma C_{p\gamma}: Output\ConfigGen\ByEgamma\high_egamma\max_c_p_gamma_regions.pdf (2 regions)
-    high_Egamma C_{e\gamma}: Output\ConfigGen\ByEgamma\high_egamma\max_c_e_gamma_regions.pdf (1 regions)
+  no PDF combines different E_gamma values or polarization configs
+  saved per-E_gamma/target/polarization config PDFs:
+    low_Egamma unpolarized C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\unpolarized\max_c_ep_regions.pdf (4 regions)
+    low_Egamma longitudinal_polarized C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\longitudinal_polarized\max_c_ep_regions.pdf (4 regions)
+    low_Egamma Tx C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\tx\max_c_ep_regions.pdf (3 regions)
+    low_Egamma Ty C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\ty\max_c_ep_regions.pdf (3 regions)
+    low_Egamma double_transverse C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\double_transverse\max_c_ep_regions.pdf (2 regions)
+    low_Egamma unpolarized C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\unpolarized\max_c_p_gamma_regions.pdf (3 regions)
+    low_Egamma longitudinal_polarized C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\longitudinal_polarized\max_c_p_gamma_regions.pdf (4 regions)
+    low_Egamma Tx C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\tx\max_c_p_gamma_regions.pdf (2 regions)
+    low_Egamma Ty C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\ty\max_c_p_gamma_regions.pdf (2 regions)
+    low_Egamma double_transverse C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\double_transverse\max_c_p_gamma_regions.pdf (3 regions)
+    low_Egamma unpolarized C_{e\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\unpolarized\max_c_e_gamma_regions.pdf (4 regions)
+    low_Egamma longitudinal_polarized C_{e\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\longitudinal_polarized\max_c_e_gamma_regions.pdf (4 regions)
+    low_Egamma Tx C_{e\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\tx\max_c_e_gamma_regions.pdf (1 regions)
+    low_Egamma Ty C_{e\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\ty\max_c_e_gamma_regions.pdf (1 regions)
+    low_Egamma double_transverse C_{e\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\double_transverse\max_c_e_gamma_regions.pdf (1 regions)
+    mid_Egamma unpolarized C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\unpolarized\max_c_ep_regions.pdf (4 regions)
+    mid_Egamma longitudinal_polarized C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\longitudinal_polarized\max_c_ep_regions.pdf (4 regions)
+    mid_Egamma Tx C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\tx\max_c_ep_regions.pdf (3 regions)
+    mid_Egamma Ty C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\ty\max_c_ep_regions.pdf (3 regions)
+    mid_Egamma double_transverse C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\double_transverse\max_c_ep_regions.pdf (2 regions)
+    mid_Egamma unpolarized C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\unpolarized\max_c_p_gamma_regions.pdf (3 regions)
+    mid_Egamma longitudinal_polarized C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\longitudinal_polarized\max_c_p_gamma_regions.pdf (3 regions)
+    mid_Egamma Tx C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\tx\max_c_p_gamma_regions.pdf (3 regions)
+    mid_Egamma Ty C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\ty\max_c_p_gamma_regions.pdf (3 regions)
+    mid_Egamma double_transverse C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\double_transverse\max_c_p_gamma_regions.pdf (1 regions)
+    mid_Egamma unpolarized C_{e\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\unpolarized\max_c_e_gamma_regions.pdf (4 regions)
+    mid_Egamma longitudinal_polarized C_{e\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\longitudinal_polarized\max_c_e_gamma_regions.pdf (4 regions)
+    mid_Egamma Tx C_{e\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\tx\max_c_e_gamma_regions.pdf (1 regions)
+    mid_Egamma Ty C_{e\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\ty\max_c_e_gamma_regions.pdf (1 regions)
+    mid_Egamma double_transverse C_{e\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\double_transverse\max_c_e_gamma_regions.pdf (1 regions)
+    high_Egamma unpolarized C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\unpolarized\max_c_ep_regions.pdf (4 regions)
+    high_Egamma longitudinal_polarized C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\longitudinal_polarized\max_c_ep_regions.pdf (4 regions)
+    high_Egamma Tx C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\tx\max_c_ep_regions.pdf (1 regions)
+    high_Egamma Ty C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\ty\max_c_ep_regions.pdf (1 regions)
+    high_Egamma double_transverse C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\double_transverse\max_c_ep_regions.pdf (3 regions)
+    high_Egamma unpolarized C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\unpolarized\max_c_p_gamma_regions.pdf (1 regions)
+    high_Egamma longitudinal_polarized C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\longitudinal_polarized\max_c_p_gamma_regions.pdf (3 regions)
+    high_Egamma Tx C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\tx\max_c_p_gamma_regions.pdf (3 regions)
+    high_Egamma Ty C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\ty\max_c_p_gamma_regions.pdf (3 regions)
+    high_Egamma double_transverse C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\double_transverse\max_c_p_gamma_regions.pdf (1 regions)
+    high_Egamma unpolarized C_{e\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\unpolarized\max_c_e_gamma_regions.pdf (4 regions)
+    high_Egamma longitudinal_polarized C_{e\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\longitudinal_polarized\max_c_e_gamma_regions.pdf (4 regions)
+    high_Egamma Tx C_{e\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\tx\max_c_e_gamma_regions.pdf (1 regions)
+    high_Egamma Ty C_{e\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\ty\max_c_e_gamma_regions.pdf (1 regions)
+    high_Egamma double_transverse C_{e\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\double_transverse\max_c_e_gamma_regions.pdf (1 regions)
 
 Target C_{ep}:
   selected spin cases: double_transverse, Ty
   clusters: 6
-  per-E_gamma region detail rows: 8
+  per-E_gamma region detail rows: 45
   examples: 12
   saved examples csv: Output\ConfigGen\Data\max_c_ep_configuration_examples.csv
   saved clusters csv: Output\ConfigGen\Data\max_c_ep_cluster_summary.csv
@@ -34,15 +70,27 @@ Target C_{ep}:
     examples:
       double_transverse: Output\ConfigGen\Data\max_c_ep_configuration_examples_double_transverse.csv
       Ty: Output\ConfigGen\Data\max_c_ep_configuration_examples_ty.csv
+      unpolarized: Output\ConfigGen\Data\max_c_ep_configuration_examples_unpolarized.csv
+      longitudinal_polarized: Output\ConfigGen\Data\max_c_ep_configuration_examples_longitudinal_polarized.csv
+      Tx: Output\ConfigGen\Data\max_c_ep_configuration_examples_tx.csv
     clusters:
       double_transverse: Output\ConfigGen\Data\max_c_ep_cluster_summary_double_transverse.csv
       Ty: Output\ConfigGen\Data\max_c_ep_cluster_summary_ty.csv
+      unpolarized: Output\ConfigGen\Data\max_c_ep_cluster_summary_unpolarized.csv
+      longitudinal_polarized: Output\ConfigGen\Data\max_c_ep_cluster_summary_longitudinal_polarized.csv
+      Tx: Output\ConfigGen\Data\max_c_ep_cluster_summary_tx.csv
     momentum configurations:
       double_transverse: Output\ConfigGen\Data\max_c_ep_momentum_configurations_double_transverse.csv
       Ty: Output\ConfigGen\Data\max_c_ep_momentum_configurations_ty.csv
+      unpolarized: Output\ConfigGen\Data\max_c_ep_momentum_configurations_unpolarized.csv
+      longitudinal_polarized: Output\ConfigGen\Data\max_c_ep_momentum_configurations_longitudinal_polarized.csv
+      Tx: Output\ConfigGen\Data\max_c_ep_momentum_configurations_tx.csv
     final-state amplitude decomposition:
       double_transverse: Output\ConfigGen\Data\max_c_ep_final_state_amplitude_decomposition_double_transverse.csv
       Ty: Output\ConfigGen\Data\max_c_ep_final_state_amplitude_decomposition_ty.csv
+      unpolarized: Output\ConfigGen\Data\max_c_ep_final_state_amplitude_decomposition_unpolarized.csv
+      longitudinal_polarized: Output\ConfigGen\Data\max_c_ep_final_state_amplitude_decomposition_longitudinal_polarized.csv
+      Tx: Output\ConfigGen\Data\max_c_ep_final_state_amplitude_decomposition_tx.csv
   enhanced regions:
     double_transverse region 0: size=44, max_C_{ep}=0.968441, phi_p_in=4.64694..4.77784, phi_gamma=0.850848..2.29074, final_pair_delta_xy=2.98781..3.14159, Q2=19.1123..19.5602, xB=0.966135..0.987788, t=-15.6033..-15.1473
       best: s=21.5158, theta_in=1.57079, phi_e_in=1.5708, phi_p_in=4.71239, qOut=0.5, phi_gamma=1.5708, pair_delta_xy=3.14159, Q2=19.5602, xB=0.987788, t=-15.1635
@@ -60,7 +108,7 @@ Target C_{ep}:
 Target C_{p\gamma}:
   selected spin cases: double_transverse, unpolarized
   clusters: 6
-  per-E_gamma region detail rows: 8
+  per-E_gamma region detail rows: 38
   examples: 12
   saved examples csv: Output\ConfigGen\Data\max_c_p_gamma_configuration_examples.csv
   saved clusters csv: Output\ConfigGen\Data\max_c_p_gamma_cluster_summary.csv
@@ -70,15 +118,27 @@ Target C_{p\gamma}:
     examples:
       double_transverse: Output\ConfigGen\Data\max_c_p_gamma_configuration_examples_double_transverse.csv
       unpolarized: Output\ConfigGen\Data\max_c_p_gamma_configuration_examples_unpolarized.csv
+      longitudinal_polarized: Output\ConfigGen\Data\max_c_p_gamma_configuration_examples_longitudinal_polarized.csv
+      Tx: Output\ConfigGen\Data\max_c_p_gamma_configuration_examples_tx.csv
+      Ty: Output\ConfigGen\Data\max_c_p_gamma_configuration_examples_ty.csv
     clusters:
       double_transverse: Output\ConfigGen\Data\max_c_p_gamma_cluster_summary_double_transverse.csv
       unpolarized: Output\ConfigGen\Data\max_c_p_gamma_cluster_summary_unpolarized.csv
+      longitudinal_polarized: Output\ConfigGen\Data\max_c_p_gamma_cluster_summary_longitudinal_polarized.csv
+      Tx: Output\ConfigGen\Data\max_c_p_gamma_cluster_summary_tx.csv
+      Ty: Output\ConfigGen\Data\max_c_p_gamma_cluster_summary_ty.csv
     momentum configurations:
       double_transverse: Output\ConfigGen\Data\max_c_p_gamma_momentum_configurations_double_transverse.csv
       unpolarized: Output\ConfigGen\Data\max_c_p_gamma_momentum_configurations_unpolarized.csv
+      longitudinal_polarized: Output\ConfigGen\Data\max_c_p_gamma_momentum_configurations_longitudinal_polarized.csv
+      Tx: Output\ConfigGen\Data\max_c_p_gamma_momentum_configurations_tx.csv
+      Ty: Output\ConfigGen\Data\max_c_p_gamma_momentum_configurations_ty.csv
     final-state amplitude decomposition:
       double_transverse: Output\ConfigGen\Data\max_c_p_gamma_final_state_amplitude_decomposition_double_transverse.csv
       unpolarized: Output\ConfigGen\Data\max_c_p_gamma_final_state_amplitude_decomposition_unpolarized.csv
+      longitudinal_polarized: Output\ConfigGen\Data\max_c_p_gamma_final_state_amplitude_decomposition_longitudinal_polarized.csv
+      Tx: Output\ConfigGen\Data\max_c_p_gamma_final_state_amplitude_decomposition_tx.csv
+      Ty: Output\ConfigGen\Data\max_c_p_gamma_final_state_amplitude_decomposition_ty.csv
   enhanced regions:
     double_transverse region 0: size=29, max_C_{p\gamma}=0.999931, phi_p_in=1.5708..1.5708, phi_gamma=0.654498..2.48709, final_pair_delta_xy=0..0.916298, Q2=8.60837e-12..0.166233, xB=3.55992e-11..0.151761, t=-0.0521317..-0.0353977
       best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=0.5, phi_gamma=1.5708, pair_delta_xy=0, Q2=8.60837e-12, xB=3.55992e-11, t=-0.0521317
@@ -96,7 +156,7 @@ Target C_{p\gamma}:
 Target C_{e\gamma}:
   selected spin cases: double_transverse, Ty
   clusters: 2
-  per-E_gamma region detail rows: 3
+  per-E_gamma region detail rows: 33
   examples: 4
   saved examples csv: Output\ConfigGen\Data\max_c_e_gamma_configuration_examples.csv
   saved clusters csv: Output\ConfigGen\Data\max_c_e_gamma_cluster_summary.csv
@@ -106,15 +166,27 @@ Target C_{e\gamma}:
     examples:
       double_transverse: Output\ConfigGen\Data\max_c_e_gamma_configuration_examples_double_transverse.csv
       Ty: Output\ConfigGen\Data\max_c_e_gamma_configuration_examples_ty.csv
+      unpolarized: Output\ConfigGen\Data\max_c_e_gamma_configuration_examples_unpolarized.csv
+      longitudinal_polarized: Output\ConfigGen\Data\max_c_e_gamma_configuration_examples_longitudinal_polarized.csv
+      Tx: Output\ConfigGen\Data\max_c_e_gamma_configuration_examples_tx.csv
     clusters:
       double_transverse: Output\ConfigGen\Data\max_c_e_gamma_cluster_summary_double_transverse.csv
       Ty: Output\ConfigGen\Data\max_c_e_gamma_cluster_summary_ty.csv
+      unpolarized: Output\ConfigGen\Data\max_c_e_gamma_cluster_summary_unpolarized.csv
+      longitudinal_polarized: Output\ConfigGen\Data\max_c_e_gamma_cluster_summary_longitudinal_polarized.csv
+      Tx: Output\ConfigGen\Data\max_c_e_gamma_cluster_summary_tx.csv
     momentum configurations:
       double_transverse: Output\ConfigGen\Data\max_c_e_gamma_momentum_configurations_double_transverse.csv
       Ty: Output\ConfigGen\Data\max_c_e_gamma_momentum_configurations_ty.csv
+      unpolarized: Output\ConfigGen\Data\max_c_e_gamma_momentum_configurations_unpolarized.csv
+      longitudinal_polarized: Output\ConfigGen\Data\max_c_e_gamma_momentum_configurations_longitudinal_polarized.csv
+      Tx: Output\ConfigGen\Data\max_c_e_gamma_momentum_configurations_tx.csv
     final-state amplitude decomposition:
       double_transverse: Output\ConfigGen\Data\max_c_e_gamma_final_state_amplitude_decomposition_double_transverse.csv
       Ty: Output\ConfigGen\Data\max_c_e_gamma_final_state_amplitude_decomposition_ty.csv
+      unpolarized: Output\ConfigGen\Data\max_c_e_gamma_final_state_amplitude_decomposition_unpolarized.csv
+      longitudinal_polarized: Output\ConfigGen\Data\max_c_e_gamma_final_state_amplitude_decomposition_longitudinal_polarized.csv
+      Tx: Output\ConfigGen\Data\max_c_e_gamma_final_state_amplitude_decomposition_tx.csv
   enhanced regions:
     double_transverse region 0: size=80, max_C_{e\gamma}=0.930653, phi_p_in=0.916298..2.22529, phi_gamma=4.51604..4.90874, final_pair_delta_xy=0.340106..0.958887, Q2=0.000159597..1.76985, xB=9.60888e-06..0.10005, t=-2.03538..-0.0210568
       best: s=21.5158, theta_in=1.57079, phi_e_in=4.45059, phi_p_in=1.309, qOut=1.8, phi_gamma=4.64694, pair_delta_xy=0.340106, Q2=0.271268, xB=0.01607, t=-0.335629
