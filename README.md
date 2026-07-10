@@ -217,20 +217,26 @@ in_state   (hIn, sIn), 4 possibilities
 out_state  (hOut, sOut, lambda), 8 possibilities
 ```
 
-The outgoing density matrix is constructed as:
+At every kinematic point the code first constructs the full five-qubit
+process density matrix in the basis
+`(hIn,sIn,hOut,sOut,lambda)`:
 
 ```text
-rho_ij = sum_initial A_initial,i * conj(A_initial,j)
+R_(a,f;b,g) = A_(a,f) * conj(A_(b,g)),  shape(R) = 32 x 32
 ```
 
-The squared amplitude used for normalization is:
+The incoming state is `rho_e (x) rho_p`. An unpolarized particle uses `I/2`;
+`L`, `Tx`, and `Ty` use pure-state projectors. Contracting and tracing the two
+incoming qubits gives the full outgoing matrix:
 
 ```text
-M^2 = sum_initial,outgoing |A_initial,outgoing|^2
+rho_out = Tr_in[(rho_in^T (x) I_out) R],  shape(rho_out) = 8 x 8
 ```
 
-When `NORMALIZE_TRACE = True`, the stored density matrix is normalized by
-this `M^2`, so valid scan points should satisfy:
+When `NORMALIZE_TRACE = True`, each stored outgoing density matrix is
+normalized by its own trace, so valid points satisfy `Tr(rho_out)=1`.
+`squared_amplitude_M2` remains the fully unpolarized cross section and
+`spin_signal_M2/squared_amplitude_M2` is stored as `cross_section_ratio`.
 
 ```text
 Tr(rho) = 1
@@ -241,18 +247,11 @@ the scans. The benchmark verifies the trace condition after normalization.
 
 ## Entanglement Observables
 
-The concurrence observables in `SpinDensityMat.py` are evaluated from one
-fixed incoming pure amplitude row:
-
-```text
-ENTANGLEMENT_INITIAL_STATE = (+1, +1)
-```
-
-This is separate from the helicity-summed density matrix saved for the scan.
-The reason is that Eq. (3)-(6) of arXiv:2310.01477v2 are pure-state
-three-qubit formulas. Summing over incoming helicities produces a mixed
-outgoing state, which is not directly compatible with those pure-state
-concurrence definitions.
+All reductions are taken from this contracted `8 x 8` matrix. Pairwise
+Wootters concurrence is valid for both mixed and pure outgoing states. The
+one-to-rest concurrence, `F3`, and CKW residual formulas used here require a
+pure three-qubit state; those columns are `NaN` when an unpolarized incoming
+particle makes the contracted outgoing state mixed.
 
 The output columns are:
 
@@ -272,21 +271,19 @@ M_gamma     CKW monogamy residual C_gamma_rest^2 - C_e_gamma^2 - C_p_gamma^2
 ## Generated Output
 
 Running `SpinDensityMat.py` cleans and regenerates the spin-density scan
-outputs. The current unpolarized density-matrix scans are written under
-`unpolarized`, the incoming-electron polarized helicity-difference scans are
-written under `polarized`, and the coherent transverse incoming-electron scans
-are written under `transverse_Tx` and `transverse_Ty`:
+outputs. Spin-case folders follow the direct prepared-state names:
 
 ```text
 Output/SpinDensityMat.log
 Output/SpinDensityMat/unpolarized/user_s_qOut/
 Output/SpinDensityMat/unpolarized/user_theta_in_phiOut/
-Output/SpinDensityMat/polarized/user_s_qOut/
-Output/SpinDensityMat/polarized/user_theta_in_phiOut/
-Output/SpinDensityMat/transverse_Tx/user_s_qOut/
-Output/SpinDensityMat/transverse_Tx/user_theta_in_phiOut/
-Output/SpinDensityMat/transverse_Ty/user_s_qOut/
-Output/SpinDensityMat/transverse_Ty/user_theta_in_phiOut/
+Output/SpinDensityMat/L_proton/...
+Output/SpinDensityMat/L_electron/...
+Output/SpinDensityMat/Tx_proton/...
+Output/SpinDensityMat/Ty_proton/...
+Output/SpinDensityMat/Tx_electron/...
+Output/SpinDensityMat/Ty_electron/...
+Output/SpinDensityMat/LL|LTx|LTy|TxTx|TxTy/...
 ```
 
 Each scan folder contains:
@@ -298,17 +295,11 @@ spin_density_scan_<spin-label>_<scan>.npz
     measures.
 
 spin_entanglement_scan_<spin-label>_<scan>.csv
-    Summary CSV containing one row per valid kinematic point. The unpolarized
-    folders contain pure-initial-state observables; the polarized folders
-    contain hIn=+1 minus hIn=-1 entanglement differences at the configured
-    incoming proton spin; the transverse Tx and Ty folders contain observables
-    for (hIn=+1 + hIn=-1)/sqrt(2) and
-    (hIn=+1 + i hIn=-1)/sqrt(2), respectively, at the configured incoming
-    proton spin.
+    Summary CSV containing the contracted-state purity, cross-section ratio,
+    pairwise mixed-state concurrences, and pure-only observables where valid.
 
 spin_entanglement_scan_<spin-label>_<scan>.pdf
-    Multi-page PDF heatmaps for the concurrence observables and F3. Polarized
-    plots use a signed color scale for the helicity-difference observables.
+    Multi-page PDF heatmaps for the defined concurrence observables and F3.
 
 SpinDensityScan/
     Per-kinematic-point CSV files and two matrix plots per valid point:
@@ -317,8 +308,7 @@ SpinDensityScan/
 
 ```
 
-The spin labels used in filenames are `unpolarized`,
-`longitudinal_polarized`, `transverse_Tx`, and `transverse_Ty`.
+The spin labels used in filenames are the same prepared-state names.
 
 Running `AlignmentScan.py` cleans and regenerates:
 
@@ -338,48 +328,28 @@ characteristic user-frame anchors. Each anchor fixes `s`, `theta_in`, and
 `phi_gamma` on a 48 by 48 grid. The stored outgoing-photon azimuth column is
 still named `phiOut`, and the internal proton azimuth is still written as
 `phi_in`.
-The `ConcurrenceScan` folder stores concurrence, F3, and monogamy-residual
-CSVs and PDFs. It covers unpolarized, longitudinal polarized, transverse Tx
-polarized, and transverse Ty polarized incoming-electron spin cases, plus a
-double-transverse case where the incoming electron and proton are both
-polarized along the same transverse Tx direction.
+The `ConcurrenceScan` folder stores all twelve prepared-state categories:
+`unpolarized`; `L_proton`, `L_electron`; `Tx_proton`, `Ty_proton`;
+`Tx_electron`, `Ty_electron`; and `LL`, `LTx`, `LTy`, `TxTx`, `TxTy`.
+In a double label the electron state is listed first and the proton state
+second. `L` means the direct positive-helicity state, not a helicity
+asymmetry.
 Set `HEATMAP_PLOT_STYLE` in `AlignmentScan.py` to `"grid"` for binned cell
 plots or `"contour"` for filled contour plots. AlignmentScan heatmaps plot
 the incoming proton azimuth `phi_in` on the x axis and `phi_gamma` on the y
 axis, with guide lines at `phi_in = pi/2` and `phi_gamma = pi/2`.
 `HEATMAP_MAX_BINS` controls the plotted bin count per angular axis, and
 `HEATMAP_CONTOUR_LEVELS` controls the number of filled contour bands.
-Heatmap color scales are fixed to absolute ranges: `0..1` for nonnegative
-observables and `-1..1` for signed observables.
+Heatmap color scales are `0..1` for concurrence and `-1..1` only for
+quantities such as numerical monogamy residuals that can be signed.
 
 The top-level spin-density log records the scan settings, particle map, trace
 benchmark, normalization convention, saved paths, and invalid kinematic
 points if any occur.
 
-The polarized scan matrix is
-`sum_sIn rho(hIn=+1,sIn) - sum_sIn rho(hIn=-1,sIn)`. When trace
-normalization is enabled, this helicity-difference matrix is divided by the
-unpolarized squared amplitude `M^2`, so the matrix output remains available
-even when the helicity-difference trace is zero.
-
-The polarized entanglement scan is
-`E(hIn=+1,sIn) - E(hIn=-1,sIn)` for each concurrence/F3 observable, using
-the configured `ENTANGLEMENT_INITIAL_STATE` proton spin.
-
-The transverse Tx scan matrix is
-`sum_sIn rho((hIn=+1 + hIn=-1)/sqrt(2),sIn)`, including the coherent
-interference between incoming electron helicities. The transverse Ty scan
-matrix uses
-`sum_sIn rho((hIn=+1 + i hIn=-1)/sqrt(2),sIn)`. When trace normalization is
-enabled, each transverse matrix is divided by the unpolarized squared
-amplitude `M^2`.
-
-The transverse entanglement scans use the same Tx and Ty coherent incoming
-electron states at the configured `ENTANGLEMENT_INITIAL_STATE` proton spin.
-
-The alignment and helper-level double-transverse category uses the coherent incoming state
-`(|hIn=+1> + |hIn=-1>) (|sIn=+1> + |sIn=-1>) / 2`, so the initial electron
-and proton are both polarized along the same transverse Tx direction.
+Every category uses the same `32 x 32 -> 8 x 8` contraction. A particle not
+named as polarized is traced with `I/2`; named states are contracted with
+their direct projectors. No polarized category is formed as an asymmetry.
 
 The final electron-photon alignment scan uses `ALIGNMENT_ANGLE_MAX_DEG`
 in `AlignmentScan.py` as its small-angle cut. Its main spin-correlation observable is
@@ -400,8 +370,8 @@ columns:
 
 ```text
 spin_case,entanglement_mode,Q2,t,phi,squared_amplitude_M2,spin_signal_M2,
-trace,normalized_by_squared_amplitude,
-entanglement_h_in,entanglement_s_in,C_e_p,C_e_gamma,C_p_gamma,
+cross_section_ratio,purity,trace,normalized_to_unit_trace,
+C_e_p,C_e_gamma,C_p_gamma,
 C_e_rest,C_p_rest,C_gamma_rest,F3,M_e,M_p,M_gamma
 ```
 
@@ -409,28 +379,30 @@ The per-point density-matrix CSV files include:
 
 ```text
 spin_case,entanglement_mode,Q2,t,phi,squared_amplitude_M2,spin_signal_M2,
-trace,normalized_by_squared_amplitude,
-entanglement_h_in,entanglement_s_in,C_e_p,C_e_gamma,C_p_gamma,
+cross_section_ratio,purity,trace,normalized_to_unit_trace,
+C_e_p,C_e_gamma,C_p_gamma,
 C_e_rest,C_p_rest,C_gamma_rest,F3,M_e,M_p,M_gamma,
 row_index,row_h_out,row_s_out,row_lambda,col_index,
 col_h_out,col_s_out,col_lambda,rho_real,rho_imag,rho_abs,rho_phase
 ```
 
-`spin_signal_M2` is the same as `squared_amplitude_M2` for unpolarized scans,
-the signed helicity-difference trace numerator for polarized scans, and the
-transverse trace numerator for Tx and Ty transverse scans.
-`rho_abs` is the matrix-entry norm after the configured `M^2` normalization.
+`spin_signal_M2` is the cross section for the requested prepared state.
+`rho_abs` is the matrix-entry norm after unit-trace normalization.
 `rho_phase` is the complex phase in radians.
 
 The alignment-scan CSV files include:
 
 ```text
-Q2,xB,t,phi,theta_e_gamma_rad,theta_e_gamma_deg,aligned,
+initial_spin_averaging_version,Q2,xB,t,phi,theta_e_gamma_rad,theta_e_gamma_deg,aligned,
 squared_amplitude_M2,
 <spin_case>_trace,<spin_case>_spin_signal_M2,
+<spin_case>_cross_section_ratio,<spin_case>_purity,
 <spin_case>_h_out_mean,<spin_case>_lambda_mean,
 <spin_case>_h_lambda,<spin_case>_h_lambda_connected
 ```
+
+`initial_spin_averaging_version=prepared_spin_ensemble_v4` identifies CSVs
+created through the full five-qubit process-density contraction.
 
 The `AlignmentScan.py` `ConcurrenceScan` CSV files focus on the C_e_p,
 C_e_gamma, C_p_gamma, M_e, M_p, M_gamma, and F3 locator observables for each
@@ -446,8 +418,9 @@ spin case:
 <spin_case>_F3
 ```
 
-The `<spin_case>` prefixes are `unpolarized`, `longitudinal_polarized`, `Tx`,
-`Ty`, and `double_transverse`. The same folder also writes
+The `<spin_case>` prefixes are `unpolarized`, `L_proton`, `L_electron`,
+`Tx_proton`, `Ty_proton`, `Tx_electron`, `Ty_electron`, `LL`, `LTx`, `LTy`,
+`TxTx`, and `TxTy`. The same folder writes
 `electron_photon_concurrence_top.csv`, a ranked locator table used to inspect
 the best C_e_p, C_e_gamma, C_p_gamma, M_e, M_p, M_gamma, and F3 points. It
 also writes `electron_photon_e_gamma_top.csv` for the electron-photon
@@ -463,17 +436,15 @@ clusters them in each fixed-`E_gamma` `phi_in` by
 `phi_gamma` scan for each polarization config, and writes the numerical
 configuration data under `Output/ConfigGen/Data`:
 
+`ConfigGen.py` rejects older AlignmentScan CSVs without
+`prepared_spin_ensemble_v4`; rerun `AlignmentScan.py` before configuration
+generation when the convention is missing or stale.
+
 ```text
 Output/ConfigGen.log
-Output/ConfigGen/Data/max_c_ep_configuration_examples.csv
-Output/ConfigGen/Data/max_c_ep_cluster_summary.csv
-Output/ConfigGen/Data/max_c_ep_momentum_configurations.csv
-Output/ConfigGen/Data/max_c_ep_final_state_amplitude_decomposition.csv
-Output/ConfigGen/Data/max_c_p_gamma_*.csv
-Output/ConfigGen/Data/max_c_e_gamma_*.csv
-Output/ConfigGen/ByEgamma/<E_gamma>/<polarization>/max_c_ep_regions.pdf
-Output/ConfigGen/ByEgamma/<E_gamma>/<polarization>/max_c_p_gamma_regions.pdf
-Output/ConfigGen/ByEgamma/<E_gamma>/<polarization>/max_c_e_gamma_regions.pdf
+Output/ConfigGen/Data/<target>/combined/*.csv
+Output/ConfigGen/Data/<target>/<polarization>/*.csv
+Output/ConfigGen/Config_Plot_By_Egamma/<E_gamma>/<target>/<polarization>/regions.pdf
 ```
 
 Each PDF fixes one `E_gamma` value, one target concurrence, and one
@@ -485,6 +456,12 @@ guide lines at `phi_in = pi/2` and `phi_gamma = pi/2`, and uses a fixed
 `0..1` concurrence color scale;
 the following pages show the reconstructed momentum configuration, kinematics,
 and final-state helicity-amplitude decomposition for each selected region.
+For incoherent initial-spin ensembles, the decomposition keeps each initial
+component separate and records `initial_component` and `ensemble_weight`. It
+does not replace an unpolarized ensemble by a coherent amplitude sum. Amplitude
+decompositions retain only components contributing at least `2%` of the full
+ensemble-weighted norm and at most the leading eight components; each table
+also records the retained total fraction.
 The target CSVs include the corresponding per-`E_gamma` region rows in the
 momentum and amplitude tables, and per-spin CSV files are also written for the
 spin cases represented in those selected configuration rows.

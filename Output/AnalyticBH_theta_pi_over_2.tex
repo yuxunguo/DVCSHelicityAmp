@@ -1,0 +1,208 @@
+\documentclass[10pt]{article}
+\usepackage[margin=0.55in,landscape]{geometry}
+\usepackage{amsmath,amssymb,graphicx}
+\allowdisplaybreaks
+\setlength{\parindent}{0pt}
+\begin{document}
+\title{Contracted Bethe--Heitler Helicity Amplitudes in User-Frame Kinematics}
+\author{$\theta_{\mathrm{in}}=\pi/2$}
+\date{}
+\maketitle
+Helicity labels are doubled helicities in $\{-1,+1\}$. The electron is massless, so $h'=h$ and every amplitude with $h'\ne h$ vanishes.
+\section*{User-frame kinematics}
+Define $\alpha=\phi_{\mathrm{in}}$, $\varphi=\phi_{\mathrm{Out}}$, $w=q_{\mathrm{Out}}$, and
+\begin{align*}
+P&=\frac{s-m^2}{2\sqrt{s}}, & E&=\sqrt{P^2+m^2},\\
+R&=p_{\mathrm{Out}}, & E'&=\sqrt{R^2+m^2},\\
+K&=\sqrt{R^2+w^2+2Rw\sin\varphi}, &
+\sqrt{E'^2-m^2}&=R.
+\end{align*}
+Energy conservation fixes $R$ through $E'+K+w=\sqrt{s}$. The external momenta are
+\begin{align*}
+k^\mu&=P(1,-\cos\alpha,-\sin\alpha,0),\\
+p^\mu&=(E,P\cos\alpha,P\sin\alpha,0),\\
+k'^\mu&=(K,-w\cos\varphi,-R-w\sin\varphi,0),\\
+p'^\mu&=(E',0,R,0),\\
+q'^\mu&=w(1,\cos\varphi,\sin\varphi,0).
+\end{align*}
+The momentum products that contain every propagator denominator are
+\begin{align*}
+D_+&\equiv2k'\!\cdot q'=2w(K+w+R\sin\varphi),\\
+D_-&\equiv-2k\!\cdot q'=-2Pw\,[1+\cos(\alpha-\varphi)],\\
+t&=(p'-p)^2=2m^2-2EE'+2PR\sin\alpha.
+\end{align*}
+To shorten phases without hiding kinematics, define only
+\[z_a=e^{i\alpha},\quad \bar z_a=e^{-i\alpha},\qquad z_f=e^{i\varphi},\quad \bar z_f=e^{-i\varphi}.\]
+\section*{Fully contracted scalar building blocks}
+After all Dirac and polarization contractions, write
+\[\mathcal L^\nu_{h\lambda}=\frac{N^{\nu,+}_{h\lambda}}{D_+}+\frac{N^{\nu,-}_{h\lambda}}{D_-},\qquad \mathcal H^{s's}_\nu=\bar u(p',s')\Gamma_\nu u(p,s).\]
+The following equations are explicit scalars; no gamma matrices or spinors remain.
+\subsection*{Leptonic numerators}
+\small
+\paragraph{$h=-1,\ \lambda=-1$}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{0,+}_{-1,-1}=\sqrt{2} \sqrt{P} \left(\frac{i \sqrt{K} R z_f}{2} + \frac{i \sqrt{K} R \bar z_f}{2} - \sqrt{K} w \bar z_a z_f + \sqrt{K} w - \frac{R^{2} \bar z_a z_f}{2 \sqrt{K}} - \frac{R^{2} \bar z_a \bar z_f}{2 \sqrt{K}} + \frac{i R w \bar z_a z_f^{2}}{2 \sqrt{K}} - \frac{i R w \bar z_a}{2 \sqrt{K}} + \frac{i R w \bar z_f}{\sqrt{K}} - \frac{w^{2} \bar z_a z_f}{\sqrt{K}} + \frac{w^{2}}{\sqrt{K}}\right)}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{0,-}_{-1,-1}=\frac{\sqrt{2} P^{\frac{3}{2}} \left(\sqrt{K} z_a \bar z_f - \sqrt{K} \bar z_a z_f - \frac{i R \bar z_a^{2} z_f}{\sqrt{K}} + \frac{i R \bar z_f}{\sqrt{K}} - \frac{w \bar z_a^{2} z_f^{2}}{\sqrt{K}} + \frac{w}{\sqrt{K}}\right)}{2}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{1,+}_{-1,-1}=\sqrt{2} \sqrt{P} \left(- \frac{i \sqrt{K} R \bar z_a z_f}{2} - \frac{i \sqrt{K} R \bar z_a \bar z_f}{2} - \sqrt{K} w \bar z_a + \sqrt{K} w z_f + \frac{R^{2} z_f}{2 \sqrt{K}} + \frac{R^{2} \bar z_f}{2 \sqrt{K}} - \frac{i R w \bar z_a \bar z_f}{\sqrt{K}} - \frac{i R w z_f^{2}}{2 \sqrt{K}} + \frac{i R w}{2 \sqrt{K}} - \frac{w^{2} \bar z_a}{\sqrt{K}} + \frac{w^{2} z_f}{\sqrt{K}}\right)}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{1,-}_{-1,-1}=\frac{\sqrt{2} P^{\frac{3}{2}} \left(\sqrt{K} \bar z_a^{2} z_f - \sqrt{K} \bar z_f - \frac{i R z_a \bar z_f}{\sqrt{K}} + \frac{i R \bar z_a z_f}{\sqrt{K}} - \frac{w z_a}{\sqrt{K}} + \frac{w \bar z_a z_f^{2}}{\sqrt{K}}\right)}{2}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{2,+}_{-1,-1}=\sqrt{2} \sqrt{P} \left(\frac{\sqrt{K} R \bar z_a z_f}{2} + \frac{\sqrt{K} R \bar z_a \bar z_f}{2} - i \sqrt{K} w \bar z_a - i \sqrt{K} w z_f - \frac{i R^{2} z_f}{2 \sqrt{K}} - \frac{i R^{2} \bar z_f}{2 \sqrt{K}} + \frac{R w \bar z_a \bar z_f}{\sqrt{K}} - \frac{R w z_f^{2}}{2 \sqrt{K}} + \frac{R w}{2 \sqrt{K}} - \frac{i w^{2} \bar z_a}{\sqrt{K}} - \frac{i w^{2} z_f}{\sqrt{K}}\right)}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{2,-}_{-1,-1}=\frac{\sqrt{2} P^{\frac{3}{2}} \left(i \sqrt{K} \bar z_a^{2} z_f - i \sqrt{K} \bar z_f - \frac{R z_a \bar z_f}{\sqrt{K}} + \frac{R \bar z_a z_f}{\sqrt{K}} + \frac{i w z_a}{\sqrt{K}} - \frac{i w \bar z_a z_f^{2}}{\sqrt{K}}\right)}{2}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{3,+}_{-1,-1}=\sqrt{2} \sqrt{P} \left(\frac{i \sqrt{K} R z_f}{2} + \frac{i \sqrt{K} R \bar z_f}{2} + \sqrt{K} w \bar z_a z_f + \sqrt{K} w + \frac{R^{2} \bar z_a z_f}{2 \sqrt{K}} + \frac{R^{2} \bar z_a \bar z_f}{2 \sqrt{K}} - \frac{i R w \bar z_a z_f^{2}}{2 \sqrt{K}} + \frac{i R w \bar z_a}{2 \sqrt{K}} + \frac{i R w \bar z_f}{\sqrt{K}} + \frac{w^{2} \bar z_a z_f}{\sqrt{K}} + \frac{w^{2}}{\sqrt{K}}\right)}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{3,-}_{-1,-1}=\frac{\sqrt{2} P^{\frac{3}{2}} \left(\sqrt{K} z_a \bar z_f - \sqrt{K} \bar z_a z_f + \frac{i R \bar z_a^{2} z_f}{\sqrt{K}} - \frac{i R \bar z_f}{\sqrt{K}} + \frac{w \bar z_a^{2} z_f^{2}}{\sqrt{K}} - \frac{w}{\sqrt{K}}\right)}{2}}$}
+\end{equation*}
+\paragraph{$h=-1,\ \lambda=1$}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{0,+}_{-1,1}=\frac{\sqrt{2} \sqrt{P} R \left(- i \sqrt{K} z_f - i \sqrt{K} \bar z_f + \frac{R \bar z_a z_f}{\sqrt{K}} + \frac{R \bar z_a \bar z_f}{\sqrt{K}} - \frac{i w \bar z_a z_f^{2}}{\sqrt{K}} - \frac{i w \bar z_a}{\sqrt{K}}\right)}{2}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{0,-}_{-1,1}=\sqrt{2} \sqrt{P} \left(- \frac{\sqrt{K} P z_a \bar z_f}{2} + \frac{\sqrt{K} P \bar z_a z_f}{2} - \sqrt{K} w \bar z_a z_f - \sqrt{K} w + \frac{i P R \bar z_a^{2} z_f}{2 \sqrt{K}} - \frac{i P R \bar z_f}{2 \sqrt{K}} + \frac{P w \bar z_a^{2} z_f^{2}}{2 \sqrt{K}} - \frac{P w}{2 \sqrt{K}} + \frac{i R w \bar z_a}{\sqrt{K}} + \frac{i R w \bar z_f}{\sqrt{K}} + \frac{w^{2} \bar z_a z_f}{\sqrt{K}} + \frac{w^{2}}{\sqrt{K}}\right)}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{1,+}_{-1,1}=\frac{\sqrt{2} \sqrt{P} R \left(i \sqrt{K} \bar z_a z_f + i \sqrt{K} \bar z_a \bar z_f - \frac{R z_f}{\sqrt{K}} - \frac{R \bar z_f}{\sqrt{K}} + \frac{i w z_f^{2}}{\sqrt{K}} + \frac{i w}{\sqrt{K}}\right)}{2}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{1,-}_{-1,1}=\sqrt{2} \sqrt{P} \left(- \frac{\sqrt{K} P \bar z_a^{2} z_f}{2} + \frac{\sqrt{K} P \bar z_f}{2} - \sqrt{K} w \bar z_a - \sqrt{K} w \bar z_f + \frac{i P R z_a \bar z_f}{2 \sqrt{K}} - \frac{i P R \bar z_a z_f}{2 \sqrt{K}} + \frac{P w z_a}{2 \sqrt{K}} - \frac{P w \bar z_a z_f^{2}}{2 \sqrt{K}} + \frac{i R w \bar z_a z_f}{\sqrt{K}} + \frac{i R w}{\sqrt{K}} + \frac{w^{2} \bar z_a z_f^{2}}{\sqrt{K}} + \frac{w^{2} z_f}{\sqrt{K}}\right)}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{2,+}_{-1,1}=\frac{\sqrt{2} \sqrt{P} R \left(- \sqrt{K} \bar z_a z_f - \sqrt{K} \bar z_a \bar z_f + \frac{i R z_f}{\sqrt{K}} + \frac{i R \bar z_f}{\sqrt{K}} + \frac{w z_f^{2}}{\sqrt{K}} + \frac{w}{\sqrt{K}}\right)}{2}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{2,-}_{-1,1}=\sqrt{2} \sqrt{P} \left(- \frac{i \sqrt{K} P \bar z_a^{2} z_f}{2} + \frac{i \sqrt{K} P \bar z_f}{2} - i \sqrt{K} w \bar z_a - i \sqrt{K} w \bar z_f + \frac{P R z_a \bar z_f}{2 \sqrt{K}} - \frac{P R \bar z_a z_f}{2 \sqrt{K}} - \frac{i P w z_a}{2 \sqrt{K}} + \frac{i P w \bar z_a z_f^{2}}{2 \sqrt{K}} + \frac{R w \bar z_a z_f}{\sqrt{K}} + \frac{R w}{\sqrt{K}} - \frac{i w^{2} \bar z_a z_f^{2}}{\sqrt{K}} - \frac{i w^{2} z_f}{\sqrt{K}}\right)}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{3,+}_{-1,1}=\frac{\sqrt{2} \sqrt{P} R \left(- i \sqrt{K} z_f - i \sqrt{K} \bar z_f - \frac{R \bar z_a z_f}{\sqrt{K}} - \frac{R \bar z_a \bar z_f}{\sqrt{K}} + \frac{i w \bar z_a z_f^{2}}{\sqrt{K}} + \frac{i w \bar z_a}{\sqrt{K}}\right)}{2}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{3,-}_{-1,1}=\sqrt{2} \sqrt{P} \left(- \frac{\sqrt{K} P z_a \bar z_f}{2} + \frac{\sqrt{K} P \bar z_a z_f}{2} - \sqrt{K} w \bar z_a z_f - \sqrt{K} w - \frac{i P R \bar z_a^{2} z_f}{2 \sqrt{K}} + \frac{i P R \bar z_f}{2 \sqrt{K}} - \frac{P w \bar z_a^{2} z_f^{2}}{2 \sqrt{K}} + \frac{P w}{2 \sqrt{K}} - \frac{i R w \bar z_a}{\sqrt{K}} - \frac{i R w \bar z_f}{\sqrt{K}} - \frac{w^{2} \bar z_a z_f}{\sqrt{K}} - \frac{w^{2}}{\sqrt{K}}\right)}$}
+\end{equation*}
+\paragraph{$h=1,\ \lambda=-1$}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{0,+}_{1,-1}=\frac{\sqrt{2} \sqrt{P} R \left(i \sqrt{K} z_f + i \sqrt{K} \bar z_f + \frac{R z_a z_f}{\sqrt{K}} + \frac{R z_a \bar z_f}{\sqrt{K}} + \frac{i w z_a \bar z_f^{2}}{\sqrt{K}} + \frac{i w z_a}{\sqrt{K}}\right)}{2}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{0,-}_{1,-1}=\sqrt{2} \sqrt{P} \left(\frac{\sqrt{K} P z_a \bar z_f}{2} - \frac{\sqrt{K} P \bar z_a z_f}{2} - \sqrt{K} w z_a \bar z_f - \sqrt{K} w - \frac{i P R z_a^{2} \bar z_f}{2 \sqrt{K}} + \frac{i P R z_f}{2 \sqrt{K}} + \frac{P w z_a^{2} \bar z_f^{2}}{2 \sqrt{K}} - \frac{P w}{2 \sqrt{K}} - \frac{i R w z_a}{\sqrt{K}} - \frac{i R w z_f}{\sqrt{K}} + \frac{w^{2} z_a \bar z_f}{\sqrt{K}} + \frac{w^{2}}{\sqrt{K}}\right)}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{1,+}_{1,-1}=- \frac{\sqrt{2} \sqrt{P} R \left(i \sqrt{K} z_a z_f + i \sqrt{K} z_a \bar z_f + \frac{R z_f}{\sqrt{K}} + \frac{R \bar z_f}{\sqrt{K}} + \frac{i w \bar z_f^{2}}{\sqrt{K}} + \frac{i w}{\sqrt{K}}\right)}{2}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{1,-}_{1,-1}=\sqrt{2} \sqrt{P} \left(- \frac{\sqrt{K} P z_a^{2} \bar z_f}{2} + \frac{\sqrt{K} P z_f}{2} - \sqrt{K} w z_a - \sqrt{K} w z_f + \frac{i P R z_a \bar z_f}{2 \sqrt{K}} - \frac{i P R \bar z_a z_f}{2 \sqrt{K}} - \frac{P w z_a \bar z_f^{2}}{2 \sqrt{K}} + \frac{P w \bar z_a}{2 \sqrt{K}} - \frac{i R w z_a \bar z_f}{\sqrt{K}} - \frac{i R w}{\sqrt{K}} + \frac{w^{2} z_a \bar z_f^{2}}{\sqrt{K}} + \frac{w^{2} \bar z_f}{\sqrt{K}}\right)}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{2,+}_{1,-1}=\frac{\sqrt{2} \sqrt{P} R \left(- \sqrt{K} z_a z_f - \sqrt{K} z_a \bar z_f - \frac{i R z_f}{\sqrt{K}} - \frac{i R \bar z_f}{\sqrt{K}} + \frac{w \bar z_f^{2}}{\sqrt{K}} + \frac{w}{\sqrt{K}}\right)}{2}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{2,-}_{1,-1}=\sqrt{2} \sqrt{P} \left(\frac{i \sqrt{K} P z_a^{2} \bar z_f}{2} - \frac{i \sqrt{K} P z_f}{2} + i \sqrt{K} w z_a + i \sqrt{K} w z_f - \frac{P R z_a \bar z_f}{2 \sqrt{K}} + \frac{P R \bar z_a z_f}{2 \sqrt{K}} - \frac{i P w z_a \bar z_f^{2}}{2 \sqrt{K}} + \frac{i P w \bar z_a}{2 \sqrt{K}} + \frac{R w z_a \bar z_f}{\sqrt{K}} + \frac{R w}{\sqrt{K}} + \frac{i w^{2} z_a \bar z_f^{2}}{\sqrt{K}} + \frac{i w^{2} \bar z_f}{\sqrt{K}}\right)}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{3,+}_{1,-1}=\frac{\sqrt{2} \sqrt{P} R \left(i \sqrt{K} z_f + i \sqrt{K} \bar z_f - \frac{R z_a z_f}{\sqrt{K}} - \frac{R z_a \bar z_f}{\sqrt{K}} - \frac{i w z_a \bar z_f^{2}}{\sqrt{K}} - \frac{i w z_a}{\sqrt{K}}\right)}{2}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{3,-}_{1,-1}=\sqrt{2} \sqrt{P} \left(\frac{\sqrt{K} P z_a \bar z_f}{2} - \frac{\sqrt{K} P \bar z_a z_f}{2} - \sqrt{K} w z_a \bar z_f - \sqrt{K} w + \frac{i P R z_a^{2} \bar z_f}{2 \sqrt{K}} - \frac{i P R z_f}{2 \sqrt{K}} - \frac{P w z_a^{2} \bar z_f^{2}}{2 \sqrt{K}} + \frac{P w}{2 \sqrt{K}} + \frac{i R w z_a}{\sqrt{K}} + \frac{i R w z_f}{\sqrt{K}} - \frac{w^{2} z_a \bar z_f}{\sqrt{K}} - \frac{w^{2}}{\sqrt{K}}\right)}$}
+\end{equation*}
+\paragraph{$h=1,\ \lambda=1$}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{0,+}_{1,1}=\sqrt{2} \sqrt{P} \left(- \frac{i \sqrt{K} R z_f}{2} - \frac{i \sqrt{K} R \bar z_f}{2} - \sqrt{K} w z_a \bar z_f + \sqrt{K} w - \frac{R^{2} z_a z_f}{2 \sqrt{K}} - \frac{R^{2} z_a \bar z_f}{2 \sqrt{K}} - \frac{i R w z_a \bar z_f^{2}}{2 \sqrt{K}} + \frac{i R w z_a}{2 \sqrt{K}} - \frac{i R w z_f}{\sqrt{K}} - \frac{w^{2} z_a \bar z_f}{\sqrt{K}} + \frac{w^{2}}{\sqrt{K}}\right)}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{0,-}_{1,1}=\frac{\sqrt{2} P^{\frac{3}{2}} \left(- \sqrt{K} z_a \bar z_f + \sqrt{K} \bar z_a z_f + \frac{i R z_a^{2} \bar z_f}{\sqrt{K}} - \frac{i R z_f}{\sqrt{K}} - \frac{w z_a^{2} \bar z_f^{2}}{\sqrt{K}} + \frac{w}{\sqrt{K}}\right)}{2}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{1,+}_{1,1}=\sqrt{2} \sqrt{P} \left(\frac{i \sqrt{K} R z_a z_f}{2} + \frac{i \sqrt{K} R z_a \bar z_f}{2} - \sqrt{K} w z_a + \sqrt{K} w \bar z_f + \frac{R^{2} z_f}{2 \sqrt{K}} + \frac{R^{2} \bar z_f}{2 \sqrt{K}} + \frac{i R w z_a z_f}{\sqrt{K}} + \frac{i R w \bar z_f^{2}}{2 \sqrt{K}} - \frac{i R w}{2 \sqrt{K}} - \frac{w^{2} z_a}{\sqrt{K}} + \frac{w^{2} \bar z_f}{\sqrt{K}}\right)}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{1,-}_{1,1}=\frac{\sqrt{2} P^{\frac{3}{2}} \left(\sqrt{K} z_a^{2} \bar z_f - \sqrt{K} z_f - \frac{i R z_a \bar z_f}{\sqrt{K}} + \frac{i R \bar z_a z_f}{\sqrt{K}} + \frac{w z_a \bar z_f^{2}}{\sqrt{K}} - \frac{w \bar z_a}{\sqrt{K}}\right)}{2}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{2,+}_{1,1}=\sqrt{2} \sqrt{P} \left(\frac{\sqrt{K} R z_a z_f}{2} + \frac{\sqrt{K} R z_a \bar z_f}{2} + i \sqrt{K} w z_a + i \sqrt{K} w \bar z_f + \frac{i R^{2} z_f}{2 \sqrt{K}} + \frac{i R^{2} \bar z_f}{2 \sqrt{K}} + \frac{R w z_a z_f}{\sqrt{K}} - \frac{R w \bar z_f^{2}}{2 \sqrt{K}} + \frac{R w}{2 \sqrt{K}} + \frac{i w^{2} z_a}{\sqrt{K}} + \frac{i w^{2} \bar z_f}{\sqrt{K}}\right)}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{2,-}_{1,1}=\frac{\sqrt{2} P^{\frac{3}{2}} \left(- i \sqrt{K} z_a^{2} \bar z_f + i \sqrt{K} z_f + \frac{R z_a \bar z_f}{\sqrt{K}} - \frac{R \bar z_a z_f}{\sqrt{K}} + \frac{i w z_a \bar z_f^{2}}{\sqrt{K}} - \frac{i w \bar z_a}{\sqrt{K}}\right)}{2}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{3,+}_{1,1}=\sqrt{2} \sqrt{P} \left(- \frac{i \sqrt{K} R z_f}{2} - \frac{i \sqrt{K} R \bar z_f}{2} + \sqrt{K} w z_a \bar z_f + \sqrt{K} w + \frac{R^{2} z_a z_f}{2 \sqrt{K}} + \frac{R^{2} z_a \bar z_f}{2 \sqrt{K}} + \frac{i R w z_a \bar z_f^{2}}{2 \sqrt{K}} - \frac{i R w z_a}{2 \sqrt{K}} - \frac{i R w z_f}{\sqrt{K}} + \frac{w^{2} z_a \bar z_f}{\sqrt{K}} + \frac{w^{2}}{\sqrt{K}}\right)}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle N^{3,-}_{1,1}=\frac{\sqrt{2} P^{\frac{3}{2}} \left(- \sqrt{K} z_a \bar z_f + \sqrt{K} \bar z_a z_f - \frac{i R z_a^{2} \bar z_f}{\sqrt{K}} + \frac{i R z_f}{\sqrt{K}} + \frac{w z_a^{2} \bar z_f^{2}}{\sqrt{K}} - \frac{w}{\sqrt{K}}\right)}{2}}$}
+\end{equation*}
+\normalsize
+\subsection*{Proton-current components}
+\small
+\paragraph{$s=-1,\ s'=-1$}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle \mathcal H^{-1,-1}_0=\frac{- \frac{i A B E F_2 \bar z_a}{m} - \frac{A B E F_2}{m} - \frac{i A B E' F_2 \bar z_a}{m} - \frac{A B E' F_2}{m} + 2 i A B F_1 \bar z_a + 2 A B F_1 + 2 i A B F_2 \bar z_a + 2 A B F_2 + \frac{i E F_2 P R \bar z_a}{A B m} + \frac{E F_2 P R}{A B m} + \frac{i E' F_2 P R \bar z_a}{A B m} + \frac{E' F_2 P R}{A B m} + \frac{2 i F_1 P R \bar z_a}{A B} + \frac{2 F_1 P R}{A B} + \frac{2 i F_2 P R \bar z_a}{A B} + \frac{2 F_2 P R}{A B}}{4}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle \mathcal H^{-1,-1}_1=\frac{\frac{A B F_2 P z_a}{m} + \frac{i A B F_2 P \bar z_a^{2}}{m} + \frac{A B F_2 P \bar z_a}{m} + \frac{i A B F_2 P}{m} - \frac{4 A F_1 R \bar z_a}{B} - \frac{4 i A F_1 R}{B} - \frac{4 A F_2 R \bar z_a}{B} - \frac{4 i A F_2 R}{B} - \frac{4 B F_1 P \bar z_a}{A} - \frac{4 i B F_1 P}{A} - \frac{4 B F_2 P \bar z_a}{A} - \frac{4 i B F_2 P}{A} - \frac{F_2 P^{2} R z_a}{A B m} - \frac{i F_2 P^{2} R \bar z_a^{2}}{A B m} - \frac{F_2 P^{2} R \bar z_a}{A B m} - \frac{i F_2 P^{2} R}{A B m}}{8}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle \mathcal H^{-1,-1}_2=\frac{- \frac{i A B F_2 P z_a}{m} - \frac{A B F_2 P \bar z_a^{2}}{m} + \frac{i A B F_2 P \bar z_a}{m} + \frac{A B F_2 P}{m} + \frac{2 i A B F_2 R \bar z_a}{m} + \frac{2 A B F_2 R}{m} - \frac{4 i A F_1 R \bar z_a}{B} - \frac{4 A F_1 R}{B} - \frac{4 i A F_2 R \bar z_a}{B} - \frac{4 A F_2 R}{B} - \frac{4 i B F_1 P \bar z_a}{A} - \frac{4 B F_1 P}{A} - \frac{4 i B F_2 P \bar z_a}{A} - \frac{4 B F_2 P}{A} + \frac{i F_2 P^{2} R z_a}{A B m} + \frac{F_2 P^{2} R \bar z_a^{2}}{A B m} - \frac{i F_2 P^{2} R \bar z_a}{A B m} - \frac{F_2 P^{2} R}{A B m} - \frac{2 i F_2 P R^{2} \bar z_a}{A B m} - \frac{2 F_2 P R^{2}}{A B m}}{8}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle \mathcal H^{-1,-1}_3=\frac{\frac{i A F_1 R \bar z_a}{B} - \frac{A F_1 R}{B} + \frac{i A F_2 R \bar z_a}{B} - \frac{A F_2 R}{B} + \frac{i B F_1 P \bar z_a}{A} - \frac{B F_1 P}{A} + \frac{i B F_2 P \bar z_a}{A} - \frac{B F_2 P}{A}}{2}}$}
+\end{equation*}
+\paragraph{$s=-1,\ s'=1$}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle \mathcal H^{1,-1}_0=\frac{\frac{A B E F_2 \bar z_a}{m} + \frac{i A B E F_2}{m} + \frac{A B E' F_2 \bar z_a}{m} + \frac{i A B E' F_2}{m} - 2 A B F_1 \bar z_a - 2 i A B F_1 - 2 A B F_2 \bar z_a - 2 i A B F_2 + \frac{E F_2 P R \bar z_a}{A B m} + \frac{i E F_2 P R}{A B m} + \frac{E' F_2 P R \bar z_a}{A B m} + \frac{i E' F_2 P R}{A B m} + \frac{2 F_1 P R \bar z_a}{A B} + \frac{2 i F_1 P R}{A B} + \frac{2 F_2 P R \bar z_a}{A B} + \frac{2 i F_2 P R}{A B}}{4}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle \mathcal H^{1,-1}_1=\frac{- \frac{i A B F_2 P z_a}{m} - \frac{A B F_2 P \bar z_a^{2}}{m} - \frac{i A B F_2 P \bar z_a}{m} - \frac{A B F_2 P}{m} - \frac{4 i A F_1 R \bar z_a}{B} - \frac{4 A F_1 R}{B} - \frac{4 i A F_2 R \bar z_a}{B} - \frac{4 A F_2 R}{B} + \frac{4 i B F_1 P \bar z_a}{A} + \frac{4 B F_1 P}{A} + \frac{4 i B F_2 P \bar z_a}{A} + \frac{4 B F_2 P}{A} - \frac{i F_2 P^{2} R z_a}{A B m} - \frac{F_2 P^{2} R \bar z_a^{2}}{A B m} - \frac{i F_2 P^{2} R \bar z_a}{A B m} - \frac{F_2 P^{2} R}{A B m}}{8}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle \mathcal H^{1,-1}_2=\frac{- \frac{A B F_2 P z_a}{m} - \frac{i A B F_2 P \bar z_a^{2}}{m} + \frac{A B F_2 P \bar z_a}{m} + \frac{i A B F_2 P}{m} - \frac{2 A B F_2 R \bar z_a}{m} - \frac{2 i A B F_2 R}{m} + \frac{4 A F_1 R \bar z_a}{B} + \frac{4 i A F_1 R}{B} + \frac{4 A F_2 R \bar z_a}{B} + \frac{4 i A F_2 R}{B} - \frac{4 B F_1 P \bar z_a}{A} - \frac{4 i B F_1 P}{A} - \frac{4 B F_2 P \bar z_a}{A} - \frac{4 i B F_2 P}{A} - \frac{F_2 P^{2} R z_a}{A B m} - \frac{i F_2 P^{2} R \bar z_a^{2}}{A B m} + \frac{F_2 P^{2} R \bar z_a}{A B m} + \frac{i F_2 P^{2} R}{A B m} - \frac{2 F_2 P R^{2} \bar z_a}{A B m} - \frac{2 i F_2 P R^{2}}{A B m}}{8}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle \mathcal H^{1,-1}_3=\frac{\frac{A F_1 R \bar z_a}{B} - \frac{i A F_1 R}{B} + \frac{A F_2 R \bar z_a}{B} - \frac{i A F_2 R}{B} - \frac{B F_1 P \bar z_a}{A} + \frac{i B F_1 P}{A} - \frac{B F_2 P \bar z_a}{A} + \frac{i B F_2 P}{A}}{2}}$}
+\end{equation*}
+\paragraph{$s=1,\ s'=-1$}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle \mathcal H^{-1,1}_0=\frac{- \frac{A B E F_2 z_a}{m} + \frac{i A B E F_2}{m} - \frac{A B E' F_2 z_a}{m} + \frac{i A B E' F_2}{m} + 2 A B F_1 z_a - 2 i A B F_1 + 2 A B F_2 z_a - 2 i A B F_2 - \frac{E F_2 P R z_a}{A B m} + \frac{i E F_2 P R}{A B m} - \frac{E' F_2 P R z_a}{A B m} + \frac{i E' F_2 P R}{A B m} - \frac{2 F_1 P R z_a}{A B} + \frac{2 i F_1 P R}{A B} - \frac{2 F_2 P R z_a}{A B} + \frac{2 i F_2 P R}{A B}}{4}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle \mathcal H^{-1,1}_1=\frac{\frac{A B F_2 P z_a^{2}}{m} - \frac{i A B F_2 P z_a}{m} - \frac{i A B F_2 P \bar z_a}{m} + \frac{A B F_2 P}{m} - \frac{4 i A F_1 R z_a}{B} + \frac{4 A F_1 R}{B} - \frac{4 i A F_2 R z_a}{B} + \frac{4 A F_2 R}{B} + \frac{4 i B F_1 P z_a}{A} - \frac{4 B F_1 P}{A} + \frac{4 i B F_2 P z_a}{A} - \frac{4 B F_2 P}{A} + \frac{F_2 P^{2} R z_a^{2}}{A B m} - \frac{i F_2 P^{2} R z_a}{A B m} - \frac{i F_2 P^{2} R \bar z_a}{A B m} + \frac{F_2 P^{2} R}{A B m}}{8}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle \mathcal H^{-1,1}_2=\frac{- \frac{i A B F_2 P z_a^{2}}{m} - \frac{A B F_2 P z_a}{m} + \frac{A B F_2 P \bar z_a}{m} + \frac{i A B F_2 P}{m} + \frac{2 A B F_2 R z_a}{m} - \frac{2 i A B F_2 R}{m} - \frac{4 A F_1 R z_a}{B} + \frac{4 i A F_1 R}{B} - \frac{4 A F_2 R z_a}{B} + \frac{4 i A F_2 R}{B} + \frac{4 B F_1 P z_a}{A} - \frac{4 i B F_1 P}{A} + \frac{4 B F_2 P z_a}{A} - \frac{4 i B F_2 P}{A} - \frac{i F_2 P^{2} R z_a^{2}}{A B m} - \frac{F_2 P^{2} R z_a}{A B m} + \frac{F_2 P^{2} R \bar z_a}{A B m} + \frac{i F_2 P^{2} R}{A B m} + \frac{2 F_2 P R^{2} z_a}{A B m} - \frac{2 i F_2 P R^{2}}{A B m}}{8}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle \mathcal H^{-1,1}_3=\frac{- \frac{A F_1 R z_a}{B} - \frac{i A F_1 R}{B} - \frac{A F_2 R z_a}{B} - \frac{i A F_2 R}{B} + \frac{B F_1 P z_a}{A} + \frac{i B F_1 P}{A} + \frac{B F_2 P z_a}{A} + \frac{i B F_2 P}{A}}{2}}$}
+\end{equation*}
+\paragraph{$s=1,\ s'=1$}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle \mathcal H^{1,1}_0=\frac{\frac{i A B E F_2 z_a}{m} - \frac{A B E F_2}{m} + \frac{i A B E' F_2 z_a}{m} - \frac{A B E' F_2}{m} - 2 i A B F_1 z_a + 2 A B F_1 - 2 i A B F_2 z_a + 2 A B F_2 - \frac{i E F_2 P R z_a}{A B m} + \frac{E F_2 P R}{A B m} - \frac{i E' F_2 P R z_a}{A B m} + \frac{E' F_2 P R}{A B m} - \frac{2 i F_1 P R z_a}{A B} + \frac{2 F_1 P R}{A B} - \frac{2 i F_2 P R z_a}{A B} + \frac{2 F_2 P R}{A B}}{4}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle \mathcal H^{1,1}_1=\frac{- \frac{i A B F_2 P z_a^{2}}{m} + \frac{A B F_2 P z_a}{m} + \frac{A B F_2 P \bar z_a}{m} - \frac{i A B F_2 P}{m} - \frac{4 A F_1 R z_a}{B} + \frac{4 i A F_1 R}{B} - \frac{4 A F_2 R z_a}{B} + \frac{4 i A F_2 R}{B} - \frac{4 B F_1 P z_a}{A} + \frac{4 i B F_1 P}{A} - \frac{4 B F_2 P z_a}{A} + \frac{4 i B F_2 P}{A} + \frac{i F_2 P^{2} R z_a^{2}}{A B m} - \frac{F_2 P^{2} R z_a}{A B m} - \frac{F_2 P^{2} R \bar z_a}{A B m} + \frac{i F_2 P^{2} R}{A B m}}{8}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle \mathcal H^{1,1}_2=\frac{- \frac{A B F_2 P z_a^{2}}{m} - \frac{i A B F_2 P z_a}{m} + \frac{i A B F_2 P \bar z_a}{m} + \frac{A B F_2 P}{m} - \frac{2 i A B F_2 R z_a}{m} + \frac{2 A B F_2 R}{m} + \frac{4 i A F_1 R z_a}{B} - \frac{4 A F_1 R}{B} + \frac{4 i A F_2 R z_a}{B} - \frac{4 A F_2 R}{B} + \frac{4 i B F_1 P z_a}{A} - \frac{4 B F_1 P}{A} + \frac{4 i B F_2 P z_a}{A} - \frac{4 B F_2 P}{A} + \frac{F_2 P^{2} R z_a^{2}}{A B m} + \frac{i F_2 P^{2} R z_a}{A B m} - \frac{i F_2 P^{2} R \bar z_a}{A B m} - \frac{F_2 P^{2} R}{A B m} + \frac{2 i F_2 P R^{2} z_a}{A B m} - \frac{2 F_2 P R^{2}}{A B m}}{8}}$}
+\end{equation*}
+\begin{equation*}
+\resizebox{0.98\textwidth}{!}{${\displaystyle \mathcal H^{1,1}_3=- \frac{\frac{i A F_1 R z_a}{B} + \frac{A F_1 R}{B} + \frac{i A F_2 R z_a}{B} + \frac{A F_2 R}{B} + \frac{i B F_1 P z_a}{A} + \frac{B F_1 P}{A} + \frac{i B F_2 P z_a}{A} + \frac{B F_2 P}{A}}{2}}$}
+\end{equation*}
+\normalsize
+\section*{All helicity amplitudes}
+Every nonzero amplitude is the following explicit four-component momentum-space scalar product:
+\[\boxed{\mathcal M_{h,s,s',\lambda}=\frac{1}{t}\sum_{\nu=0}^{3}\left(\frac{N^{\nu,+}_{h\lambda}}{D_+}+\frac{N^{\nu,-}_{h\lambda}}{D_-}\right)\mathcal H^{s's}_\nu}.\]
+Spelling out the four terms for every surviving helicity channel gives
+\small
+\begin{align*}
+\mathcal M_{h=-1,s=-1,s'=-1,\lambda=-1}&=\frac{1}{t}\left[\left(\frac{N^{0,+}_{-1,-1}}{D_+}+\frac{N^{0,-}_{-1,-1}}{D_-}\right)\mathcal H^{-1,-1}_0+\left(\frac{N^{1,+}_{-1,-1}}{D_+}+\frac{N^{1,-}_{-1,-1}}{D_-}\right)\mathcal H^{-1,-1}_1+\left(\frac{N^{2,+}_{-1,-1}}{D_+}+\frac{N^{2,-}_{-1,-1}}{D_-}\right)\mathcal H^{-1,-1}_2+\left(\frac{N^{3,+}_{-1,-1}}{D_+}+\frac{N^{3,-}_{-1,-1}}{D_-}\right)\mathcal H^{-1,-1}_3\right] \\[5pt]\mathcal M_{h=-1,s=-1,s'=-1,\lambda=1}&=\frac{1}{t}\left[\left(\frac{N^{0,+}_{-1,1}}{D_+}+\frac{N^{0,-}_{-1,1}}{D_-}\right)\mathcal H^{-1,-1}_0+\left(\frac{N^{1,+}_{-1,1}}{D_+}+\frac{N^{1,-}_{-1,1}}{D_-}\right)\mathcal H^{-1,-1}_1+\left(\frac{N^{2,+}_{-1,1}}{D_+}+\frac{N^{2,-}_{-1,1}}{D_-}\right)\mathcal H^{-1,-1}_2+\left(\frac{N^{3,+}_{-1,1}}{D_+}+\frac{N^{3,-}_{-1,1}}{D_-}\right)\mathcal H^{-1,-1}_3\right] \\[5pt]\mathcal M_{h=-1,s=-1,s'=1,\lambda=-1}&=\frac{1}{t}\left[\left(\frac{N^{0,+}_{-1,-1}}{D_+}+\frac{N^{0,-}_{-1,-1}}{D_-}\right)\mathcal H^{1,-1}_0+\left(\frac{N^{1,+}_{-1,-1}}{D_+}+\frac{N^{1,-}_{-1,-1}}{D_-}\right)\mathcal H^{1,-1}_1+\left(\frac{N^{2,+}_{-1,-1}}{D_+}+\frac{N^{2,-}_{-1,-1}}{D_-}\right)\mathcal H^{1,-1}_2+\left(\frac{N^{3,+}_{-1,-1}}{D_+}+\frac{N^{3,-}_{-1,-1}}{D_-}\right)\mathcal H^{1,-1}_3\right] \\[5pt]\mathcal M_{h=-1,s=-1,s'=1,\lambda=1}&=\frac{1}{t}\left[\left(\frac{N^{0,+}_{-1,1}}{D_+}+\frac{N^{0,-}_{-1,1}}{D_-}\right)\mathcal H^{1,-1}_0+\left(\frac{N^{1,+}_{-1,1}}{D_+}+\frac{N^{1,-}_{-1,1}}{D_-}\right)\mathcal H^{1,-1}_1+\left(\frac{N^{2,+}_{-1,1}}{D_+}+\frac{N^{2,-}_{-1,1}}{D_-}\right)\mathcal H^{1,-1}_2+\left(\frac{N^{3,+}_{-1,1}}{D_+}+\frac{N^{3,-}_{-1,1}}{D_-}\right)\mathcal H^{1,-1}_3\right] \\[5pt]\mathcal M_{h=-1,s=1,s'=-1,\lambda=-1}&=\frac{1}{t}\left[\left(\frac{N^{0,+}_{-1,-1}}{D_+}+\frac{N^{0,-}_{-1,-1}}{D_-}\right)\mathcal H^{-1,1}_0+\left(\frac{N^{1,+}_{-1,-1}}{D_+}+\frac{N^{1,-}_{-1,-1}}{D_-}\right)\mathcal H^{-1,1}_1+\left(\frac{N^{2,+}_{-1,-1}}{D_+}+\frac{N^{2,-}_{-1,-1}}{D_-}\right)\mathcal H^{-1,1}_2+\left(\frac{N^{3,+}_{-1,-1}}{D_+}+\frac{N^{3,-}_{-1,-1}}{D_-}\right)\mathcal H^{-1,1}_3\right] \\[5pt]\mathcal M_{h=-1,s=1,s'=-1,\lambda=1}&=\frac{1}{t}\left[\left(\frac{N^{0,+}_{-1,1}}{D_+}+\frac{N^{0,-}_{-1,1}}{D_-}\right)\mathcal H^{-1,1}_0+\left(\frac{N^{1,+}_{-1,1}}{D_+}+\frac{N^{1,-}_{-1,1}}{D_-}\right)\mathcal H^{-1,1}_1+\left(\frac{N^{2,+}_{-1,1}}{D_+}+\frac{N^{2,-}_{-1,1}}{D_-}\right)\mathcal H^{-1,1}_2+\left(\frac{N^{3,+}_{-1,1}}{D_+}+\frac{N^{3,-}_{-1,1}}{D_-}\right)\mathcal H^{-1,1}_3\right] \\[5pt]\mathcal M_{h=-1,s=1,s'=1,\lambda=-1}&=\frac{1}{t}\left[\left(\frac{N^{0,+}_{-1,-1}}{D_+}+\frac{N^{0,-}_{-1,-1}}{D_-}\right)\mathcal H^{1,1}_0+\left(\frac{N^{1,+}_{-1,-1}}{D_+}+\frac{N^{1,-}_{-1,-1}}{D_-}\right)\mathcal H^{1,1}_1+\left(\frac{N^{2,+}_{-1,-1}}{D_+}+\frac{N^{2,-}_{-1,-1}}{D_-}\right)\mathcal H^{1,1}_2+\left(\frac{N^{3,+}_{-1,-1}}{D_+}+\frac{N^{3,-}_{-1,-1}}{D_-}\right)\mathcal H^{1,1}_3\right] \\[5pt]\mathcal M_{h=-1,s=1,s'=1,\lambda=1}&=\frac{1}{t}\left[\left(\frac{N^{0,+}_{-1,1}}{D_+}+\frac{N^{0,-}_{-1,1}}{D_-}\right)\mathcal H^{1,1}_0+\left(\frac{N^{1,+}_{-1,1}}{D_+}+\frac{N^{1,-}_{-1,1}}{D_-}\right)\mathcal H^{1,1}_1+\left(\frac{N^{2,+}_{-1,1}}{D_+}+\frac{N^{2,-}_{-1,1}}{D_-}\right)\mathcal H^{1,1}_2+\left(\frac{N^{3,+}_{-1,1}}{D_+}+\frac{N^{3,-}_{-1,1}}{D_-}\right)\mathcal H^{1,1}_3\right] \\[5pt]\mathcal M_{h=1,s=-1,s'=-1,\lambda=-1}&=\frac{1}{t}\left[\left(\frac{N^{0,+}_{1,-1}}{D_+}+\frac{N^{0,-}_{1,-1}}{D_-}\right)\mathcal H^{-1,-1}_0+\left(\frac{N^{1,+}_{1,-1}}{D_+}+\frac{N^{1,-}_{1,-1}}{D_-}\right)\mathcal H^{-1,-1}_1+\left(\frac{N^{2,+}_{1,-1}}{D_+}+\frac{N^{2,-}_{1,-1}}{D_-}\right)\mathcal H^{-1,-1}_2+\left(\frac{N^{3,+}_{1,-1}}{D_+}+\frac{N^{3,-}_{1,-1}}{D_-}\right)\mathcal H^{-1,-1}_3\right] \\[5pt]\mathcal M_{h=1,s=-1,s'=-1,\lambda=1}&=\frac{1}{t}\left[\left(\frac{N^{0,+}_{1,1}}{D_+}+\frac{N^{0,-}_{1,1}}{D_-}\right)\mathcal H^{-1,-1}_0+\left(\frac{N^{1,+}_{1,1}}{D_+}+\frac{N^{1,-}_{1,1}}{D_-}\right)\mathcal H^{-1,-1}_1+\left(\frac{N^{2,+}_{1,1}}{D_+}+\frac{N^{2,-}_{1,1}}{D_-}\right)\mathcal H^{-1,-1}_2+\left(\frac{N^{3,+}_{1,1}}{D_+}+\frac{N^{3,-}_{1,1}}{D_-}\right)\mathcal H^{-1,-1}_3\right] \\[5pt]\mathcal M_{h=1,s=-1,s'=1,\lambda=-1}&=\frac{1}{t}\left[\left(\frac{N^{0,+}_{1,-1}}{D_+}+\frac{N^{0,-}_{1,-1}}{D_-}\right)\mathcal H^{1,-1}_0+\left(\frac{N^{1,+}_{1,-1}}{D_+}+\frac{N^{1,-}_{1,-1}}{D_-}\right)\mathcal H^{1,-1}_1+\left(\frac{N^{2,+}_{1,-1}}{D_+}+\frac{N^{2,-}_{1,-1}}{D_-}\right)\mathcal H^{1,-1}_2+\left(\frac{N^{3,+}_{1,-1}}{D_+}+\frac{N^{3,-}_{1,-1}}{D_-}\right)\mathcal H^{1,-1}_3\right] \\[5pt]\mathcal M_{h=1,s=-1,s'=1,\lambda=1}&=\frac{1}{t}\left[\left(\frac{N^{0,+}_{1,1}}{D_+}+\frac{N^{0,-}_{1,1}}{D_-}\right)\mathcal H^{1,-1}_0+\left(\frac{N^{1,+}_{1,1}}{D_+}+\frac{N^{1,-}_{1,1}}{D_-}\right)\mathcal H^{1,-1}_1+\left(\frac{N^{2,+}_{1,1}}{D_+}+\frac{N^{2,-}_{1,1}}{D_-}\right)\mathcal H^{1,-1}_2+\left(\frac{N^{3,+}_{1,1}}{D_+}+\frac{N^{3,-}_{1,1}}{D_-}\right)\mathcal H^{1,-1}_3\right] \\[5pt]\mathcal M_{h=1,s=1,s'=-1,\lambda=-1}&=\frac{1}{t}\left[\left(\frac{N^{0,+}_{1,-1}}{D_+}+\frac{N^{0,-}_{1,-1}}{D_-}\right)\mathcal H^{-1,1}_0+\left(\frac{N^{1,+}_{1,-1}}{D_+}+\frac{N^{1,-}_{1,-1}}{D_-}\right)\mathcal H^{-1,1}_1+\left(\frac{N^{2,+}_{1,-1}}{D_+}+\frac{N^{2,-}_{1,-1}}{D_-}\right)\mathcal H^{-1,1}_2+\left(\frac{N^{3,+}_{1,-1}}{D_+}+\frac{N^{3,-}_{1,-1}}{D_-}\right)\mathcal H^{-1,1}_3\right] \\[5pt]\mathcal M_{h=1,s=1,s'=-1,\lambda=1}&=\frac{1}{t}\left[\left(\frac{N^{0,+}_{1,1}}{D_+}+\frac{N^{0,-}_{1,1}}{D_-}\right)\mathcal H^{-1,1}_0+\left(\frac{N^{1,+}_{1,1}}{D_+}+\frac{N^{1,-}_{1,1}}{D_-}\right)\mathcal H^{-1,1}_1+\left(\frac{N^{2,+}_{1,1}}{D_+}+\frac{N^{2,-}_{1,1}}{D_-}\right)\mathcal H^{-1,1}_2+\left(\frac{N^{3,+}_{1,1}}{D_+}+\frac{N^{3,-}_{1,1}}{D_-}\right)\mathcal H^{-1,1}_3\right] \\[5pt]\mathcal M_{h=1,s=1,s'=1,\lambda=-1}&=\frac{1}{t}\left[\left(\frac{N^{0,+}_{1,-1}}{D_+}+\frac{N^{0,-}_{1,-1}}{D_-}\right)\mathcal H^{1,1}_0+\left(\frac{N^{1,+}_{1,-1}}{D_+}+\frac{N^{1,-}_{1,-1}}{D_-}\right)\mathcal H^{1,1}_1+\left(\frac{N^{2,+}_{1,-1}}{D_+}+\frac{N^{2,-}_{1,-1}}{D_-}\right)\mathcal H^{1,1}_2+\left(\frac{N^{3,+}_{1,-1}}{D_+}+\frac{N^{3,-}_{1,-1}}{D_-}\right)\mathcal H^{1,1}_3\right] \\[5pt]\mathcal M_{h=1,s=1,s'=1,\lambda=1}&=\frac{1}{t}\left[\left(\frac{N^{0,+}_{1,1}}{D_+}+\frac{N^{0,-}_{1,1}}{D_-}\right)\mathcal H^{1,1}_0+\left(\frac{N^{1,+}_{1,1}}{D_+}+\frac{N^{1,-}_{1,1}}{D_-}\right)\mathcal H^{1,1}_1+\left(\frac{N^{2,+}_{1,1}}{D_+}+\frac{N^{2,-}_{1,1}}{D_-}\right)\mathcal H^{1,1}_2+\left(\frac{N^{3,+}_{1,1}}{D_+}+\frac{N^{3,-}_{1,1}}{D_-}\right)\mathcal H^{1,1}_3\right]
+\end{align*}
+\normalsize
+The remaining 16 amplitudes obey $\mathcal M_{h'\ne h,s,s',\lambda}=0$ exactly.
+\end{document}

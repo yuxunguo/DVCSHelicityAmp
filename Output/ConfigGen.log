@@ -1,5 +1,9 @@
 Max pairwise-concurrence configuration generator from AlignmentScan results
   input csv: Output\AlignmentScan\ConcurrenceScan\electron_photon_concurrence_phase_space.csv
+  required initial-spin averaging version: initial_spin_average_v2
+  unpolarized decomposition: 1/4 average over electron and proton helicities
+  single-electron-polarization decomposition: 1/2 average over proton helicity
+  longitudinal decomposition uses signed electron-helicity response components
   total input rows: 27360
   data csv folder: Output\ConfigGen\Data
   per-E_gamma config folder: Output\ConfigGen\Config_Plot_By_Egamma
@@ -16,7 +20,7 @@ Max pairwise-concurrence configuration generator from AlignmentScan results
     low_Egamma Tx C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\tx\max_c_ep_regions.pdf (3 regions)
     low_Egamma Ty C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\ty\max_c_ep_regions.pdf (3 regions)
     low_Egamma double_transverse C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\double_transverse\max_c_ep_regions.pdf (2 regions)
-    low_Egamma unpolarized C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\unpolarized\max_c_p_gamma_regions.pdf (3 regions)
+    low_Egamma unpolarized C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\unpolarized\max_c_p_gamma_regions.pdf (4 regions)
     low_Egamma longitudinal_polarized C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\longitudinal_polarized\max_c_p_gamma_regions.pdf (4 regions)
     low_Egamma Tx C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\tx\max_c_p_gamma_regions.pdf (2 regions)
     low_Egamma Ty C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\low_egamma\ty\max_c_p_gamma_regions.pdf (2 regions)
@@ -31,8 +35,8 @@ Max pairwise-concurrence configuration generator from AlignmentScan results
     mid_Egamma Tx C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\tx\max_c_ep_regions.pdf (3 regions)
     mid_Egamma Ty C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\ty\max_c_ep_regions.pdf (3 regions)
     mid_Egamma double_transverse C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\double_transverse\max_c_ep_regions.pdf (2 regions)
-    mid_Egamma unpolarized C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\unpolarized\max_c_p_gamma_regions.pdf (3 regions)
-    mid_Egamma longitudinal_polarized C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\longitudinal_polarized\max_c_p_gamma_regions.pdf (3 regions)
+    mid_Egamma unpolarized C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\unpolarized\max_c_p_gamma_regions.pdf (4 regions)
+    mid_Egamma longitudinal_polarized C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\longitudinal_polarized\max_c_p_gamma_regions.pdf (4 regions)
     mid_Egamma Tx C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\tx\max_c_p_gamma_regions.pdf (3 regions)
     mid_Egamma Ty C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\ty\max_c_p_gamma_regions.pdf (3 regions)
     mid_Egamma double_transverse C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\mid_egamma\double_transverse\max_c_p_gamma_regions.pdf (1 regions)
@@ -46,8 +50,8 @@ Max pairwise-concurrence configuration generator from AlignmentScan results
     high_Egamma Tx C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\tx\max_c_ep_regions.pdf (1 regions)
     high_Egamma Ty C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\ty\max_c_ep_regions.pdf (1 regions)
     high_Egamma double_transverse C_{ep}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\double_transverse\max_c_ep_regions.pdf (3 regions)
-    high_Egamma unpolarized C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\unpolarized\max_c_p_gamma_regions.pdf (1 regions)
-    high_Egamma longitudinal_polarized C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\longitudinal_polarized\max_c_p_gamma_regions.pdf (3 regions)
+    high_Egamma unpolarized C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\unpolarized\max_c_p_gamma_regions.pdf (4 regions)
+    high_Egamma longitudinal_polarized C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\longitudinal_polarized\max_c_p_gamma_regions.pdf (4 regions)
     high_Egamma Tx C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\tx\max_c_p_gamma_regions.pdf (3 regions)
     high_Egamma Ty C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\ty\max_c_p_gamma_regions.pdf (3 regions)
     high_Egamma double_transverse C_{p\gamma}: Output\ConfigGen\Config_Plot_By_Egamma\high_egamma\double_transverse\max_c_p_gamma_regions.pdf (1 regions)
@@ -101,14 +105,14 @@ Target C_{ep}:
     Ty region 1: size=30, max_C_{ep}=0.6174, phi_p_in=1.5708..1.5708, phi_gamma=3.73064..5.69414, final_pair_delta_xy=2.57581..3.08823, Q2=0.00776484..1.07528, xB=0.000837856..0.146847, t=-0.0225932..-6.1819e-07
       best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=1, phi_gamma=4.51604, pair_delta_xy=2.98374, Q2=0.068646, xB=0.00746834, t=-4.94515e-05
     Ty region 2: size=32, max_C_{ep}=0.556451, phi_p_in=1.5708..3.27249, phi_gamma=3.66519..5.75959, final_pair_delta_xy=2.90769..3.1038, Q2=0.00548781..11.1275, xB=0.00118797..0.763703, t=-10.5635..-1.2435e-06
-      best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=0.5, phi_gamma=4.97419, pair_delta_xy=3.06693, Q2=0.021502, xB=0.00471252, t=-1.96521e-05
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=0.5, phi_gamma=4.45059, pair_delta_xy=3.06693, Q2=0.021502, xB=0.00471252, t=-1.96521e-05
     Ty region 3: size=2, max_C_{ep}=0.236456, phi_p_in=6.15229..6.15229, phi_gamma=3.73064..3.79609, final_pair_delta_xy=2.91535..2.92415, Q2=10.9724..11.1275, xB=0.754093..0.763703, t=-10.5635..-10.4839
       best: s=21.5158, theta_in=1.57079, phi_e_in=3.01069, phi_p_in=6.15229, qOut=0.5, phi_gamma=3.73064, pair_delta_xy=2.91535, Q2=11.1275, xB=0.763703, t=-10.4839
 
 Target C_{p\gamma}:
-  selected spin cases: double_transverse, unpolarized
+  selected spin cases: double_transverse, Ty
   clusters: 6
-  per-E_gamma region detail rows: 38
+  per-E_gamma region detail rows: 45
   examples: 12
   saved examples csv: Output\ConfigGen\Data\max_c_p_gamma_configuration_examples.csv
   saved clusters csv: Output\ConfigGen\Data\max_c_p_gamma_cluster_summary.csv
@@ -117,41 +121,41 @@ Target C_{p\gamma}:
   saved per-spin csvs:
     examples:
       double_transverse: Output\ConfigGen\Data\max_c_p_gamma_configuration_examples_double_transverse.csv
+      Ty: Output\ConfigGen\Data\max_c_p_gamma_configuration_examples_ty.csv
       unpolarized: Output\ConfigGen\Data\max_c_p_gamma_configuration_examples_unpolarized.csv
       longitudinal_polarized: Output\ConfigGen\Data\max_c_p_gamma_configuration_examples_longitudinal_polarized.csv
       Tx: Output\ConfigGen\Data\max_c_p_gamma_configuration_examples_tx.csv
-      Ty: Output\ConfigGen\Data\max_c_p_gamma_configuration_examples_ty.csv
     clusters:
       double_transverse: Output\ConfigGen\Data\max_c_p_gamma_cluster_summary_double_transverse.csv
+      Ty: Output\ConfigGen\Data\max_c_p_gamma_cluster_summary_ty.csv
       unpolarized: Output\ConfigGen\Data\max_c_p_gamma_cluster_summary_unpolarized.csv
       longitudinal_polarized: Output\ConfigGen\Data\max_c_p_gamma_cluster_summary_longitudinal_polarized.csv
       Tx: Output\ConfigGen\Data\max_c_p_gamma_cluster_summary_tx.csv
-      Ty: Output\ConfigGen\Data\max_c_p_gamma_cluster_summary_ty.csv
     momentum configurations:
       double_transverse: Output\ConfigGen\Data\max_c_p_gamma_momentum_configurations_double_transverse.csv
+      Ty: Output\ConfigGen\Data\max_c_p_gamma_momentum_configurations_ty.csv
       unpolarized: Output\ConfigGen\Data\max_c_p_gamma_momentum_configurations_unpolarized.csv
       longitudinal_polarized: Output\ConfigGen\Data\max_c_p_gamma_momentum_configurations_longitudinal_polarized.csv
       Tx: Output\ConfigGen\Data\max_c_p_gamma_momentum_configurations_tx.csv
-      Ty: Output\ConfigGen\Data\max_c_p_gamma_momentum_configurations_ty.csv
     final-state amplitude decomposition:
       double_transverse: Output\ConfigGen\Data\max_c_p_gamma_final_state_amplitude_decomposition_double_transverse.csv
+      Ty: Output\ConfigGen\Data\max_c_p_gamma_final_state_amplitude_decomposition_ty.csv
       unpolarized: Output\ConfigGen\Data\max_c_p_gamma_final_state_amplitude_decomposition_unpolarized.csv
       longitudinal_polarized: Output\ConfigGen\Data\max_c_p_gamma_final_state_amplitude_decomposition_longitudinal_polarized.csv
       Tx: Output\ConfigGen\Data\max_c_p_gamma_final_state_amplitude_decomposition_tx.csv
-      Ty: Output\ConfigGen\Data\max_c_p_gamma_final_state_amplitude_decomposition_ty.csv
   enhanced regions:
     double_transverse region 0: size=29, max_C_{p\gamma}=0.999931, phi_p_in=1.5708..1.5708, phi_gamma=0.654498..2.48709, final_pair_delta_xy=0..0.916298, Q2=8.60837e-12..0.166233, xB=3.55992e-11..0.151761, t=-0.0521317..-0.0353977
       best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=0.5, phi_gamma=1.5708, pair_delta_xy=0, Q2=8.60837e-12, xB=3.55992e-11, t=-0.0521317
     double_transverse region 1: size=51, max_C_{p\gamma}=0.999461, phi_p_in=1.50535..1.63625, phi_gamma=0.850848..2.29074, final_pair_delta_xy=0..0.719948, Q2=8.42892e-12..0.474752, xB=1.26385e-11..0.276167, t=-0.298537..-0.235688
       best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=1, phi_gamma=1.5708, pair_delta_xy=0, Q2=8.42892e-12, xB=1.26385e-11, t=-0.287559
-    unpolarized region 0: size=32, max_C_{p\gamma}=0.992373, phi_p_in=1.5708..1.5708, phi_gamma=3.59974..5.82504, final_pair_delta_xy=2.02895..3.01069, Q2=0.00548781..0.240947, xB=0.00118797..0.0708079, t=-0.00488574..-1.2435e-06
+    Ty region 0: size=8, max_C_{p\gamma}=0.678524, phi_p_in=1.5708..1.5708, phi_gamma=4.45059..4.97419, final_pair_delta_xy=2.87979..3.07614, Q2=0.07238..1.07657, xB=0.00433893..0.0655252, t=-0.00402555..-1.66317e-05
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=1.8, phi_gamma=4.64694, pair_delta_xy=3.07614, Q2=0.07238, xB=0.00433893, t=-1.66317e-05
+    Ty region 1: size=21, max_C_{p\gamma}=0.617604, phi_p_in=1.5708..1.63625, phi_gamma=4.12334..6.21774, final_pair_delta_xy=1.63625..3.01069, Q2=0.0308518..1.64635, xB=0.0033393..0.297911, t=-0.0999814..-9.84463e-06
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=1, phi_gamma=4.90874, pair_delta_xy=2.94524, Q2=0.068646, xB=0.00746834, t=-4.94515e-05
+    Ty region 2: size=23, max_C_{p\gamma}=0.558559, phi_p_in=1.5708..1.63625, phi_gamma=0.981748..5.36689, final_pair_delta_xy=0.327249..3.01069, Q2=0.00548781..0.180826, xB=0.00118797..0.254509, t=-0.0660035..-1.2435e-06
       best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=0.5, phi_gamma=4.97419, pair_delta_xy=2.87979, Q2=0.021502, xB=0.00471252, t=-1.96521e-05
-    unpolarized region 1: size=8, max_C_{p\gamma}=0.99037, phi_p_in=1.5708..1.5708, phi_gamma=4.45059..4.97419, final_pair_delta_xy=2.87979..3.07614, Q2=0.07238..1.07657, xB=0.00433893..0.0655252, t=-0.00402555..-1.66317e-05
-      best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=1.8, phi_gamma=4.77784, pair_delta_xy=3.07614, Q2=0.07238, xB=0.00433893, t=-1.66317e-05
-    unpolarized region 2: size=28, max_C_{p\gamma}=0.98676, phi_p_in=1.50535..1.63625, phi_gamma=3.27249..6.15229, final_pair_delta_xy=1.7017..3.07614, Q2=0.00776484..1.64635, xB=0.000837856..0.284514, t=-0.0903935..-6.1819e-07
-      best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=1, phi_gamma=4.51604, pair_delta_xy=2.94524, Q2=0.068646, xB=0.00746834, t=-4.94515e-05
-    unpolarized region 3: size=12, max_C_{p\gamma}=0.390395, phi_p_in=1.50535..1.63625, phi_gamma=0.981748..2.15984, final_pair_delta_xy=0.261799..0.589049, Q2=0.0755067..0.180826, xB=0.20159..0.254509, t=-0.0668238..-0.0611394
-      best: s=21.5158, theta_in=1.57079, phi_e_in=4.77784, phi_p_in=1.63625, qOut=0.5, phi_gamma=1.11265, pair_delta_xy=0.458149, Q2=0.135041, xB=0.244831, t=-0.0638688
+    Ty region 3: size=28, max_C_{p\gamma}=0.385555, phi_p_in=1.50535..1.63625, phi_gamma=1.309..3.46884, final_pair_delta_xy=0..1.89805, Q2=0.000198688..1.64635, xB=0.000663959..0.297911, t=-0.0999814..-0.0611394
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.64694, phi_p_in=1.50535, qOut=1, phi_gamma=3.33794, pair_delta_xy=1.76715, Q2=1.63887, xB=0.270397, t=-0.0813271
 
 Target C_{e\gamma}:
   selected spin cases: double_transverse, Ty

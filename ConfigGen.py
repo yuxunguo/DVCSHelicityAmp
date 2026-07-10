@@ -4,7 +4,8 @@ The generator reads the pairwise concurrence scan written by ``AlignmentScan.py`
 and builds one configuration package for each requested maximum:
 ``C_e_p``, ``C_p_gamma``, and ``C_e_gamma``.  Each package contains a scan plot,
 representative enhanced regions, reconstructed momenta/kinematics, and a
-final-state amplitude decomposition.
+final-state amplitude decomposition that preserves the AlignmentScan initial-
+spin ensemble weights.
 """
 
 import csv
@@ -15,20 +16,20 @@ import tempfile
 
 import numpy as np
 
-from AlignmentScan import observable_latex_label, observable_text_label
+from AlignmentScan import (
+    SPIN_AVERAGING_VERSION,
+    observable_latex_label,
+    observable_text_label,
+)
 from FormFactors import yahl_dirac_pauli_from_t
 from Kinematics import kinematics_user_from_independent
 from SpinDensityMat import (
-    ENTANGLEMENT_INITIAL_STATE,
-    HELICITIES,
     M,
-    SPIN_CASE_TRANSVERSE_TX,
-    SPIN_CASE_TRANSVERSE_TY,
     amplitude_table,
-    double_transverse_final_state,
-    initial_spin_states,
+    final_state_ensemble,
+    process_density_matrix_from_amplitudes,
+    contract_initial_state,
     outgoing_spin_states,
-    transverse_electron_coefficients,
 )
 
 
@@ -50,17 +51,26 @@ CONFIG_TARGETS = (
 )
 CONFIG_SPIN_CASES = (
     "unpolarized",
-    "longitudinal_polarized",
-    "Tx",
-    "Ty",
-    "double_transverse",
+    "L_proton",
+    "L_electron",
+    "Tx_proton",
+    "Ty_proton",
+    "Tx_electron",
+    "Ty_electron",
+    "LL",
+    "LTx",
+    "LTy",
+    "TxTx",
+    "TxTy",
 )
-MAX_SPIN_CASES_PER_TARGET = 2
+MAX_SPIN_CASES_PER_TARGET = None
 TOP_ROWS_PER_TARGET_SPIN = 80
 MAX_CLUSTERS_PER_TARGET_SPIN = 4
 EXAMPLES_PER_CLUSTER = 2
 CLUSTER_RADIUS = 0.42
 SCAN_HEATMAP_MAX_BINS = 96
+AMPLITUDE_MIN_FRACTION = 0.02
+AMPLITUDE_MAX_COMPONENTS = 8
 
 DISPLAY_MOMENTA = ("k", "p", "kp", "pp", "qout")
 MOMENTUM_DISPLAY_LABELS = {
@@ -135,6 +145,22 @@ def read_csv_rows(path):
         return list(csv.DictReader(handle))
 
 
+def validate_spin_averaging_version(rows, input_path):
+    """Reject stale AlignmentScan CSVs with incompatible spin conventions."""
+    versions = {
+        str(row.get("initial_spin_averaging_version", "")).strip()
+        for row in rows
+    }
+    if versions == {SPIN_AVERAGING_VERSION}:
+        return
+    found = ", ".join(sorted(version or "<missing>" for version in versions))
+    raise ValueError(
+        f"AlignmentScan CSV {input_path} uses initial-spin averaging version(s) "
+        f"{found}; expected {SPIN_AVERAGING_VERSION}. Re-run AlignmentScan.py "
+        "before running ConfigGen.py."
+    )
+
+
 def clean_legacy_root_csv_outputs():
     """Remove stale root outputs from older ConfigGen layouts."""
     if not OUTPUT_DIR.exists():
@@ -162,6 +188,22 @@ def clean_egamma_config_outputs():
                 pass
 
 
+def clean_data_outputs():
+    """Remove generated ConfigGen CSVs before writing the organized layout."""
+    if not DATA_DIR.exists():
+        return
+    for path in DATA_DIR.rglob("*.csv"):
+        path.unlink()
+    for path in sorted(
+        DATA_DIR.rglob("*"), key=lambda item: len(item.parts), reverse=True
+    ):
+        if path.is_dir():
+            try:
+                path.rmdir()
+            except OSError:
+                pass
+
+
 def alignment_input_path():
     """Return the best available concurrence CSV for configuration scans."""
     for path in (
@@ -181,11 +223,12 @@ def alignment_input_path():
 def target_paths(file_tag):
     """Return output paths for one requested concurrence target."""
     prefix = f"max_{file_tag}"
+    combined_dir = DATA_DIR / file_tag / "combined"
     return {
-        "examples": DATA_DIR / f"{prefix}_configuration_examples.csv",
-        "clusters": DATA_DIR / f"{prefix}_cluster_summary.csv",
-        "momenta": DATA_DIR / f"{prefix}_momentum_configurations.csv",
-        "amplitudes": DATA_DIR / f"{prefix}_final_state_amplitude_decomposition.csv",
+        "examples": combined_dir / f"{prefix}_configuration_examples.csv",
+        "clusters": combined_dir / f"{prefix}_cluster_summary.csv",
+        "momenta": combined_dir / f"{prefix}_momentum_configurations.csv",
+        "amplitudes": combined_dir / f"{prefix}_final_state_amplitude_decomposition.csv",
     }
 
 
@@ -650,8 +693,9 @@ def spin_file_tag(spin_case):
 
 
 def spin_output_path(base_path, spin_case):
-    """Return the per-spin output path next to an aggregate path."""
-    return base_path.with_name(f"{base_path.stem}_{spin_file_tag(spin_case)}{base_path.suffix}")
+    """Return a target/polarization-organized output path."""
+    target_dir = base_path.parent.parent
+    return target_dir / spin_file_tag(spin_case) / base_path.name
 
 
 def write_spin_csvs(base_path, rows, spin_cases):
@@ -676,6 +720,9 @@ def momentum_configuration_rows(detail_rows):
                 "selected_observable": row["selected_observable"],
                 "selected_observable_label": row["selected_observable_label"],
                 "selected_spin_case": row["selected_spin_case"],
+                "initial_spin_averaging_version": row.get(
+                    "initial_spin_averaging_version", SPIN_AVERAGING_VERSION
+                ),
                 "selected_region": row["selected_region"],
                 "cluster_id": row["cluster_id"],
                 "selected_concurrence": f"{row['selected_concurrence']:.16e}",
@@ -705,90 +752,90 @@ def momentum_configuration_rows(detail_rows):
     return records
 
 
-def selected_final_state_amplitudes(amplitudes, spin_case):
-    """Return the final-state amplitude vector used for one selected spin case."""
-    in_states = initial_spin_states()
-    proton_spin = ENTANGLEMENT_INITIAL_STATE[1]
-    if spin_case == "unpolarized":
-        return amplitudes[in_states.index(ENTANGLEMENT_INITIAL_STATE)]
-    if spin_case == "longitudinal_polarized":
-        return (
-            amplitudes[in_states.index((+1, proton_spin))]
-            - amplitudes[in_states.index((-1, proton_spin))]
-        ) / np.sqrt(2.0)
-    if spin_case == "Tx":
-        coefficients = transverse_electron_coefficients(SPIN_CASE_TRANSVERSE_TX)
-        return sum(
-            coefficients[h_in] * amplitudes[in_states.index((h_in, proton_spin))]
-            for h_in in HELICITIES
-        )
-    if spin_case == "Ty":
-        coefficients = transverse_electron_coefficients(SPIN_CASE_TRANSVERSE_TY)
-        return sum(
-            coefficients[h_in] * amplitudes[in_states.index((h_in, proton_spin))]
-            for h_in in HELICITIES
-        )
-    if spin_case == "double_transverse":
-        return double_transverse_final_state(amplitudes)
-    raise ValueError(f"Unknown ConfigGen spin case: {spin_case}")
+def selected_final_state_ensemble(amplitudes, spin_case):
+    """Return the shared prepared-state ensemble with plotting metadata."""
+    return final_state_ensemble(amplitudes, spin_case)
 
 
 def selected_initial_state_label(spin_case):
-    """Return a compact label for the incoming spin state behind a plot."""
-    proton_spin = ENTANGLEMENT_INITIAL_STATE[1]
-    proton_label = format_helicity(proton_spin)
-    if spin_case == "unpolarized":
-        return rf"$A(h_e={format_helicity(ENTANGLEMENT_INITIAL_STATE[0])}, h_p={proton_label})$"
-    if spin_case == "longitudinal_polarized":
-        return rf"$[A(h_e=+1,h_p={proton_label}) - A(h_e=-1,h_p={proton_label})]/\sqrt{{2}}$"
-    if spin_case == "Tx":
-        return rf"$[A(h_e=+1,h_p={proton_label}) + A(h_e=-1,h_p={proton_label})]/\sqrt{{2}}$"
-    if spin_case == "Ty":
-        return rf"$[A(h_e=+1,h_p={proton_label}) + i A(h_e=-1,h_p={proton_label})]/\sqrt{{2}}$"
-    if spin_case == "double_transverse":
-        return r"$T_x(h_e) \otimes T_x(h_p)$ coherent incoming state"
-    return spin_case
+    """Return a compact label for the incoming spin ensemble behind a plot."""
+    labels = {
+        "unpolarized": r"$\frac{1}{4}\sum_{h_e,h_p}\rho(h_e,h_p)$",
+        "L_proton": r"$\frac{1}{2}\sum_{h_e}\rho(h_e,L_p)$",
+        "L_electron": r"$\frac{1}{2}\sum_{h_p}\rho(L_e,h_p)$",
+        "Tx_proton": r"$\frac{1}{2}\sum_{h_e}\rho(h_e,T_{x,p})$",
+        "Ty_proton": r"$\frac{1}{2}\sum_{h_e}\rho(h_e,T_{y,p})$",
+        "Tx_electron": r"$\frac{1}{2}\sum_{h_p}\rho(T_{x,e},h_p)$",
+        "Ty_electron": r"$\frac{1}{2}\sum_{h_p}\rho(T_{y,e},h_p)$",
+        "LL": r"$|L_eL_p\rangle$",
+        "LTx": r"$|L_eT_{x,p}\rangle$",
+        "LTy": r"$|L_eT_{y,p}\rangle$",
+        "TxTx": r"$|T_{x,e}T_{x,p}\rangle$",
+        "TxTy": r"$|T_{x,e}T_{y,p}\rangle$",
+    }
+    return labels.get(spin_case, spin_case)
 
 
 def amplitude_decomposition(row):
-    """Return final-state amplitude decomposition records for one detail row."""
+    """Return ensemble-aware final-state amplitude decomposition records."""
     kin = kinematics_from_config_row(row)
     F1, F2 = yahl_dirac_pauli_from_t(kin["t"], M)
     amplitudes = amplitude_table(kin["momenta"], M, F1, F2)
-    state = selected_final_state_amplitudes(amplitudes, row["selected_spin_case"])
-    norms = np.abs(state) ** 2
-    total = float(np.sum(norms))
+    process_rho = process_density_matrix_from_amplitudes(amplitudes)
+    contracted_rho = contract_initial_state(
+        process_rho, row["selected_spin_case"]
+    )
+    ensemble = selected_final_state_ensemble(amplitudes, row["selected_spin_case"])
+    total = float(np.real_if_close(np.trace(contracted_rho), tol=1000).real)
     if total <= 1.0e-14:
         raise ZeroDivisionError(f"Zero selected amplitude norm for {row['detail_id']}.")
     records = []
-    for index, ((h_out, s_out, lam), amplitude, norm) in enumerate(
-        zip(outgoing_spin_states(), state, norms)
-    ):
-        records.append({
-            "detail_id": row["detail_id"],
-            "detail_source": row.get("detail_source", ""),
-            "selected_observable": row["selected_observable"],
-            "selected_observable_label": row["selected_observable_label"],
-            "selected_spin_case": row["selected_spin_case"],
-            "selected_region": row["selected_region"],
-            "cluster_id": row["cluster_id"],
-            "selected_concurrence": f"{row['selected_concurrence']:.16e}",
-            "pair_delta_xy": f"{row['pair_delta_xy']:.16e}",
-            "kinematic_point": row.get("kinematic_point", ""),
-            "incoming_state": selected_initial_state_label(row["selected_spin_case"]),
-            "out_index": index,
-            "hOut": h_out,
-            "sOut": s_out,
-            "lambda": lam,
-            "amplitude_real": f"{amplitude.real:.16e}",
-            "amplitude_imag": f"{amplitude.imag:.16e}",
-            "amplitude_abs": f"{abs(amplitude):.16e}",
-            "amplitude_phase": f"{np.angle(amplitude):.16e}",
-            "amplitude_abs2": f"{norm:.16e}",
-            "fraction": f"{norm / total:.16e}",
-        })
+    for component in ensemble:
+        norms = np.abs(component["state"]) ** 2
+        for index, ((h_out, s_out, lam), amplitude, norm) in enumerate(
+            zip(outgoing_spin_states(), component["state"], norms)
+        ):
+            weighted_norm = float(component["weight"] * norm)
+            records.append({
+                "detail_id": row["detail_id"],
+                "detail_source": row.get("detail_source", ""),
+                "selected_observable": row["selected_observable"],
+                "selected_observable_label": row["selected_observable_label"],
+                "selected_spin_case": row["selected_spin_case"],
+                "selected_region": row["selected_region"],
+                "cluster_id": row["cluster_id"],
+                "selected_concurrence": f"{row['selected_concurrence']:.16e}",
+                "pair_delta_xy": f"{row['pair_delta_xy']:.16e}",
+                "kinematic_point": row.get("kinematic_point", ""),
+                "incoming_state": selected_initial_state_label(row["selected_spin_case"]),
+                "initial_spin_averaging_version": row.get(
+                    "initial_spin_averaging_version", SPIN_AVERAGING_VERSION
+                ),
+                "initial_component": component["label"],
+                "ensemble_weight": f"{component['weight']:.16e}",
+                "out_index": index,
+                "hOut": h_out,
+                "sOut": s_out,
+                "lambda": lam,
+                "amplitude_real": f"{amplitude.real:.16e}",
+                "amplitude_imag": f"{amplitude.imag:.16e}",
+                "amplitude_abs": f"{abs(amplitude):.16e}",
+                "amplitude_phase": f"{np.angle(amplitude):.16e}",
+                "amplitude_abs2": f"{norm:.16e}",
+                "weighted_abs2": f"{weighted_norm:.16e}",
+                "fraction": f"{weighted_norm / total:.16e}",
+            })
     records.sort(key=lambda item: parse_float(item["fraction"]), reverse=True)
-    return records
+    selected = [
+        item
+        for item in records
+        if parse_float(item["fraction"]) >= AMPLITUDE_MIN_FRACTION
+    ][:AMPLITUDE_MAX_COMPONENTS]
+    retained_fraction = sum(parse_float(item["fraction"]) for item in selected)
+    for rank, item in enumerate(selected, start=1):
+        item["decomposition_rank"] = rank
+        item["retained_fraction_total"] = f"{retained_fraction:.16e}"
+    return selected
 
 
 def amplitude_decomposition_rows(detail_rows):
@@ -1204,12 +1251,13 @@ def plot_configuration_text(ax, row, kin):
 
 
 def format_amplitude_summary(row, max_rows=3):
-    """Return a compact text summary of the largest amplitude fractions."""
+    """Return a compact summary of the largest ensemble-weighted components."""
     records = amplitude_decomposition(row)[:max_rows]
     lines = []
     for item in records:
         lines.append(
             "  "
+            f"{item['initial_component']}, "
             rf"$h_e$={format_helicity(item['hOut'])}, "
             rf"$h_p$={format_helicity(item['sOut'])}, "
             rf"$h_\gamma$={format_helicity(item['lambda'])}: "
@@ -1353,8 +1401,9 @@ def egamma_target_pdf_path(group_name, target, spin_case):
     return (
         EGAMMA_CONFIG_DIR
         / file_safe_label(group_name)
+        / file_tag
         / file_safe_label(spin_case)
-        / f"max_{file_tag}_regions.pdf"
+        / "regions.pdf"
     )
 
 
@@ -1403,12 +1452,12 @@ def save_all_egamma_target_region_pdfs(rows):
 
 
 def plot_amplitude_decomposition(ax, row):
-    """Draw final-state amplitude fractions and phases."""
+    """Draw ensemble-weighted final-state amplitude fractions and phases."""
     records = amplitude_decomposition(row)
     labels = [
         rf"$h_e$={format_helicity(item['hOut'])}, "
         rf"$h_p$={format_helicity(item['sOut'])}, "
-        rf"$h_\gamma$={format_helicity(item['lambda'])}"
+        rf"$h_\gamma$={format_helicity(item['lambda'])}" + "\n" + item["initial_component"]
         for item in records
     ]
     fractions = np.asarray([parse_float(item["fraction"]) for item in records], dtype=float)
@@ -1417,8 +1466,12 @@ def plot_amplitude_decomposition(ax, row):
     bars = ax.barh(y_pos, fractions, color="tab:blue", alpha=0.72)
     ax.set_yticks(y_pos, labels)
     ax.invert_yaxis()
-    ax.set_xlabel("final-state |A|^2 fraction")
-    ax.set_title("Final-state amplitude decomposition")
+    ax.set_xlabel("ensemble-weighted final-state |A|^2 fraction")
+    retained = parse_float(records[0]["retained_fraction_total"])
+    ax.set_title(
+        "Leading initial-ensemble/final-state components "
+        f"(N={len(records)}, retained={retained:.1%})"
+    )
     ax.set_xlim(0.0, max(0.08, float(np.nanmax(fractions)) * 1.25))
     for bar, item, phase in zip(bars, records, phases):
         ax.text(
@@ -1550,6 +1603,11 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
     lines = [
         "Max pairwise-concurrence configuration generator from AlignmentScan results",
         f"  input csv: {input_path}",
+        f"  required initial-spin averaging version: {SPIN_AVERAGING_VERSION}",
+        "  unpolarized decomposition: 1/4 average over electron and proton helicities",
+        "  single-particle polarization: direct prepared state with an incoherent 1/2 average over the other particle",
+        "  double polarization: direct prepared electron-proton product state",
+        "  no polarized category is constructed as a helicity asymmetry",
         f"  total input rows: {total_rows}",
         f"  data csv folder: {DATA_DIR}",
         f"  per-E_gamma config folder: {EGAMMA_CONFIG_DIR}",
@@ -1559,6 +1617,10 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
         f"  top rows per target/spin case: {TOP_ROWS_PER_TARGET_SPIN}",
         f"  cluster radius: {CLUSTER_RADIUS}",
         f"  max clusters per target/spin case: {MAX_CLUSTERS_PER_TARGET_SPIN}",
+        f"  amplitude component minimum fraction: {AMPLITUDE_MIN_FRACTION:.0%}",
+        f"  amplitude component maximum count: {AMPLITUDE_MAX_COMPONENTS}",
+        "  data layout: Data/<target>/<polarization>/... with combined tables under combined/",
+        "  PDF layout: Config_Plot_By_Egamma/<E_gamma>/<target>/<polarization>/regions.pdf",
         "  no PDF combines different E_gamma values or polarization configs",
         "  saved per-E_gamma/target/polarization config PDFs:",
     ]
@@ -1627,8 +1689,10 @@ def main():
     """Generate representative configurations from current AlignmentScan CSVs."""
     input_path = alignment_input_path()
     rows = read_csv_rows(input_path)
+    validate_spin_averaging_version(rows, input_path)
     clean_legacy_root_csv_outputs()
     clean_egamma_config_outputs()
+    clean_data_outputs()
     egamma_outputs, egamma_detail_rows = save_all_egamma_target_region_pdfs(rows)
     packages = [
         build_target_package(target, rows, egamma_detail_rows)

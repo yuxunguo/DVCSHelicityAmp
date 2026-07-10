@@ -19,20 +19,28 @@ from Algebra import mdot
 from FormFactors import YAHL_MODEL_NAME, yahl_dirac_pauli_from_t
 from Kinematics import kinematics_user_from_independent
 from SpinDensityMat import (
-    AVERAGE_INITIAL_SPINS,
-    ENTANGLEMENT_INITIAL_STATE,
     M,
     NORMALIZE_TRACE,
     OUTPUT_DIR,
     SCAN_WORKERS,
     USER_S_CENTER,
-    SPIN_CASE_DOUBLE_TRANSVERSE,
-    SPIN_CASE_POLARIZED,
-    SPIN_CASE_TRANSVERSE_TX,
-    SPIN_CASE_TRANSVERSE_TY,
+    SPIN_CASE_L_PROTON,
+    SPIN_CASE_L_ELECTRON,
+    SPIN_CASE_TX_PROTON,
+    SPIN_CASE_TY_PROTON,
+    SPIN_CASE_TX_ELECTRON,
+    SPIN_CASE_TY_ELECTRON,
+    SPIN_CASE_LL,
+    SPIN_CASE_LTX,
+    SPIN_CASE_LTY,
+    SPIN_CASE_TXTX,
+    SPIN_CASE_TXTY,
     SPIN_CASE_UNPOLARIZED,
     amplitude_table,
+    entanglement_mode,
     outgoing_spin_states,
+    initial_spin_average_divisor,
+    process_density_matrix_from_amplitudes,
     spin_density_observables_from_amplitudes,
 )
 
@@ -66,11 +74,33 @@ REGENERATE_PLOTS_FROM_CSV = False
 REGENERATE_PLOTS_CSV_PATH = CONCURRENCE_PHASE_SPACE_CSV
 ALIGNMENT_SPIN_CASES = (
     ("unpolarized", "Unpolarized", SPIN_CASE_UNPOLARIZED),
-    ("longitudinal_polarized", "Longitudinal polarized", SPIN_CASE_POLARIZED),
-    ("Tx", "Tx", SPIN_CASE_TRANSVERSE_TX),
-    ("Ty", "Ty", SPIN_CASE_TRANSVERSE_TY),
-    ("double_transverse", "Double transverse", SPIN_CASE_DOUBLE_TRANSVERSE),
+    ("L_proton", "Longitudinal proton", SPIN_CASE_L_PROTON),
+    ("L_electron", "Longitudinal electron", SPIN_CASE_L_ELECTRON),
+    ("Tx_proton", "Tx proton", SPIN_CASE_TX_PROTON),
+    ("Ty_proton", "Ty proton", SPIN_CASE_TY_PROTON),
+    ("Tx_electron", "Tx electron", SPIN_CASE_TX_ELECTRON),
+    ("Ty_electron", "Ty electron", SPIN_CASE_TY_ELECTRON),
+    ("LL", "LL", SPIN_CASE_LL),
+    ("LTx", "LTx", SPIN_CASE_LTX),
+    ("LTy", "LTy", SPIN_CASE_LTY),
+    ("TxTx", "TxTx", SPIN_CASE_TXTX),
+    ("TxTy", "TxTy", SPIN_CASE_TXTY),
 )
+SPIN_AVERAGING_VERSION = "prepared_spin_ensemble_v4"
+
+
+def spin_averaging_description(spin_case):
+    """Return the initial-spin ensemble convention used by AlignmentScan."""
+    descriptions = {
+        prefix_spin_case: (
+            f"direct prepared state; {initial_spin_average_divisor(prefix_spin_case):.0f} "
+            "incoherent component(s)"
+        )
+        for _prefix, _label, prefix_spin_case in ALIGNMENT_SPIN_CASES
+    }
+    if spin_case not in descriptions:
+        raise ValueError(f"Unknown alignment spin case: {spin_case}")
+    return descriptions[spin_case]
 COARSE_CONCURRENCE_NAMES = (
     "C_e_p",
     "C_e_gamma",
@@ -252,6 +282,7 @@ def _scan_alignment_point_task(task):
             "s_regime": anchor["s_regime"],
             "theta_in_regime": anchor["theta_in_regime"],
             "qOut_regime": anchor["qOut_regime"],
+            "initial_spin_averaging_version": SPIN_AVERAGING_VERSION,
             "s": float(kin["s"]),
             "sqrt_s": float(kin["sqrt_s"]),
             "pIn": float(kin["pIn"]),
@@ -280,6 +311,8 @@ def _scan_alignment_point_task(task):
         for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES:
             row[f"{prefix}_trace"] = np.nan
             row[f"{prefix}_spin_signal_M2"] = np.nan
+            row[f"{prefix}_cross_section_ratio"] = np.nan
+            row[f"{prefix}_purity"] = np.nan
             row[f"{prefix}_h_out_mean"] = np.nan
             row[f"{prefix}_lambda_mean"] = np.nan
             row[f"{prefix}_h_lambda"] = np.nan
@@ -288,14 +321,14 @@ def _scan_alignment_point_task(task):
                 row[f"{prefix}_{name}"] = np.nan
 
         amplitudes = amplitude_table(momenta, kin["m"], F1, F2)
+        process_rho = process_density_matrix_from_amplitudes(amplitudes)
         squared_amplitude = np.nan
         for prefix, _label, spin_case in ALIGNMENT_SPIN_CASES:
             spin_data = spin_density_observables_from_amplitudes(
                 amplitudes,
                 spin_case=spin_case,
-                average_initial=AVERAGE_INITIAL_SPINS,
                 normalize_trace=settings["normalize_trace"],
-                entanglement_initial_state=settings["entanglement_initial_state"],
+                process_rho=process_rho,
             )
             rho = spin_data["rho"]
             squared_amplitude = spin_data["squared_amplitude"]
@@ -303,6 +336,8 @@ def _scan_alignment_point_task(task):
             row.update({
                 f"{prefix}_trace": spin_data["trace"],
                 f"{prefix}_spin_signal_M2": spin_data["spin_signal"],
+                f"{prefix}_cross_section_ratio": spin_data["cross_section_ratio"],
+                f"{prefix}_purity": spin_data["purity"],
                 f"{prefix}_h_out_mean": corr["h_out_mean"],
                 f"{prefix}_lambda_mean": corr["lambda_mean"],
                 f"{prefix}_h_lambda": corr["h_lambda"],
@@ -334,7 +369,6 @@ def scan_final_electron_photon_alignment(
     angle_max_rad=ALIGNMENT_ANGLE_MAX_RAD,
     m=M,
     normalize_trace=NORMALIZE_TRACE,
-    entanglement_initial_state=ENTANGLEMENT_INITIAL_STATE,
     max_workers=SCAN_WORKERS,
 ):
     """Scan two angular variables around characteristic user-frame kinematics."""
@@ -345,7 +379,6 @@ def scan_final_electron_photon_alignment(
     settings = {
         "m": m,
         "normalize_trace": normalize_trace,
-        "entanglement_initial_state": entanglement_initial_state,
         "angle_max_rad": angle_max_rad,
     }
     tasks = [
@@ -395,9 +428,9 @@ def scan_final_electron_photon_alignment(
         "phiOut_values": np.asarray(phiOut_values, dtype=float),
         "m": m,
         "form_factor_model": YAHL_MODEL_NAME,
-        "normalized_by_squared_amplitude": normalize_trace,
-        "entanglement_initial_state": entanglement_initial_state,
+        "normalized_to_unit_trace": normalize_trace,
         "spin_cases": ALIGNMENT_SPIN_CASES,
+        "spin_averaging_version": SPIN_AVERAGING_VERSION,
     }
 
 
@@ -411,6 +444,8 @@ def _alignment_csv_headers():
         headers.extend([
             f"{prefix}_trace",
             f"{prefix}_spin_signal_M2",
+            f"{prefix}_cross_section_ratio",
+            f"{prefix}_purity",
             f"{prefix}_h_out_mean",
             f"{prefix}_lambda_mean",
             f"{prefix}_h_lambda",
@@ -426,6 +461,7 @@ def _kinematic_csv_headers():
         "s_regime",
         "theta_in_regime",
         "qOut_regime",
+        "initial_spin_averaging_version",
         "s",
         "sqrt_s",
         "pIn",
@@ -458,6 +494,7 @@ def _kinematic_csv_row(row):
         row["s_regime"],
         row["theta_in_regime"],
         row["qOut_regime"],
+        row["initial_spin_averaging_version"],
         f"{row['s']:.16e}",
         f"{row['sqrt_s']:.16e}",
         f"{row['pIn']:.16e}",
@@ -493,6 +530,8 @@ def _alignment_csv_row(row):
         values.extend([
             f"{row[f'{prefix}_trace']:.16e}",
             f"{row[f'{prefix}_spin_signal_M2']:.16e}",
+            f"{row[f'{prefix}_cross_section_ratio']:.16e}",
+            f"{row[f'{prefix}_purity']:.16e}",
             f"{row[f'{prefix}_h_out_mean']:.16e}",
             f"{row[f'{prefix}_lambda_mean']:.16e}",
             f"{row[f'{prefix}_h_lambda']:.16e}",
@@ -626,7 +665,7 @@ def _add_pi_over_two_reference_lines(ax):
 
 def _heatmap_color_scale(prefix, observable):
     """Return fixed absolute heatmap scale and colormap for an observable."""
-    if prefix == "longitudinal_polarized" or observable in SIGNED_CONCURRENCE_OBSERVABLES:
+    if observable in SIGNED_CONCURRENCE_OBSERVABLES:
         return -1.0, 1.0, "coolwarm"
     return 0.0, 1.0, "viridis"
 
@@ -638,7 +677,11 @@ def _concurrence_csv_headers():
         "squared_amplitude_M2",
     ]
     for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES:
-        headers.extend(f"{prefix}_{name}" for name in COARSE_CONCURRENCE_NAMES)
+        headers.extend([
+            f"{prefix}_cross_section_ratio",
+            f"{prefix}_purity",
+            *(f"{prefix}_{name}" for name in COARSE_CONCURRENCE_NAMES),
+        ])
     return headers
 
 
@@ -649,7 +692,11 @@ def _concurrence_csv_row(row):
         f"{row['squared_amplitude_M2']:.16e}",
     ]
     for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES:
-        values.extend(f"{row[f'{prefix}_{name}']:.16e}" for name in COARSE_CONCURRENCE_NAMES)
+        values.extend([
+            f"{row[f'{prefix}_cross_section_ratio']:.16e}",
+            f"{row[f'{prefix}_purity']:.16e}",
+            *(f"{row[f'{prefix}_{name}']:.16e}" for name in COARSE_CONCURRENCE_NAMES),
+        ])
     return values
 
 
@@ -665,9 +712,13 @@ def _concurrence_top_csv_headers():
         "aligned",
         "squared_amplitude_M2",
         *(
-            f"{prefix}_{name}"
+            key
             for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES
-            for name in COARSE_CONCURRENCE_NAMES
+            for key in (
+                f"{prefix}_cross_section_ratio",
+                f"{prefix}_purity",
+                *(f"{prefix}_{name}" for name in COARSE_CONCURRENCE_NAMES),
+            )
         ),
     ]
 
@@ -684,9 +735,13 @@ def _concurrence_top_csv_row(rank_group, rank, row, prefix, observable):
         row["aligned"],
         f"{row['squared_amplitude_M2']:.16e}",
         *(
-            f"{row[f'{prefix}_{name}']:.16e}"
+            f"{row[key]:.16e}"
             for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES
-            for name in COARSE_CONCURRENCE_NAMES
+            for key in (
+                f"{prefix}_cross_section_ratio",
+                f"{prefix}_purity",
+                *(f"{prefix}_{name}" for name in COARSE_CONCURRENCE_NAMES),
+            )
         ),
     ]
 
@@ -766,6 +821,7 @@ def load_concurrence_scan_csv(csv_path=CONCURRENCE_PHASE_SPACE_CSV):
         "s_regime",
         "theta_in_regime",
         "qOut_regime",
+        "initial_spin_averaging_version",
     }
     with csv_path.open("r", newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
@@ -780,6 +836,10 @@ def load_concurrence_scan_csv(csv_path=CONCURRENCE_PHASE_SPACE_CSV):
             row["aligned"] = _csv_bool(raw, "aligned")
             row["squared_amplitude_M2"] = _csv_float(raw, "squared_amplitude_M2")
             for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES:
+                row[f"{prefix}_cross_section_ratio"] = _csv_float(
+                    raw, f"{prefix}_cross_section_ratio"
+                )
+                row[f"{prefix}_purity"] = _csv_float(raw, f"{prefix}_purity")
                 for name in COARSE_CONCURRENCE_NAMES:
                     key = f"{prefix}_{name}"
                     if key not in fieldnames:
@@ -819,9 +879,9 @@ def load_concurrence_scan_csv(csv_path=CONCURRENCE_PHASE_SPACE_CSV):
         "phiOut_values": np.unique(np.asarray([row["phiOut"] for row in rows], dtype=float)),
         "m": M,
         "form_factor_model": YAHL_MODEL_NAME,
-        "normalized_by_squared_amplitude": NORMALIZE_TRACE,
-        "entanglement_initial_state": ENTANGLEMENT_INITIAL_STATE,
+        "normalized_to_unit_trace": NORMALIZE_TRACE,
         "spin_cases": ALIGNMENT_SPIN_CASES,
+        "spin_averaging_version": SPIN_AVERAGING_VERSION,
         "source_csv": csv_path,
         "missing_observable_columns": sorted(missing_observable_columns),
     }
@@ -994,6 +1054,7 @@ def build_alignment_report(alignment_scan, alignment_paths):
         f"  theta_in anchor range: {min(alignment_scan['theta_in_values']):.6g} to {max(alignment_scan['theta_in_values']):.6g}",
         f"  qOut/Egamma anchor range: {min(alignment_scan['qOut_values']):.6g} to {max(alignment_scan['qOut_values']):.6g}",
         f"  form factor model: {alignment_scan['form_factor_model']} with F1(t), F2(t)",
+        f"  initial-spin averaging version: {alignment_scan.get('spin_averaging_version', SPIN_AVERAGING_VERSION)}",
         f"  phi_e_in scan: {len(alignment_scan['phi_in_electron_values'])} values from "
         f"{alignment_scan['phi_in_electron_values'][0]:.6g} to {alignment_scan['phi_in_electron_values'][-1]:.6g}",
         f"  phi_gamma scan: {len(alignment_scan['phiOut_values'])} values from "
@@ -1004,6 +1065,13 @@ def build_alignment_report(alignment_scan, alignment_paths):
         f"  valid points: {len(rows)}",
         f"  aligned points: {len(aligned_rows)}",
     ]
+    lines.append("  initial-spin ensemble conventions:")
+    for prefix, label, spin_case in ALIGNMENT_SPIN_CASES:
+        lines.append(
+            f"    {label} ({prefix}): {spin_averaging_description(spin_case)}; "
+            f"density divisor={initial_spin_average_divisor(spin_case):.0f}; "
+            f"entanglement mode={entanglement_mode(spin_case)}"
+        )
     if rows:
         min_angle = min(row["theta_e_gamma_deg"] for row in rows)
         max_angle = max(row["theta_e_gamma_deg"] for row in rows)

@@ -52,26 +52,36 @@ USER_FIXED_PHI_IN = 0.0
 USER_FIXED_QOUT = 0.85
 USER_FIXED_PHI_OUT = np.pi
 
-AVERAGE_INITIAL_SPINS = False
 NORMALIZE_TRACE = True
 TRACE_BENCHMARK_TOL = 1e-10
 SCAN_WORKERS = max(1, min(os.cpu_count() or 1, 8))
 SPIN_CASE_UNPOLARIZED = "unpolarized"
-SPIN_CASE_POLARIZED = "polarized"
-SPIN_CASE_TRANSVERSE_TX = "transverse_Tx"
-SPIN_CASE_TRANSVERSE_TY = "transverse_Ty"
-SPIN_CASE_DOUBLE_TRANSVERSE = "double_transverse"
-TRANSVERSE_SPIN_CASES = (
-    SPIN_CASE_TRANSVERSE_TX,
-    SPIN_CASE_TRANSVERSE_TY,
-)
+SPIN_CASE_L_PROTON = "L_proton"
+SPIN_CASE_L_ELECTRON = "L_electron"
+SPIN_CASE_TX_PROTON = "Tx_proton"
+SPIN_CASE_TY_PROTON = "Ty_proton"
+SPIN_CASE_TX_ELECTRON = "Tx_electron"
+SPIN_CASE_TY_ELECTRON = "Ty_electron"
+SPIN_CASE_LL = "LL"
+SPIN_CASE_LTX = "LTx"
+SPIN_CASE_LTY = "LTy"
+SPIN_CASE_TXTX = "TxTx"
+SPIN_CASE_TXTY = "TxTy"
+
 SPIN_CASES = (
     SPIN_CASE_UNPOLARIZED,
-    SPIN_CASE_POLARIZED,
-    SPIN_CASE_TRANSVERSE_TX,
-    SPIN_CASE_TRANSVERSE_TY,
+    SPIN_CASE_L_PROTON,
+    SPIN_CASE_L_ELECTRON,
+    SPIN_CASE_TX_PROTON,
+    SPIN_CASE_TY_PROTON,
+    SPIN_CASE_TX_ELECTRON,
+    SPIN_CASE_TY_ELECTRON,
+    SPIN_CASE_LL,
+    SPIN_CASE_LTX,
+    SPIN_CASE_LTY,
+    SPIN_CASE_TXTX,
+    SPIN_CASE_TXTY,
 )
-ENTANGLEMENT_INITIAL_STATE = (+1, +1)
 ENTANGLEMENT_NAMES = (
     "C_e_p",
     "C_e_gamma",
@@ -106,6 +116,155 @@ def initial_spin_states():
     return tuple(product(HELICITIES, repeat=2))
 
 
+def prepared_spin_coefficients(axis):
+    """Return helicity coefficients for a direct L, Tx, or Ty preparation."""
+    coefficient = 1.0 / np.sqrt(2.0)
+    if axis == "L":
+        return {+1: 1.0 + 0.0j}
+    if axis == "Tx":
+        return {-1: coefficient, +1: coefficient}
+    if axis == "Ty":
+        return {-1: 1.0j * coefficient, +1: coefficient}
+    raise ValueError(f"Unknown prepared spin axis: {axis}")
+
+
+def _unpolarized_particle_ensemble():
+    """Return the equal incoherent helicity ensemble for one particle."""
+    return [
+        (0.5, {helicity: 1.0 + 0.0j}, f"h={helicity:+d}")
+        for helicity in HELICITIES
+    ]
+
+
+def _prepared_particle_ensemble(axis):
+    """Return one coherently prepared particle state."""
+    return [(1.0, prepared_spin_coefficients(axis), axis)]
+
+
+def spin_case_axes(spin_case):
+    """Return ``(electron_axis, proton_axis)``; ``None`` means unpolarized."""
+    cases = {
+        SPIN_CASE_UNPOLARIZED: (None, None),
+        SPIN_CASE_L_PROTON: (None, "L"),
+        SPIN_CASE_L_ELECTRON: ("L", None),
+        SPIN_CASE_TX_PROTON: (None, "Tx"),
+        SPIN_CASE_TY_PROTON: (None, "Ty"),
+        SPIN_CASE_TX_ELECTRON: ("Tx", None),
+        SPIN_CASE_TY_ELECTRON: ("Ty", None),
+        SPIN_CASE_LL: ("L", "L"),
+        SPIN_CASE_LTX: ("L", "Tx"),
+        SPIN_CASE_LTY: ("L", "Ty"),
+        SPIN_CASE_TXTX: ("Tx", "Tx"),
+        SPIN_CASE_TXTY: ("Tx", "Ty"),
+    }
+    if spin_case not in cases:
+        raise ValueError(f"Unknown spin density case: {spin_case}")
+    return cases[spin_case]
+
+
+def initial_state_ensemble(spin_case):
+    """Return the weighted incoming electron-proton preparation ensemble.
+
+    The first axis in a double-polarization label belongs to the electron and
+    the second to the proton.  A particle absent from the label is summed
+    incoherently over its two helicities.
+    """
+    electron_axis, proton_axis = spin_case_axes(spin_case)
+    electron = (
+        _unpolarized_particle_ensemble()
+        if electron_axis is None
+        else _prepared_particle_ensemble(electron_axis)
+    )
+    proton = (
+        _unpolarized_particle_ensemble()
+        if proton_axis is None
+        else _prepared_particle_ensemble(proton_axis)
+    )
+    return [
+        {
+            "weight": electron_weight * proton_weight,
+            "electron_coefficients": electron_coefficients,
+            "proton_coefficients": proton_coefficients,
+            "label": f"electron {electron_label}, proton {proton_label}",
+        }
+        for electron_weight, electron_coefficients, electron_label in electron
+        for proton_weight, proton_coefficients, proton_label in proton
+    ]
+
+
+def final_state_ensemble(amplitudes, spin_case):
+    """Apply each incoming ensemble component to the amplitude table."""
+    in_states = initial_spin_states()
+    final_states = []
+    for component in initial_state_ensemble(spin_case):
+        state = np.zeros(amplitudes.shape[1], dtype=complex)
+        for h_in, electron_coefficient in component["electron_coefficients"].items():
+            for s_in, proton_coefficient in component["proton_coefficients"].items():
+                state += (
+                    electron_coefficient
+                    * proton_coefficient
+                    * amplitudes[in_states.index((h_in, s_in))]
+                )
+        final_states.append({**component, "state": state})
+    return final_states
+
+
+def single_particle_spin_density(axis):
+    """Return a normalized incoming one-qubit density matrix.
+
+    ``axis=None`` represents an unpolarized particle, ``I_2/2``. Prepared
+    ``L``, ``Tx``, and ``Ty`` states are rank-one projectors in the helicity
+    basis ordered as ``(-1, +1)``.
+    """
+    if axis is None:
+        return 0.5 * np.eye(2, dtype=complex)
+    coefficients = prepared_spin_coefficients(axis)
+    state = np.asarray(
+        [coefficients.get(helicity, 0.0) for helicity in HELICITIES],
+        dtype=complex,
+    )
+    return np.outer(state, state.conj())
+
+
+def initial_spin_density_matrix(spin_case):
+    """Return the normalized 4 x 4 electron-proton incoming density matrix."""
+    electron_axis, proton_axis = spin_case_axes(spin_case)
+    return np.kron(
+        single_particle_spin_density(electron_axis),
+        single_particle_spin_density(proton_axis),
+    )
+
+
+def process_density_matrix_from_amplitudes(amplitudes):
+    """Return the full 32 x 32 five-particle process density matrix.
+
+    The flattened basis is ``(hIn, sIn, hOut, sOut, lambda)`` and the matrix
+    is ``R = |M><M|`` for the complete ``4 x 8`` amplitude table.
+    """
+    amplitudes = np.asarray(amplitudes, dtype=complex)
+    if amplitudes.shape != (4, 8):
+        raise ValueError("The five-particle amplitude table must have shape (4, 8).")
+    process_state = amplitudes.reshape(32)
+    return np.outer(process_state, process_state.conj())
+
+
+def contract_initial_state(process_rho, spin_case):
+    """Contract the incoming preparation and return the outgoing 8 x 8 matrix.
+
+    Unpolarized incoming particles are traced with ``I_2/2``; hence their
+    helicities are summed incoherently and averaged. Polarized particles are
+    contracted with the corresponding pure-state projector.
+    """
+    process_rho = np.asarray(process_rho, dtype=complex)
+    if process_rho.shape != (32, 32):
+        raise ValueError("The five-particle process density matrix must be 32 x 32.")
+    electron_axis, proton_axis = spin_case_axes(spin_case)
+    rho_e = single_particle_spin_density(electron_axis)
+    rho_p = single_particle_spin_density(proton_axis)
+    tensor = process_rho.reshape(2, 2, 8, 2, 2, 8)
+    return np.einsum("abicdj,ac,bd->ij", tensor, rho_e, rho_p, optimize=True)
+
+
 def incoming_spin_weights(spin_case=SPIN_CASE_UNPOLARIZED):
     """Return initial-state diagonal weights for a configured spin scan.
 
@@ -115,33 +274,27 @@ def incoming_spin_weights(spin_case=SPIN_CASE_UNPOLARIZED):
     coherent interference terms are handled by
     :func:`density_matrix_from_amplitudes`.
     """
-    if spin_case == SPIN_CASE_UNPOLARIZED:
-        return np.ones(len(initial_spin_states()), dtype=float)
-    if spin_case == SPIN_CASE_POLARIZED:
-        return np.asarray(
-            [1.0 if h_in == 1 else -1.0 for h_in, _s_in in initial_spin_states()],
-            dtype=float,
-        )
-    if is_transverse_spin_case(spin_case):
-        return np.full(len(initial_spin_states()), 0.5, dtype=float)
-    if spin_case == SPIN_CASE_DOUBLE_TRANSVERSE:
-        return np.full(len(initial_spin_states()), 0.25, dtype=float)
-    raise ValueError(f"Unknown spin density case: {spin_case}")
+    populations = []
+    for h_in, s_in in initial_spin_states():
+        population = 0.0
+        for component in initial_state_ensemble(spin_case):
+            electron = component["electron_coefficients"].get(h_in, 0.0)
+            proton = component["proton_coefficients"].get(s_in, 0.0)
+            population += component["weight"] * abs(electron * proton) ** 2
+        populations.append(population)
+    return np.asarray(populations, dtype=float)
 
 
-def is_transverse_spin_case(spin_case):
-    """Return whether ``spin_case`` is a coherent transverse electron state."""
-    return spin_case in TRANSVERSE_SPIN_CASES
+def initial_spin_average_divisor(spin_case):
+    """Return the physical initial-spin averaging divisor for one spin case.
 
-
-def transverse_electron_coefficients(spin_case=SPIN_CASE_TRANSVERSE_TX):
-    """Return incoming-electron coefficients for a transverse spin case."""
-    coefficient = 1.0 / np.sqrt(2.0)
-    if spin_case == SPIN_CASE_TRANSVERSE_TX:
-        return {-1: coefficient, +1: coefficient}
-    if spin_case == SPIN_CASE_TRANSVERSE_TY:
-        return {-1: 1.0j * coefficient, +1: coefficient}
-    raise ValueError(f"Unknown transverse spin density case: {spin_case}")
+    The unpolarized case averages over both electron and proton helicities.
+    A single polarized electron state averages only over the unobserved proton
+    helicity.  The double-transverse state is one coherent preparation and is
+    therefore not spin averaged.
+    """
+    ensemble_size = len(initial_state_ensemble(spin_case))
+    return float(ensemble_size)
 
 
 def amplitude_table(mom, m, F1, F2):
@@ -163,98 +316,23 @@ def amplitude_table(mom, m, F1, F2):
 
 def density_matrix_from_amplitudes(
     amplitudes,
-    average_initial=False,
     spin_case=SPIN_CASE_UNPOLARIZED,
+    process_rho=None,
 ):
-    """Build the outgoing spin-density matrix from an amplitude table.
-
-    For the unpolarized case, the convention is
-    ``rho_ij = sum_initial A_initial,i conj(A_initial,j)``. For the polarized
-    case, the incoming electron helicity weights are ``+1`` for ``hIn=+1`` and
-    ``-1`` for ``hIn=-1``. For transverse cases, the incoming electron is
-    coherent and the incoming proton spin is summed. ``Tx`` is
-    ``(|h=+1> + |h=-1>)/sqrt(2)``; ``Ty`` is
-    ``(|h=+1> + i |h=-1>)/sqrt(2)``.
-
-    The returned tuple is ``(rho, spin_signal, squared_amplitude)``. The
-    ``spin_signal`` is the weighted trace numerator, while
-    ``squared_amplitude`` is the unpolarized ``sum |A|^2`` normalization
-    denominator.
-    """
+    """Build the outgoing 8 x 8 matrix by contracting the full 32 x 32 matrix."""
     in_states = initial_spin_states()
     if amplitudes.shape[0] != len(in_states):
         raise ValueError(
             "Amplitude table first axis does not match the incoming spin basis."
         )
 
-    amplitude_norms = np.sum(np.abs(amplitudes) ** 2, axis=1)
-    squared_amplitude = float(np.sum(amplitude_norms))
-    if is_transverse_spin_case(spin_case):
-        coefficients = transverse_electron_coefficients(spin_case)
-        rho = np.zeros((amplitudes.shape[1], amplitudes.shape[1]), dtype=complex)
-        spin_signal = 0.0
-        for s_in in HELICITIES:
-            state = sum(
-                coefficients[h_in] * amplitudes[in_states.index((h_in, s_in))]
-                for h_in in HELICITIES
-            )
-            rho += np.outer(state, state.conj())
-            spin_signal += float(np.sum(np.abs(state) ** 2))
-    else:
-        weights = incoming_spin_weights(spin_case)
-        weighted_amplitudes = weights[:, np.newaxis] * amplitudes
-        rho = weighted_amplitudes.T @ np.conjugate(amplitudes)
-        spin_signal = float(np.sum(weights * amplitude_norms))
-    if average_initial:
-        rho /= amplitudes.shape[0]
-        spin_signal /= amplitudes.shape[0]
-        squared_amplitude /= amplitudes.shape[0]
+    if process_rho is None:
+        process_rho = process_density_matrix_from_amplitudes(amplitudes)
+    rho = contract_initial_state(process_rho, spin_case)
+    spin_signal = trace_value(rho)
+    unpolarized_rho = contract_initial_state(process_rho, SPIN_CASE_UNPOLARIZED)
+    squared_amplitude = trace_value(unpolarized_rho)
     return rho, spin_signal, squared_amplitude
-
-
-def normalized_final_state(amplitudes, initial_state=ENTANGLEMENT_INITIAL_STATE):
-    """Return the normalized outgoing pure state for one incoming spin pair.
-
-    The concurrence formulae used here are pure-state formulae. This helper
-    selects one row of the amplitude table, corresponding to
-    ``initial_state=(hIn, sIn)``, and normalizes it as an eight-component
-    three-qubit state in the outgoing basis.
-    """
-    in_states = initial_spin_states()
-    if initial_state not in in_states:
-        raise ValueError(f"Unknown initial spin state: {initial_state}")
-
-    state = amplitudes[in_states.index(initial_state)]
-    norm = np.sqrt(np.sum(np.abs(state) ** 2))
-    if norm <= 1e-14:
-        raise ZeroDivisionError(
-            f"Cannot normalize a zero final-state amplitude for initial state {initial_state}."
-        )
-    return state / norm
-
-
-def normalized_transverse_final_state(
-    amplitudes,
-    proton_spin,
-    spin_case=SPIN_CASE_TRANSVERSE_TX,
-):
-    """Return the normalized final state for transverse incoming electron spin."""
-    in_states = initial_spin_states()
-    if proton_spin not in HELICITIES:
-        raise ValueError(f"Unknown incoming proton spin: {proton_spin}")
-
-    coefficients = transverse_electron_coefficients(spin_case)
-    state = sum(
-        coefficients[h_in] * amplitudes[in_states.index((h_in, proton_spin))]
-        for h_in in HELICITIES
-    )
-    norm = np.sqrt(np.sum(np.abs(state) ** 2))
-    if norm <= 1e-14:
-        raise ZeroDivisionError(
-            "Cannot normalize a zero final-state amplitude for "
-            f"{spin_case} incoming electron and sIn={proton_spin}."
-        )
-    return state / norm
 
 
 def trace_value(rho):
@@ -365,122 +443,88 @@ def entanglement_measures_from_state(state):
     }
 
 
-def entanglement_measures_from_amplitudes(amplitudes, initial_state):
-    """Compute entanglement observables for one incoming spin state."""
-    state = normalized_final_state(amplitudes, initial_state=initial_state)
-    return entanglement_measures_from_state(state)
+def entanglement_measures_from_density_matrix(rho):
+    """Compute valid entanglement observables from an outgoing density matrix.
 
-
-def polarized_entanglement_difference(amplitudes, proton_spin):
-    """Return hIn=+1 minus hIn=-1 entanglement observables at fixed sIn."""
-    plus = entanglement_measures_from_amplitudes(amplitudes, (+1, proton_spin))
-    minus = entanglement_measures_from_amplitudes(amplitudes, (-1, proton_spin))
-    return {name: plus[name] - minus[name] for name in ENTANGLEMENT_NAMES}
-
-
-def transverse_entanglement_measures(
-    amplitudes,
-    proton_spin,
-    spin_case=SPIN_CASE_TRANSVERSE_TX,
-):
-    """Return entanglement observables for the transverse incoming electron state."""
-    state = normalized_transverse_final_state(amplitudes, proton_spin, spin_case)
-    return entanglement_measures_from_state(state)
-
-
-def double_transverse_final_state(amplitudes):
-    """Return the outgoing state for electron and proton both polarized along Tx."""
-    in_states = initial_spin_states()
-    coefficients = transverse_electron_coefficients(SPIN_CASE_TRANSVERSE_TX)
-    return sum(
-        coefficients[h_in]
-        * coefficients[s_in]
-        * amplitudes[in_states.index((h_in, s_in))]
-        for h_in in HELICITIES
-        for s_in in HELICITIES
-    )
-
-
-def normalized_double_transverse_final_state(amplitudes):
-    """Return the normalized double-transverse outgoing pure state."""
-    state = double_transverse_final_state(amplitudes)
-    norm = np.sqrt(np.sum(np.abs(state) ** 2))
-    if norm <= 1e-14:
-        raise ZeroDivisionError("Cannot normalize a zero double-transverse final state.")
-    return state / norm
+    Wootters two-qubit concurrence is valid for both pure and mixed reduced
+    states. The one-to-rest concurrence, F3, and CKW residual formulas used by
+    this project are pure-three-qubit formulas; they are reported as NaN when
+    the contracted outgoing state is mixed.
+    """
+    rho = normalized_density_matrix(rho)
+    c_e_p = two_qubit_concurrence(reduced_density_matrix(rho, (0, 1)))
+    c_e_gamma = two_qubit_concurrence(reduced_density_matrix(rho, (0, 2)))
+    c_p_gamma = two_qubit_concurrence(reduced_density_matrix(rho, (1, 2)))
+    purity = float(np.real_if_close(np.trace(rho @ rho), tol=1000).real)
+    if not np.isclose(purity, 1.0, rtol=1e-9, atol=1e-10):
+        return {
+            "C_e_p": c_e_p,
+            "C_e_gamma": c_e_gamma,
+            "C_p_gamma": c_p_gamma,
+            "C_e_rest": np.nan,
+            "C_p_rest": np.nan,
+            "C_gamma_rest": np.nan,
+            "F3": np.nan,
+            "M_e": np.nan,
+            "M_p": np.nan,
+            "M_gamma": np.nan,
+        }
+    c_e_rest = one_to_rest_concurrence(rho, 0)
+    c_p_rest = one_to_rest_concurrence(rho, 1)
+    c_gamma_rest = one_to_rest_concurrence(rho, 2)
+    return {
+        "C_e_p": c_e_p,
+        "C_e_gamma": c_e_gamma,
+        "C_p_gamma": c_p_gamma,
+        "C_e_rest": c_e_rest,
+        "C_p_rest": c_p_rest,
+        "C_gamma_rest": c_gamma_rest,
+        "F3": f3_from_one_to_rest(c_e_rest, c_p_rest, c_gamma_rest),
+        "M_e": c_e_rest**2 - c_e_p**2 - c_e_gamma**2,
+        "M_p": c_p_rest**2 - c_e_p**2 - c_p_gamma**2,
+        "M_gamma": c_gamma_rest**2 - c_e_gamma**2 - c_p_gamma**2,
+    }
 
 
 def density_matrix_for_spin_case(
     amplitudes,
     spin_case=SPIN_CASE_UNPOLARIZED,
-    average_initial=AVERAGE_INITIAL_SPINS,
+    process_rho=None,
 ):
     """Return ``rho``, spin signal, and unpolarized ``|M|^2`` for one spin case."""
-    if spin_case == SPIN_CASE_DOUBLE_TRANSVERSE:
-        state = double_transverse_final_state(amplitudes)
-        rho = np.outer(state, state.conj())
-        spin_signal = float(np.sum(np.abs(state) ** 2))
-        squared_amplitude = float(np.sum(np.abs(amplitudes) ** 2))
-        if average_initial:
-            squared_amplitude /= amplitudes.shape[0]
-        return rho, spin_signal, squared_amplitude
     return density_matrix_from_amplitudes(
         amplitudes,
-        average_initial=average_initial,
         spin_case=spin_case,
+        process_rho=process_rho,
     )
-
-
-def entanglement_measures_for_spin_case(
-    amplitudes,
-    spin_case=SPIN_CASE_UNPOLARIZED,
-    initial_state=ENTANGLEMENT_INITIAL_STATE,
-):
-    """Return concurrence/F3/monogamy observables for one configured spin case."""
-    if spin_case == SPIN_CASE_UNPOLARIZED:
-        return entanglement_measures_from_amplitudes(amplitudes, initial_state)
-    if spin_case == SPIN_CASE_POLARIZED:
-        return polarized_entanglement_difference(amplitudes, initial_state[1])
-    if is_transverse_spin_case(spin_case):
-        return transverse_entanglement_measures(
-            amplitudes,
-            initial_state[1],
-            spin_case,
-        )
-    if spin_case == SPIN_CASE_DOUBLE_TRANSVERSE:
-        return entanglement_measures_from_state(
-            normalized_double_transverse_final_state(amplitudes)
-        )
-    raise ValueError(f"Unknown spin density case: {spin_case}")
 
 
 def spin_density_observables_from_amplitudes(
     amplitudes,
     spin_case=SPIN_CASE_UNPOLARIZED,
-    average_initial=AVERAGE_INITIAL_SPINS,
     normalize_trace=NORMALIZE_TRACE,
-    entanglement_initial_state=ENTANGLEMENT_INITIAL_STATE,
+    process_rho=None,
 ):
     """Return density-matrix and entanglement observables for one spin case."""
+    if process_rho is None:
+        process_rho = process_density_matrix_from_amplitudes(amplitudes)
     rho, spin_signal, squared_amplitude = density_matrix_for_spin_case(
         amplitudes,
         spin_case=spin_case,
-        average_initial=average_initial,
+        process_rho=process_rho,
     )
+    state_rho = normalized_density_matrix(rho)
     if normalize_trace:
-        if squared_amplitude <= 1e-14:
-            raise ZeroDivisionError("Cannot trace-normalize a zero density matrix.")
-        rho = rho / squared_amplitude
+        rho = state_rho
+    purity = float(np.real_if_close(np.trace(state_rho @ state_rho), tol=1000).real)
     return {
         "rho": rho,
         "squared_amplitude": squared_amplitude,
         "spin_signal": spin_signal,
         "trace": trace_value(rho),
-        "entanglement": entanglement_measures_for_spin_case(
-            amplitudes,
-            spin_case=spin_case,
-            initial_state=entanglement_initial_state,
-        ),
+        "cross_section_ratio": spin_signal / squared_amplitude,
+        "purity": purity,
+        "entanglement": entanglement_measures_from_density_matrix(state_rho),
     }
 
 
@@ -491,9 +535,7 @@ def build_user_scan_point(
     qOut,
     phiOut,
     m,
-    average_initial=AVERAGE_INITIAL_SPINS,
     normalize_trace=NORMALIZE_TRACE,
-    entanglement_initial_state=ENTANGLEMENT_INITIAL_STATE,
     spin_case=SPIN_CASE_UNPOLARIZED,
 ):
     """Evaluate spin-density data at one independent user-frame point."""
@@ -511,9 +553,7 @@ def build_user_scan_point(
     spin_data = spin_density_observables_from_amplitudes(
         amplitudes,
         spin_case=spin_case,
-        average_initial=average_initial,
         normalize_trace=normalize_trace,
-        entanglement_initial_state=entanglement_initial_state,
     )
 
     return {
@@ -534,9 +574,7 @@ def _scan_spin_density_user_grid_task(task):
             user_vars["qOut"],
             user_vars["phiOut"],
             settings["m"],
-            average_initial=settings["average_initial"],
             normalize_trace=settings["normalize_trace"],
-            entanglement_initial_state=settings["entanglement_initial_state"],
             spin_case=settings["spin_case"],
         )
     except Exception as exc:
@@ -565,9 +603,7 @@ def scan_spin_density_user_grid(
     y_name,
     fixed_user,
     m=M,
-    average_initial=AVERAGE_INITIAL_SPINS,
     normalize_trace=NORMALIZE_TRACE,
-    entanglement_initial_state=ENTANGLEMENT_INITIAL_STATE,
     spin_case=SPIN_CASE_UNPOLARIZED,
     max_workers=SCAN_WORKERS,
 ):
@@ -585,6 +621,8 @@ def scan_spin_density_user_grid(
     rho_grid = np.full((*shape, len(out_states), len(out_states)), np.nan + 1j * np.nan)
     squared_amplitude_grid = np.full(shape, np.nan, dtype=float)
     spin_signal_grid = np.full(shape, np.nan, dtype=float)
+    cross_section_ratio_grid = np.full(shape, np.nan, dtype=float)
+    purity_grid = np.full(shape, np.nan, dtype=float)
     trace_grid = np.full(shape, np.nan, dtype=float)
     valid = np.zeros(shape, dtype=bool)
     entanglement_grid = {
@@ -615,9 +653,7 @@ def scan_spin_density_user_grid(
 
     settings = {
         "m": m,
-        "average_initial": average_initial,
         "normalize_trace": normalize_trace,
-        "entanglement_initial_state": entanglement_initial_state,
         "spin_case": spin_case,
     }
     tasks = []
@@ -657,6 +693,8 @@ def scan_spin_density_user_grid(
         rho_grid[y_index, x_index] = point["rho"]
         squared_amplitude_grid[y_index, x_index] = point["squared_amplitude"]
         spin_signal_grid[y_index, x_index] = point["spin_signal"]
+        cross_section_ratio_grid[y_index, x_index] = point["cross_section_ratio"]
+        purity_grid[y_index, x_index] = point["purity"]
         trace_grid[y_index, x_index] = point["trace"]
         for name, value in point["entanglement"].items():
             entanglement_grid[name][y_index, x_index] = value
@@ -675,6 +713,8 @@ def scan_spin_density_user_grid(
         "rho": rho_grid,
         "squared_amplitude": squared_amplitude_grid,
         "spin_signal": spin_signal_grid,
+        "cross_section_ratio": cross_section_ratio_grid,
+        "purity": purity_grid,
         "trace": trace_grid,
         "kinematic_grids": kinematic_grids,
         "entanglement": entanglement_grid,
@@ -692,9 +732,8 @@ def scan_spin_density_user_grid(
         "out_states": out_states,
         "initial_states": initial_spin_states(),
         "incoming_spin_weights": incoming_spin_weights(spin_case),
-        "normalized_by_squared_amplitude": normalize_trace,
+        "normalized_to_unit_trace": normalize_trace,
         "form_factor_model": YAHL_MODEL_NAME,
-        "entanglement_initial_state": entanglement_initial_state,
         "entanglement_defined": True,
         "entanglement_mode": entanglement_mode(spin_case),
         "spin_case": spin_case,
@@ -715,23 +754,13 @@ def user_axis_label(name):
 
 def entanglement_mode(spin_case):
     """Return a stable label for the scan entanglement convention."""
-    if spin_case == SPIN_CASE_UNPOLARIZED:
-        return "pure_initial_state"
-    if spin_case == SPIN_CASE_POLARIZED:
-        return "h_in_plus_minus_h_in_minus"
-    if spin_case == SPIN_CASE_TRANSVERSE_TX:
-        return "Tx_h_in_plus_plus_h_in_minus_over_sqrt2"
-    if spin_case == SPIN_CASE_TRANSVERSE_TY:
-        return "Ty_h_in_plus_plus_i_h_in_minus_over_sqrt2"
-    if spin_case == SPIN_CASE_DOUBLE_TRANSVERSE:
-        return "double_Tx_electron_proton"
-    raise ValueError(f"Unknown spin density case: {spin_case}")
+    initial_state_ensemble(spin_case)
+    return f"prepared_state_ensemble_{spin_case}"
 
 
 def benchmark_spin_density_trace(
     kinematic_inputs=BENCHMARK_USER_KINEMATIC_INPUTS,
     m=M,
-    average_initial=AVERAGE_INITIAL_SPINS,
     tol=TRACE_BENCHMARK_TOL,
 ):
     """Check that selected benchmark density matrices normalize to trace one."""
@@ -750,7 +779,6 @@ def benchmark_spin_density_trace(
         amplitudes = amplitude_table(kin["momenta"], kin["m"], F1, F2)
         rho, _spin_signal, squared_amplitude = density_matrix_from_amplitudes(
             amplitudes,
-            average_initial=average_initial,
             spin_case=SPIN_CASE_UNPOLARIZED,
         )
         if squared_amplitude <= 1e-14:
@@ -794,15 +822,7 @@ def benchmark_spin_density_trace(
 
 def clean_generated_outputs():
     """Remove files generated by this script before creating fresh outputs."""
-    generated_paths = (
-        LOG_PATH,
-        OUTPUT_DIR / SPIN_CASE_UNPOLARIZED,
-        OUTPUT_DIR / SPIN_CASE_POLARIZED,
-        OUTPUT_DIR / "transverse",
-        OUTPUT_DIR / SPIN_CASE_TRANSVERSE_TX,
-        OUTPUT_DIR / SPIN_CASE_TRANSVERSE_TY,
-        OUTPUT_DIR / SPIN_CASE_DOUBLE_TRANSVERSE,
-    )
+    generated_paths = (LOG_PATH, OUTPUT_DIR)
     for path in generated_paths:
         if path.is_dir():
             shutil.rmtree(path)
@@ -844,17 +864,8 @@ def scan_point_dir(scan):
 
 def spin_case_filename_label(spin_case):
     """Return the spin-case label used in generated filenames."""
-    if spin_case == SPIN_CASE_UNPOLARIZED:
-        return "unpolarized"
-    if spin_case == SPIN_CASE_POLARIZED:
-        return "longitudinal_polarized"
-    if spin_case == SPIN_CASE_TRANSVERSE_TX:
-        return "transverse_Tx"
-    if spin_case == SPIN_CASE_TRANSVERSE_TY:
-        return "transverse_Ty"
-    if spin_case == SPIN_CASE_DOUBLE_TRANSVERSE:
-        return "double_transverse"
-    raise ValueError(f"Unknown spin density case: {spin_case}")
+    initial_state_ensemble(spin_case)
+    return spin_case
 
 
 def _scan_point_stem_from_indices(scan, y_index, x_index):
@@ -919,7 +930,7 @@ def save_entanglement_plot(scan, output_path=None):
         ("C_gamma_rest", r"$C_{\gamma|ep}$"),
         ("F3", r"$F_3$"),
     )
-    is_polarized_difference = scan["entanglement_mode"] == "h_in_plus_minus_h_in_minus"
+    is_polarized_difference = False
     cmap = "coolwarm" if is_polarized_difference else "viridis"
     vmin = -1.0 if is_polarized_difference else 0.0
     vmax = 1.0
@@ -954,16 +965,6 @@ def save_scan_npz(scan, path=None):
         spin_label = spin_case_filename_label(scan["spin_case"])
         path = scan_output_dir(scan) / f"spin_density_scan_{spin_label}_{scan['label']}.npz"
     path.parent.mkdir(parents=True, exist_ok=True)
-    if is_transverse_spin_case(scan["spin_case"]):
-        transverse_coefficients = np.asarray(
-            [
-                transverse_electron_coefficients(scan["spin_case"])[h_in]
-                for h_in in HELICITIES
-            ],
-            dtype=complex,
-        )
-    else:
-        transverse_coefficients = np.full(len(HELICITIES), np.nan + 1j * np.nan)
     entanglement_arrays = {
         f"entanglement_{name}": values
         for name, values in scan["entanglement"].items()
@@ -973,6 +974,8 @@ def save_scan_npz(scan, path=None):
         rho=scan["rho"],
         squared_amplitude=scan["squared_amplitude"],
         spin_signal=scan["spin_signal"],
+        cross_section_ratio=scan["cross_section_ratio"],
+        purity=scan["purity"],
         trace=scan["trace"],
         valid=scan["valid"],
         x_values=scan["x_values"],
@@ -987,10 +990,11 @@ def save_scan_npz(scan, path=None):
         out_states=np.asarray(scan["out_states"], dtype=int),
         initial_states=np.asarray(scan["initial_states"], dtype=int),
         incoming_spin_weights=scan["incoming_spin_weights"],
-        transverse_electron_coefficients=transverse_coefficients,
-        normalized_by_squared_amplitude=scan["normalized_by_squared_amplitude"],
+        initial_spin_density_matrix=initial_spin_density_matrix(scan["spin_case"]),
+        normalized_to_unit_trace=scan["normalized_to_unit_trace"],
+        process_density_shape=np.asarray([32, 32], dtype=int),
+        process_basis="hIn,sIn,hOut,sOut,lambda",
         entanglement_names=np.asarray(scan["entanglement_names"], dtype=str),
-        entanglement_initial_state=np.asarray(scan["entanglement_initial_state"], dtype=int),
         entanglement_defined=scan["entanglement_defined"],
         entanglement_mode=scan["entanglement_mode"],
         spin_case=scan["spin_case"],
@@ -1026,10 +1030,10 @@ def _matrix_headers(include_matrix_indices):
         "y",
         "squared_amplitude_M2",
         "spin_signal_M2",
+        "cross_section_ratio",
+        "purity",
         "trace",
-        "normalized_by_squared_amplitude",
-        "entanglement_h_in",
-        "entanglement_s_in",
+        "normalized_to_unit_trace",
         *ENTANGLEMENT_NAMES,
     ]
     if include_matrix_indices:
@@ -1083,9 +1087,10 @@ def _metadata_row(scan, y_index, x_index):
         f"{grid_value('y'):.16e}",
         f"{scan['squared_amplitude'][y_index, x_index]:.16e}",
         f"{scan['spin_signal'][y_index, x_index]:.16e}",
+        f"{scan['cross_section_ratio'][y_index, x_index]:.16e}",
+        f"{scan['purity'][y_index, x_index]:.16e}",
         f"{scan['trace'][y_index, x_index]:.16e}",
-        scan["normalized_by_squared_amplitude"],
-        *scan["entanglement_initial_state"],
+        scan["normalized_to_unit_trace"],
         *(
             f"{scan['entanglement'][name][y_index, x_index]:.16e}"
             for name in scan["entanglement_names"]
@@ -1195,20 +1200,7 @@ def save_point_matrix_plots(scan, output_dir=None):
         output_dir = scan_point_dir(scan)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    if scan["spin_case"] == SPIN_CASE_POLARIZED:
-        rho_symbol = r"\Delta\rho_h/M^2_{\rm unpol}" if scan["normalized_by_squared_amplitude"] else r"\Delta\rho_h"
-    elif scan["spin_case"] == SPIN_CASE_TRANSVERSE_TX:
-        rho_symbol = r"\rho_{T_x}/M^2_{\rm unpol}" if scan["normalized_by_squared_amplitude"] else r"\rho_{T_x}"
-    elif scan["spin_case"] == SPIN_CASE_TRANSVERSE_TY:
-        rho_symbol = r"\rho_{T_y}/M^2_{\rm unpol}" if scan["normalized_by_squared_amplitude"] else r"\rho_{T_y}"
-    elif scan["spin_case"] == SPIN_CASE_DOUBLE_TRANSVERSE:
-        rho_symbol = (
-            r"\rho_{T_xT_x}/M^2_{\rm unpol}"
-            if scan["normalized_by_squared_amplitude"]
-            else r"\rho_{T_xT_x}"
-        )
-    else:
-        rho_symbol = r"\rho/M^2" if scan["normalized_by_squared_amplitude"] else r"\rho"
+    rho_symbol = rf"\rho_{{{scan['spin_case']}}}"
     state_key = "\n".join(_state_tick_labels(scan["out_states"]))
     paths = []
 
@@ -1341,52 +1333,21 @@ def build_scan_report(scan, paths):
         f"  {scan['y_name']} grid: {y_values[0]:.6g} to {y_values[-1]:.6g}",
         fixed_line,
         f"  valid points: {int(scan['valid'].sum())}/{scan['valid'].size}",
-        f"  initial spins averaged: {AVERAGE_INITIAL_SPINS}",
-        f"  normalized by M^2: {scan['normalized_by_squared_amplitude']}",
+        f"  density-numerator averaging divisor: {initial_spin_average_divisor(scan['spin_case']):.0f}",
+        "  unpolarized M^2 averaging divisor: 4",
+        f"  normalized to unit trace: {scan['normalized_to_unit_trace']}",
+        "  full process density matrix: 32 x 32 in (hIn,sIn,hOut,sOut,lambda)",
         f"  incoming spin weights: {scan['incoming_spin_weights'].tolist()} for {scan['initial_states']}",
     ]
-    if scan["spin_case"] == SPIN_CASE_UNPOLARIZED:
+    lines.append("  prepared initial-state ensemble:")
+    for component in initial_state_ensemble(scan["spin_case"]):
         lines.append(
-            "  entanglement initial state: "
-            f"hIn={scan['entanglement_initial_state'][0]:+d}, "
-            f"sIn={scan['entanglement_initial_state'][1]:+d}"
+            f"    weight={component['weight']:.6g}: {component['label']}"
         )
-    elif scan["spin_case"] == SPIN_CASE_POLARIZED:
-        lines.append(
-            "  polarized convention: sum_sIn rho(hIn=+1,sIn) - "
-            "sum_sIn rho(hIn=-1,sIn)"
-        )
-        lines.append(
-            "  polarized entanglement: "
-            f"E(hIn=+1, sIn={scan['entanglement_initial_state'][1]:+d}) - "
-            f"E(hIn=-1, sIn={scan['entanglement_initial_state'][1]:+d})"
-        )
-    elif scan["spin_case"] == SPIN_CASE_TRANSVERSE_TX:
-        lines.append(
-            "  transverse Tx convention: sum_sIn rho((hIn=+1 + hIn=-1)/sqrt(2), sIn)"
-        )
-        lines.append(
-            "  transverse Tx entanglement: "
-            "E((hIn=+1 + hIn=-1)/sqrt(2), "
-            f"sIn={scan['entanglement_initial_state'][1]:+d})"
-        )
-    elif scan["spin_case"] == SPIN_CASE_TRANSVERSE_TY:
-        lines.append(
-            "  transverse Ty convention: sum_sIn rho((hIn=+1 + i hIn=-1)/sqrt(2), sIn)"
-        )
-        lines.append(
-            "  transverse Ty entanglement: "
-            "E((hIn=+1 + i hIn=-1)/sqrt(2), "
-            f"sIn={scan['entanglement_initial_state'][1]:+d})"
-        )
-    elif scan["spin_case"] == SPIN_CASE_DOUBLE_TRANSVERSE:
-        lines.append(
-            "  double transverse convention: rho((hIn=+1 + hIn=-1)/sqrt(2), "
-            "(sIn=+1 + sIn=-1)/sqrt(2))"
-        )
-        lines.append("  double transverse entanglement: E(Tx electron, Tx proton)")
-    else:
-        raise ValueError(f"Unknown spin density case: {scan['spin_case']}")
+    lines.append(
+        "  entanglement convention: weighted average of the normalized "
+        "pure-state observable for each incoherent ensemble component"
+    )
     lines.extend([
         f"  saved data: {paths['npz']}",
         (
