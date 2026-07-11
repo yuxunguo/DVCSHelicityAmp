@@ -56,20 +56,7 @@ REGIONS = (
 )
 
 
-def _require_matplotlib():
-    """Import matplotlib in headless mode with a writable cache directory."""
-    cache_dir = Path(tempfile.gettempdir()) / "dvcs_helicity_amp_cache"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    os.environ.setdefault("MPLCONFIGDIR", str(cache_dir / "matplotlib"))
-    os.environ.setdefault("XDG_CACHE_HOME", str(cache_dir))
-
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    from matplotlib.backends.backend_pdf import PdfPages
-
-    return plt, PdfPages
+from PlotUtils import require_matplotlib as _require_matplotlib
 
 
 def region_phi_e_values(center):

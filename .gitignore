@@ -26,3 +26,6 @@ docs/
 # Local agents and codex directories
 .agents/
 .codex/
+# Alignment scan large output CSVs
+Output/AlignmentScan/*.csv
+Output/AlignmentScan/ConcurrenceScan/*.csv

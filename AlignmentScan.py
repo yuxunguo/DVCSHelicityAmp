@@ -8,6 +8,7 @@ selected two-body concurrences and multipartite observables.
 from itertools import product
 from concurrent.futures import ProcessPoolExecutor
 import csv
+import math
 import os
 from pathlib import Path
 import shutil
@@ -15,7 +16,11 @@ import tempfile
 
 import numpy as np
 
-from Algebra import mdot
+def _progress_bar(iterable, total, desc):
+    """Pass-through iterable (install tqdm for progress bars)."""
+    return iterable
+
+from Algebra import DEFAULT_TOL, mdot
 from FormFactors import YAHL_MODEL_NAME, yahl_dirac_pauli_from_t
 from Kinematics import kinematics_user_from_independent
 from SpinDensityMat import (
@@ -58,8 +63,8 @@ CHARACTERISTIC_QOUT_POINTS = (
     ("high_Egamma", 1.8),
 )
 
-PHASE_SPACE_PHI_IN_VALUES = np.linspace(0.0, 2.0 * np.pi, 96, endpoint=False)
-PHASE_SPACE_PHIOUT_VALUES = np.linspace(0.0, 2.0 * np.pi, 96, endpoint=False)
+PHASE_SPACE_PHI_IN_VALUES = np.linspace(0.0, 2.0 * np.pi, 64, endpoint=False)
+PHASE_SPACE_PHIOUT_VALUES = np.linspace(0.0, 2.0 * np.pi, 64, endpoint=False)
 ALIGNMENT_ANGLE_MAX_DEG = 10.0
 ALIGNMENT_ANGLE_MAX_RAD = np.deg2rad(ALIGNMENT_ANGLE_MAX_DEG)
 
@@ -186,20 +191,7 @@ def proton_phi_from_electron(phi_in_electron):
     return normalize_azimuth(phi_in_electron - np.pi)
 
 
-def _require_matplotlib():
-    """Import matplotlib in headless mode with a writable cache directory."""
-    cache_dir = Path(tempfile.gettempdir()) / "dvcs_helicity_amp_cache"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    os.environ.setdefault("MPLCONFIGDIR", str(cache_dir / "matplotlib"))
-    os.environ.setdefault("XDG_CACHE_HOME", str(cache_dir))
-
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    from matplotlib.backends.backend_pdf import PdfPages
-
-    return plt, PdfPages
+from PlotUtils import require_matplotlib as _require_matplotlib
 
 
 def clean_alignment_outputs():
@@ -259,107 +251,134 @@ def _scan_alignment_point_task(task):
     qOut = anchor["qOut"]
     phi_in_proton = proton_phi_from_electron(phi_in_electron)
     out_states = outgoing_spin_states()
-    try:
-        kin = kinematics_user_from_independent(
-            s,
-            theta_in,
-            phi_in_proton,
-            qOut,
-            phiOut,
-            settings["m"],
-            label=(
-                f"user alignment s={s:.6g}, theta_in={theta_in:.6g}, "
-                f"qOut={qOut:.6g}"
-            ),
-        )
-        momenta = kin["momenta"]
-        angle_rad = spatial_opening_angle(momenta["kp"], momenta["qout"])
-        k_dot_qout = real_scalar(mdot(momenta["k"], momenta["qout"]), "k dot qout")
-        kp_dot_qout = real_scalar(mdot(momenta["kp"], momenta["qout"]), "kp dot qout")
-        F1, F2 = yahl_dirac_pauli_from_t(kin["t"], kin["m"])
-        row = {
-            "kinematic_point": anchor["kinematic_point"],
-            "s_regime": anchor["s_regime"],
-            "theta_in_regime": anchor["theta_in_regime"],
-            "qOut_regime": anchor["qOut_regime"],
-            "initial_spin_averaging_version": SPIN_AVERAGING_VERSION,
-            "s": float(kin["s"]),
-            "sqrt_s": float(kin["sqrt_s"]),
-            "pIn": float(kin["pIn"]),
-            "pOut": float(kin["pOut"]),
-            "qOut": float(kin["qOut"]),
-            "theta_in": float(kin["theta_in"]),
-            "phi_in": float(kin["phi_in"]),
-            "phi_in_electron": electron_phi_from_proton(kin["phi_in"]),
-            "phiOut": float(kin["phiOut"]),
-            "Q2": float(kin["Q2"]),
-            "xB": float(kin["xB"]),
-            "t": float(kin["t"]),
-            "F1": F1,
-            "F2": F2,
-            "W2": float(kin["W2"]),
-            "y": float(kin["y"]),
-            "theta_e_gamma_rad": angle_rad,
-            "theta_e_gamma_deg": float(np.degrees(angle_rad)),
-            "k_dot_qout": k_dot_qout,
-            "kp_dot_qout": kp_dot_qout,
-            "abs_k_dot_qout": abs(k_dot_qout),
-            "abs_kp_dot_qout": abs(kp_dot_qout),
-            "aligned": angle_rad <= settings["angle_max_rad"],
-            "squared_amplitude_M2": np.nan,
-        }
-        for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES:
-            row[f"{prefix}_trace"] = np.nan
-            row[f"{prefix}_spin_signal_M2"] = np.nan
-            row[f"{prefix}_cross_section_ratio"] = np.nan
-            row[f"{prefix}_purity"] = np.nan
-            row[f"{prefix}_h_out_mean"] = np.nan
-            row[f"{prefix}_lambda_mean"] = np.nan
-            row[f"{prefix}_h_lambda"] = np.nan
-            row[f"{prefix}_h_lambda_connected"] = np.nan
-            for name in COARSE_CONCURRENCE_NAMES:
-                row[f"{prefix}_{name}"] = np.nan
+    kin = kinematics_user_from_independent(
+        s,
+        theta_in,
+        phi_in_proton,
+        qOut,
+        phiOut,
+        settings["m"],
+        label=(
+            f"user alignment s={s:.6g}, theta_in={theta_in:.6g}, "
+            f"qOut={qOut:.6g}"
+        ),
+    )
+    momenta = kin["momenta"]
+    angle_rad = spatial_opening_angle(momenta["kp"], momenta["qout"])
+    k_dot_qout = real_scalar(mdot(momenta["k"], momenta["qout"]), "k dot qout")
+    kp_dot_qout = real_scalar(mdot(momenta["kp"], momenta["qout"]), "kp dot qout")
+    F1, F2 = yahl_dirac_pauli_from_t(kin["t"], kin["m"])
 
-        amplitudes = amplitude_table(momenta, kin["m"], F1, F2)
-        process_rho = process_density_matrix_from_amplitudes(amplitudes)
-        squared_amplitude = np.nan
-        for prefix, _label, spin_case in ALIGNMENT_SPIN_CASES:
-            spin_data = spin_density_observables_from_amplitudes(
-                amplitudes,
-                spin_case=spin_case,
-                normalize_trace=settings["normalize_trace"],
-                process_rho=process_rho,
-            )
-            rho = spin_data["rho"]
-            squared_amplitude = spin_data["squared_amplitude"]
-            corr = final_electron_photon_spin_correlations(rho, out_states)
-            row.update({
-                f"{prefix}_trace": spin_data["trace"],
-                f"{prefix}_spin_signal_M2": spin_data["spin_signal"],
-                f"{prefix}_cross_section_ratio": spin_data["cross_section_ratio"],
-                f"{prefix}_purity": spin_data["purity"],
-                f"{prefix}_h_out_mean": corr["h_out_mean"],
-                f"{prefix}_lambda_mean": corr["lambda_mean"],
-                f"{prefix}_h_lambda": corr["h_lambda"],
-                f"{prefix}_h_lambda_connected": corr["h_lambda_connected"],
-            })
-            for name in COARSE_CONCURRENCE_NAMES:
-                row[f"{prefix}_{name}"] = spin_data["entanglement"][name]
-    except Exception as exc:
+    # --- explicitly guard against singular propagator / t denominators ---
+    singular_reason = None
+    if abs(kin["t"]) <= DEFAULT_TOL:
+        singular_reason = "momentum-transfer denominator t is singular"
+    elif abs(kp_dot_qout) <= DEFAULT_TOL:
+        singular_reason = "final-state lepton propagator is singular (kp·qout ≈ 0)"
+    elif abs(k_dot_qout) <= DEFAULT_TOL:
+        singular_reason = "initial-state lepton propagator is singular (k·qout ≈ 0)"
+    if singular_reason is not None:
         return {
             "ok": False,
             "kinematic_point": anchor["kinematic_point"],
-            "s": float(s),
-            "theta_in": float(theta_in),
-            "phi_in": float(phi_in_proton),
-            "phi_in_electron": float(phi_in_electron),
-            "qOut": float(qOut),
-            "phiOut": float(phiOut),
-            "error": str(exc),
+            "s": float(kin["s"]),
+            "theta_in": float(kin["theta_in"]),
+            "phi_in": float(kin["phi_in"]),
+            "phi_in_electron": electron_phi_from_proton(kin["phi_in"]),
+            "qOut": float(kin["qOut"]),
+            "phiOut": float(kin["phiOut"]),
+            "error": singular_reason,
         }
+
+    row = {
+        "kinematic_point": anchor["kinematic_point"],
+        "s_regime": anchor["s_regime"],
+        "theta_in_regime": anchor["theta_in_regime"],
+        "qOut_regime": anchor["qOut_regime"],
+        "initial_spin_averaging_version": SPIN_AVERAGING_VERSION,
+        "s": float(kin["s"]),
+        "sqrt_s": float(kin["sqrt_s"]),
+        "pIn": float(kin["pIn"]),
+        "pOut": float(kin["pOut"]),
+        "qOut": float(kin["qOut"]),
+        "theta_in": float(kin["theta_in"]),
+        "phi_in": float(kin["phi_in"]),
+        "phi_in_electron": electron_phi_from_proton(kin["phi_in"]),
+        "phiOut": float(kin["phiOut"]),
+        "Q2": float(kin["Q2"]),
+        "xB": float(kin["xB"]),
+        "t": float(kin["t"]),
+        "F1": F1,
+        "F2": F2,
+        "W2": float(kin["W2"]),
+        "y": float(kin["y"]),
+        "theta_e_gamma_rad": angle_rad,
+        "theta_e_gamma_deg": float(np.degrees(angle_rad)),
+        "k_dot_qout": k_dot_qout,
+        "kp_dot_qout": kp_dot_qout,
+        "abs_k_dot_qout": abs(k_dot_qout),
+        "abs_kp_dot_qout": abs(kp_dot_qout),
+        "aligned": angle_rad <= settings["angle_max_rad"],
+        "squared_amplitude_M2": np.nan,
+    }
+    for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES:
+        row[f"{prefix}_trace"] = np.nan
+        row[f"{prefix}_spin_signal_M2"] = np.nan
+        row[f"{prefix}_cross_section_ratio"] = np.nan
+        row[f"{prefix}_purity"] = np.nan
+        row[f"{prefix}_h_out_mean"] = np.nan
+        row[f"{prefix}_lambda_mean"] = np.nan
+        row[f"{prefix}_h_lambda"] = np.nan
+        row[f"{prefix}_h_lambda_connected"] = np.nan
+        for name in COARSE_CONCURRENCE_NAMES:
+            row[f"{prefix}_{name}"] = np.nan
+
+    amplitudes = amplitude_table(momenta, kin["m"], F1, F2)
+    process_rho = process_density_matrix_from_amplitudes(amplitudes)
+    squared_amplitude = np.nan
+    for prefix, _label, spin_case in ALIGNMENT_SPIN_CASES:
+        spin_data = spin_density_observables_from_amplitudes(
+            amplitudes,
+            spin_case=spin_case,
+            normalize_trace=settings["normalize_trace"],
+            process_rho=process_rho,
+        )
+        rho = spin_data["rho"]
+        squared_amplitude = spin_data["squared_amplitude"]
+        corr = final_electron_photon_spin_correlations(rho, out_states)
+        row.update({
+            f"{prefix}_trace": spin_data["trace"],
+            f"{prefix}_spin_signal_M2": spin_data["spin_signal"],
+            f"{prefix}_cross_section_ratio": spin_data["cross_section_ratio"],
+            f"{prefix}_purity": spin_data["purity"],
+            f"{prefix}_h_out_mean": corr["h_out_mean"],
+            f"{prefix}_lambda_mean": corr["lambda_mean"],
+            f"{prefix}_h_lambda": corr["h_lambda"],
+            f"{prefix}_h_lambda_connected": corr["h_lambda_connected"],
+        })
+        for name in COARSE_CONCURRENCE_NAMES:
+            row[f"{prefix}_{name}"] = spin_data["entanglement"][name]
 
     row["squared_amplitude_M2"] = squared_amplitude
     return {"ok": True, "row": row}
+
+
+def _optimal_chunksize(num_tasks, num_workers):
+    """Return a chunksize that balances scheduler overhead and load imbalance.
+
+    For ``ProcessPoolExecutor.map``, ``chunksize`` controls how many tasks are
+    batched into a single serialized submission.  A value too small increases
+    IPC overhead; a value too large makes the work queue lumpy and can leave
+    workers idle at the tail.
+
+    The heuristic aims for roughly ``num_workers * 4`` chunks so that every
+    worker gets several batches, keeping all cores busy without excessive
+    round-trips.
+    """
+    if num_workers < 1:
+        return 1
+    ideal_chunks = max(1, num_workers * 4)
+    return max(1, math.ceil(num_tasks / ideal_chunks))
 
 
 def scan_final_electron_photon_alignment(
@@ -395,10 +414,25 @@ def scan_final_electron_photon_alignment(
         )
     ]
     if max_workers and max_workers > 1 and len(tasks) > 1:
+        chunksize = _optimal_chunksize(len(tasks), max_workers)
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            results = list(executor.map(_scan_alignment_point_task, tasks))
+            _map = executor.map(
+                _scan_alignment_point_task,
+                tasks,
+                chunksize=chunksize,
+            )
+            results = list(
+                _progress_bar(
+                    _map,
+                    total=len(tasks),
+                    desc="Alignment scan",
+                )
+            )
     else:
-        results = [_scan_alignment_point_task(task) for task in tasks]
+        results = [
+            _scan_alignment_point_task(task)
+            for task in _progress_bar(tasks, total=len(tasks), desc="Alignment scan")
+        ]
 
     for result in results:
         if result["ok"]:

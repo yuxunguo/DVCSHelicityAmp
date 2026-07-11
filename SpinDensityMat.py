@@ -444,12 +444,13 @@ def entanglement_measures_from_state(state):
 
 
 def entanglement_measures_from_density_matrix(rho):
-    """Compute valid entanglement observables from an outgoing density matrix.
+    """Compute entanglement observables from an outgoing density matrix.
 
     Wootters two-qubit concurrence is valid for both pure and mixed reduced
-    states. The one-to-rest concurrence, F3, and CKW residual formulas used by
-    this project are pure-three-qubit formulas; they are reported as NaN when
-    the contracted outgoing state is mixed.
+    states.  The one-to-rest concurrence, F3, and CKW residual formulas used
+    by this project are pure-three-qubit formulas; they are set to zero when
+    the contracted outgoing state is mixed, reflecting that the pure-state
+    decomposition does not apply.
     """
     rho = normalized_density_matrix(rho)
     c_e_p = two_qubit_concurrence(reduced_density_matrix(rho, (0, 1)))
@@ -461,13 +462,13 @@ def entanglement_measures_from_density_matrix(rho):
             "C_e_p": c_e_p,
             "C_e_gamma": c_e_gamma,
             "C_p_gamma": c_p_gamma,
-            "C_e_rest": np.nan,
-            "C_p_rest": np.nan,
-            "C_gamma_rest": np.nan,
-            "F3": np.nan,
-            "M_e": np.nan,
-            "M_p": np.nan,
-            "M_gamma": np.nan,
+            "C_e_rest": 0.0,
+            "C_p_rest": 0.0,
+            "C_gamma_rest": 0.0,
+            "F3": 0.0,
+            "M_e": -(c_e_p**2 + c_e_gamma**2),
+            "M_p": -(c_e_p**2 + c_p_gamma**2),
+            "M_gamma": -(c_e_gamma**2 + c_p_gamma**2),
         }
     c_e_rest = one_to_rest_concurrence(rho, 0)
     c_p_rest = one_to_rest_concurrence(rho, 1)
@@ -566,19 +567,16 @@ def build_user_scan_point(
 def _scan_spin_density_user_grid_task(task):
     """Evaluate one independent user-frame spin-density grid point."""
     y_index, x_index, user_vars, settings = task
-    try:
-        point = build_user_scan_point(
-            user_vars["s"],
-            user_vars["theta_in"],
-            user_vars["phi_in"],
-            user_vars["qOut"],
-            user_vars["phiOut"],
-            settings["m"],
-            normalize_trace=settings["normalize_trace"],
-            spin_case=settings["spin_case"],
-        )
-    except Exception as exc:
-        return {"ok": False, **user_vars, "error": str(exc)}
+    point = build_user_scan_point(
+        user_vars["s"],
+        user_vars["theta_in"],
+        user_vars["phi_in"],
+        user_vars["qOut"],
+        user_vars["phiOut"],
+        settings["m"],
+        normalize_trace=settings["normalize_trace"],
+        spin_case=settings["spin_case"],
+    )
     return {
         "ok": True,
         "y_index": y_index,
@@ -830,20 +828,7 @@ def clean_generated_outputs():
             path.unlink()
 
 
-def _require_matplotlib():
-    """Import matplotlib in headless mode with a writable cache directory."""
-    cache_dir = Path(tempfile.gettempdir()) / "dvcs_helicity_amp_cache"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    os.environ.setdefault("MPLCONFIGDIR", str(cache_dir / "matplotlib"))
-    os.environ.setdefault("XDG_CACHE_HOME", str(cache_dir))
-
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    from matplotlib.backends.backend_pdf import PdfPages
-
-    return plt, PdfPages
+from PlotUtils import require_matplotlib as _require_matplotlib
 
 
 def _safe_float_for_filename(name, value):

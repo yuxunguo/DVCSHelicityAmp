@@ -74,11 +74,17 @@ AMPLITUDE_MAX_COMPONENTS = 8
 
 DISPLAY_MOMENTA = ("k", "p", "kp", "pp", "qout")
 MOMENTUM_DISPLAY_LABELS = {
-    "k": r"$\ell$",
-    "p": r"$P$",
-    "kp": r"$\ell'$",
-    "pp": r"$P'$",
-    "qout": r"$q_\gamma$",
+    "k": r"$\ell$", "p": r"$P$", "kp": r"$\ell'$",
+    "pp": r"$P'$", "qout": r"$q_\gamma$",
+}
+MOMENTUM_COLORS = {
+    "k": "tab:blue", "p": "tab:orange", "kp": "tab:cyan",
+    "pp": "tab:red", "qout": "tab:green",
+}
+MOMENTUM_KIND = {
+    "k": "electron", "kp": "electron",
+    "p": "proton", "pp": "proton",
+    "qout": "photon",
 }
 TARGET_FINAL_MOMENTA = {
     "C_e_p": ("kp", "pp"),
@@ -113,30 +119,19 @@ KINEMATIC_COLUMNS = (
 )
 
 
-def _require_matplotlib():
-    """Import matplotlib in headless mode with a writable cache directory."""
-    cache_dir = Path(tempfile.gettempdir()) / "dvcs_helicity_amp_cache"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    os.environ.setdefault("MPLCONFIGDIR", str(cache_dir / "matplotlib"))
-    os.environ.setdefault("XDG_CACHE_HOME", str(cache_dir))
-
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    from matplotlib.backends.backend_pdf import PdfPages
-
-    return plt, PdfPages
+from PlotUtils import require_matplotlib as _require_matplotlib
 
 
 def parse_float(value, default=np.nan):
     """Parse a CSV numeric field, preserving missing values as NaN."""
     if value is None or value == "":
         return default
-    try:
-        return float(value)
-    except ValueError:
-        return default
+    return float(value)
+
+
+def _row_float(row, key, default=np.nan):
+    """Return ``parse_float(row.get(key), default)`` in one call."""
+    return parse_float(row.get(key), default)
 
 
 def read_csv_rows(path):
@@ -175,17 +170,14 @@ def clean_legacy_root_csv_outputs():
 
 
 def clean_egamma_config_outputs():
-    """Remove stale per-E_gamma PDF configuration outputs."""
+    """Remove stale per-E_gamma PDFs."""
     if not EGAMMA_CONFIG_DIR.exists():
         return
-    for path in EGAMMA_CONFIG_DIR.glob("**/*.pdf"):
+    for path in EGAMMA_CONFIG_DIR.rglob("*.pdf"):
         path.unlink()
-    for path in sorted(EGAMMA_CONFIG_DIR.glob("**/*"), key=lambda item: len(item.parts), reverse=True):
+    for path in sorted(EGAMMA_CONFIG_DIR.rglob("*"), key=lambda item: len(item.parts), reverse=True):
         if path.is_dir():
-            try:
-                path.rmdir()
-            except OSError:
-                pass
+            path.rmdir()
 
 
 def clean_data_outputs():
@@ -198,10 +190,7 @@ def clean_data_outputs():
         DATA_DIR.rglob("*"), key=lambda item: len(item.parts), reverse=True
     ):
         if path.is_dir():
-            try:
-                path.rmdir()
-            except OSError:
-                pass
+            path.rmdir()
 
 
 def alignment_input_path():
@@ -539,73 +528,6 @@ def qout_group_key(row):
     return ("Egamma_unknown", np.inf)
 
 
-def energy_representative_rows(target, _grouped_clusters, rows):
-    """Return the best selected configuration at each sampled photon energy."""
-    observable, file_tag = target
-    grouped = {}
-    for key in target_columns(rows, observable):
-        for row in source_rows_for_key(rows, key):
-            value = parse_float(
-                row.get("rank_value") if row.get("rank_group") == key else row.get(key)
-            )
-            if not np.isfinite(value):
-                continue
-            group_name, qout = qout_group_key(row)
-            selected = selected_row(row, key, observable, value)
-            selected["qOut_group"] = group_name
-            selected["qOut_group_value"] = qout
-            current = grouped.get(group_name)
-            if current is None or selected["selected_concurrence"] > current["selected_concurrence"]:
-                grouped[group_name] = selected
-    details = []
-    sorted_rows = sorted(
-        grouped.values(),
-        key=lambda item: (
-            parse_float(item.get("qOut_group_value"), default=np.inf),
-            item.get("qOut_group", ""),
-        ),
-    )
-    for index, row in enumerate(sorted_rows):
-        label = file_safe_label(row.get("qOut_group") or f"Egamma_{parse_float(row.get('qOut')):.6g}")
-        row["selected_region"] = row.get("qOut_group", f"Egamma_{index}")
-        row["cluster_id"] = f"Egamma_{index}"
-        row["detail_id"] = f"{file_tag}_{row['selected_spin_case']}_{label}"
-        row["selected_observable"] = observable
-        row["detail_source"] = "egamma_best"
-        details.append(row)
-    return details
-
-
-def max_target_rows_by_egamma(rows):
-    """Return one max-concurrence row per E_gamma and target observable."""
-    grouped = {}
-    for observable, file_tag in CONFIG_TARGETS:
-        for key in target_columns(rows, observable):
-            for row in source_rows_for_key(rows, key):
-                value = parse_float(row.get("rank_value") if row.get("rank_group") == key else row.get(key))
-                if not np.isfinite(value):
-                    continue
-                group_name, qout = qout_group_key(row)
-                selected = selected_row(row, key, observable, value)
-                selected["qOut_group"] = group_name
-                selected["qOut_group_value"] = qout
-                selected["selected_region"] = group_name
-                selected["cluster_id"] = f"{file_tag}_{file_safe_label(group_name)}"
-                selected["detail_id"] = f"{file_tag}_{file_safe_label(group_name)}"
-                selected["detail_source"] = "egamma_target_max"
-                current = grouped.get((group_name, observable))
-                if current is None or selected["selected_concurrence"] > current["selected_concurrence"]:
-                    grouped[(group_name, observable)] = selected
-    return sorted(
-        grouped.values(),
-        key=lambda row: (
-            parse_float(row.get("qOut_group_value"), default=np.inf),
-            row.get("qOut_group", ""),
-            [target[0] for target in CONFIG_TARGETS].index(row["selected_observable"]),
-        ),
-    )
-
-
 def qout_groups(rows):
     """Return sorted photon-energy groups present in scan rows."""
     groups = {}
@@ -662,18 +584,6 @@ def egamma_target_region_rows(target, group_name, spin_case, clusters):
     return detail_rows
 
 
-def max_concurrence_for_row(row, observable):
-    """Return the maximum target concurrence over configured spin columns for one row."""
-    best_value = -np.inf
-    best_key = ""
-    for key in target_columns([row], observable):
-        value = parse_float(row.get("rank_value") if row.get("rank_group") == key else row.get(key))
-        if np.isfinite(value) and value > best_value:
-            best_value = value
-            best_key = key
-    return best_value, best_key
-
-
 def write_dict_csv(path, rows):
     """Write a list of dictionaries to CSV."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -686,16 +596,10 @@ def write_dict_csv(path, rows):
     return path
 
 
-def spin_file_tag(spin_case):
-    """Return a filesystem-friendly tag for one selected polarization."""
-    tag = "".join(char.lower() if char.isalnum() else "_" for char in str(spin_case))
-    return tag.strip("_") or "unknown"
-
-
 def spin_output_path(base_path, spin_case):
     """Return a target/polarization-organized output path."""
     target_dir = base_path.parent.parent
-    return target_dir / spin_file_tag(spin_case) / base_path.name
+    return target_dir / file_safe_label(spin_case) / base_path.name
 
 
 def write_spin_csvs(base_path, rows, spin_cases):
@@ -712,49 +616,27 @@ def momentum_configuration_rows(detail_rows):
     records = []
     for row in detail_rows:
         kin = kinematics_from_config_row(row)
+        meta = _row_meta(row)
+        meta["initial_spin_averaging_version"] = row.get(
+            "initial_spin_averaging_version", SPIN_AVERAGING_VERSION
+        )
         for name in DISPLAY_MOMENTA:
             vector = kin["momenta"][name]
             records.append({
-                "detail_id": row["detail_id"],
-                "detail_source": row.get("detail_source", ""),
-                "selected_observable": row["selected_observable"],
-                "selected_observable_label": row["selected_observable_label"],
-                "selected_spin_case": row["selected_spin_case"],
-                "initial_spin_averaging_version": row.get(
-                    "initial_spin_averaging_version", SPIN_AVERAGING_VERSION
-                ),
-                "selected_region": row["selected_region"],
-                "cluster_id": row["cluster_id"],
-                "selected_concurrence": f"{row['selected_concurrence']:.16e}",
-                "pair_delta_xy": f"{row['pair_delta_xy']:.16e}",
-                "kinematic_point": row.get("kinematic_point", ""),
+                **meta,
                 "momentum": name,
                 "E": f"{vector[0]:.16e}",
-                "px": f"{vector[1]:.16e}",
-                "py": f"{vector[2]:.16e}",
-                "pz": f"{vector[3]:.16e}",
+                "px": f"{vector[1]:.16e}", "py": f"{vector[2]:.16e}", "pz": f"{vector[3]:.16e}",
                 "p_abs": f"{np.linalg.norm(vector[1:4]):.16e}",
                 "phi_xy": f"{vector_phi_xy(vector):.16e}",
-                "s": f"{kin['s']:.16e}",
-                "sqrt_s": f"{kin['sqrt_s']:.16e}",
-                "pIn": f"{kin['pIn']:.16e}",
-                "pOut": f"{kin['pOut']:.16e}",
-                "theta_in": f"{kin['theta_in']:.16e}",
-                "phi_in": f"{kin['phi_in']:.16e}",
-                "qOut": f"{kin['qOut']:.16e}",
-                "phiOut": f"{kin['phiOut']:.16e}",
-                "Q2": f"{kin['Q2']:.16e}",
-                "xB": f"{kin['xB']:.16e}",
-                "t": f"{kin['t']:.16e}",
-                "W2": f"{kin['W2']:.16e}",
-                "y": f"{kin['y']:.16e}",
+                "s": f"{kin['s']:.16e}", "sqrt_s": f"{kin['sqrt_s']:.16e}",
+                "pIn": f"{kin['pIn']:.16e}", "pOut": f"{kin['pOut']:.16e}",
+                "theta_in": f"{kin['theta_in']:.16e}", "phi_in": f"{kin['phi_in']:.16e}",
+                "qOut": f"{kin['qOut']:.16e}", "phiOut": f"{kin['phiOut']:.16e}",
+                "Q2": f"{kin['Q2']:.16e}", "xB": f"{kin['xB']:.16e}",
+                "t": f"{kin['t']:.16e}", "W2": f"{kin['W2']:.16e}", "y": f"{kin['y']:.16e}",
             })
     return records
-
-
-def selected_final_state_ensemble(amplitudes, spin_case):
-    """Return the shared prepared-state ensemble with plotting metadata."""
-    return final_state_ensemble(amplitudes, spin_case)
 
 
 def selected_initial_state_label(spin_case):
@@ -776,19 +658,40 @@ def selected_initial_state_label(spin_case):
     return labels.get(spin_case, spin_case)
 
 
+def _row_meta(row):
+    """Return the shared metadata prefix dict for a detail row."""
+    return {
+        "detail_id": row["detail_id"],
+        "detail_source": row.get("detail_source", ""),
+        "selected_observable": row["selected_observable"],
+        "selected_observable_label": row["selected_observable_label"],
+        "selected_spin_case": row["selected_spin_case"],
+        "selected_region": row["selected_region"],
+        "cluster_id": row["cluster_id"],
+        "selected_concurrence": f"{row['selected_concurrence']:.16e}",
+        "pair_delta_xy": f"{row['pair_delta_xy']:.16e}",
+        "kinematic_point": row.get("kinematic_point", ""),
+    }
+
+
 def amplitude_decomposition(row):
     """Return ensemble-aware final-state amplitude decomposition records."""
     kin = kinematics_from_config_row(row)
     F1, F2 = yahl_dirac_pauli_from_t(kin["t"], M)
     amplitudes = amplitude_table(kin["momenta"], M, F1, F2)
     process_rho = process_density_matrix_from_amplitudes(amplitudes)
-    contracted_rho = contract_initial_state(
-        process_rho, row["selected_spin_case"]
-    )
-    ensemble = selected_final_state_ensemble(amplitudes, row["selected_spin_case"])
+    contracted_rho = contract_initial_state(process_rho, row["selected_spin_case"])
+    ensemble = final_state_ensemble(amplitudes, row["selected_spin_case"])
     total = float(np.real_if_close(np.trace(contracted_rho), tol=1000).real)
     if total <= 1.0e-14:
         raise ZeroDivisionError(f"Zero selected amplitude norm for {row['detail_id']}.")
+    meta = _row_meta(row)
+    meta.update({
+        "incoming_state": selected_initial_state_label(row["selected_spin_case"]),
+        "initial_spin_averaging_version": row.get(
+            "initial_spin_averaging_version", SPIN_AVERAGING_VERSION
+        ),
+    })
     records = []
     for component in ensemble:
         norms = np.abs(component["state"]) ** 2
@@ -797,26 +700,11 @@ def amplitude_decomposition(row):
         ):
             weighted_norm = float(component["weight"] * norm)
             records.append({
-                "detail_id": row["detail_id"],
-                "detail_source": row.get("detail_source", ""),
-                "selected_observable": row["selected_observable"],
-                "selected_observable_label": row["selected_observable_label"],
-                "selected_spin_case": row["selected_spin_case"],
-                "selected_region": row["selected_region"],
-                "cluster_id": row["cluster_id"],
-                "selected_concurrence": f"{row['selected_concurrence']:.16e}",
-                "pair_delta_xy": f"{row['pair_delta_xy']:.16e}",
-                "kinematic_point": row.get("kinematic_point", ""),
-                "incoming_state": selected_initial_state_label(row["selected_spin_case"]),
-                "initial_spin_averaging_version": row.get(
-                    "initial_spin_averaging_version", SPIN_AVERAGING_VERSION
-                ),
+                **meta,
                 "initial_component": component["label"],
                 "ensemble_weight": f"{component['weight']:.16e}",
                 "out_index": index,
-                "hOut": h_out,
-                "sOut": s_out,
-                "lambda": lam,
+                "hOut": h_out, "sOut": s_out, "lambda": lam,
                 "amplitude_real": f"{amplitude.real:.16e}",
                 "amplitude_imag": f"{amplitude.imag:.16e}",
                 "amplitude_abs": f"{abs(amplitude):.16e}",
@@ -825,25 +713,14 @@ def amplitude_decomposition(row):
                 "weighted_abs2": f"{weighted_norm:.16e}",
                 "fraction": f"{weighted_norm / total:.16e}",
             })
-    records.sort(key=lambda item: parse_float(item["fraction"]), reverse=True)
-    selected = [
-        item
-        for item in records
-        if parse_float(item["fraction"]) >= AMPLITUDE_MIN_FRACTION
-    ][:AMPLITUDE_MAX_COMPONENTS]
-    retained_fraction = sum(parse_float(item["fraction"]) for item in selected)
+    records.sort(key=lambda item: _row_float(item, "fraction"), reverse=True)
+    selected = [r for r in records if _row_float(r, "fraction") >= AMPLITUDE_MIN_FRACTION]
+    selected = selected[:AMPLITUDE_MAX_COMPONENTS]
+    retained = sum(_row_float(r, "fraction") for r in selected)
     for rank, item in enumerate(selected, start=1):
         item["decomposition_rank"] = rank
-        item["retained_fraction_total"] = f"{retained_fraction:.16e}"
+        item["retained_fraction_total"] = f"{retained:.16e}"
     return selected
-
-
-def amplitude_decomposition_rows(detail_rows):
-    """Return final-state amplitude decomposition rows for all details."""
-    rows = []
-    for row in detail_rows:
-        rows.extend(amplitude_decomposition(row))
-    return rows
 
 
 def _bin_edges_from_values(values, max_bins=SCAN_HEATMAP_MAX_BINS):
@@ -887,72 +764,6 @@ def add_pi_over_two_reference_lines(ax):
     """Draw requested pi/2 reference lines on scan maps."""
     ax.axvline(0.5 * math.pi, color="white", linestyle="--", linewidth=0.45, alpha=0.45)
     ax.axhline(0.5 * math.pi, color="white", linestyle="--", linewidth=0.45, alpha=0.45)
-
-
-def plot_scan_map(plt, pdf, rows, key, observable, spin_case, clusters):
-    """Append one concurrence scan page with enhanced-region markers."""
-    source_rows = source_rows_for_key(rows, key)
-    x = np.asarray([scan_x_phi(row) for row in source_rows], dtype=float)
-    y = np.asarray([parse_float(row.get("phiOut")) for row in source_rows], dtype=float)
-    z = np.asarray([
-        parse_float(row.get("rank_value") if row.get("rank_group") == key else row.get(key))
-        for row in source_rows
-    ], dtype=float)
-    fig, ax = plt.subplots(figsize=(7.4, 5.6), constrained_layout=True)
-    if np.isfinite(z).sum() >= 4:
-        x_edges = _bin_edges_from_values(x)
-        y_edges = _bin_edges_from_values(y)
-        values = _binned_mean_2d(x, y, z, x_edges, y_edges)
-        image = ax.pcolormesh(
-            x_edges,
-            y_edges,
-            values,
-            shading="auto",
-            cmap="viridis",
-            vmin=0.0,
-            vmax=1.0,
-        )
-    else:
-        image = ax.scatter(
-            x,
-            y,
-            c=z,
-            cmap="viridis",
-            s=28,
-            alpha=0.78,
-            vmin=0.0,
-            vmax=1.0,
-        )
-    for cluster in clusters:
-        best = cluster["best"]
-        ax.scatter(
-            [scan_x_phi(best)],
-            [parse_float(best.get("phiOut"))],
-            marker="x",
-            s=90,
-            color="black",
-            linewidths=1.5,
-        )
-        ax.text(
-            scan_x_phi(best),
-            parse_float(best.get("phiOut")),
-            f" region {cluster['cluster_id']}",
-            fontsize=8,
-            va="center",
-        )
-    ax.set_title(
-        f"{spin_case}: scan for max {observable_latex_label(observable)}",
-        fontsize=14,
-    )
-    add_pi_over_two_reference_lines(ax)
-    ax.set_xlabel(r"$\phi_{P,\rm in}$ [rad]", fontsize=12)
-    ax.set_ylabel(r"$\phi_{\gamma}'$ [rad]", fontsize=12)
-    ax.set_xlim(0.0, 2.0 * math.pi)
-    ax.set_ylim(0.0, 2.0 * math.pi)
-    colorbar = fig.colorbar(image, ax=ax)
-    colorbar.set_label(observable_latex_label(observable), fontsize=12)
-    pdf.savefig(fig)
-    plt.close(fig)
 
 
 def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, spin_case, key, clusters):
@@ -1028,24 +839,18 @@ def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, spin_case, k
     plt.close(fig)
 
 
-def momentum_kind(name):
-    """Return the visual particle type for a momentum label."""
-    if name in {"k", "kp"}:
-        return "electron"
-    if name in {"p", "pp"}:
-        return "proton"
-    if name == "qout":
-        return "photon"
-    return "other"
-
-
-def momentum_display_label(name):
-    """Return a math display label for a momentum name."""
-    return MOMENTUM_DISPLAY_LABELS.get(name, name)
+def format_vector_line(name, vector):
+    """Return one compact four-vector line."""
+    label = MOMENTUM_DISPLAY_LABELS.get(name, name)
+    return (
+        f"{label:10s} $E$={vector[0]:8.4f} "
+        f"$p_x$={vector[1]:8.4f} $p_y$={vector[2]:8.4f} $p_z$={vector[3]:8.4f}"
+    )
 
 
 def perpendicular_2d(delta):
     """Return a unit vector perpendicular to a transverse momentum."""
+    delta = np.asarray(delta, dtype=float)
     norm = float(np.linalg.norm(delta))
     if norm <= 1.0e-14:
         return np.asarray([0.0, 1.0])
@@ -1087,31 +892,15 @@ def _plot_vector_2d(ax, vector, label, color, line_scale):
     """Draw one styled transverse momentum vector."""
     end = np.asarray(vector, dtype=float)[1:3]
     start = np.zeros(2)
-    kind = momentum_kind(label)
-    if kind == "proton":
-        _plot_arrow_2d(ax, start, end, color, linewidth=1.75)
-    elif kind == "photon":
+    kind = MOMENTUM_KIND.get(label, "other")
+    if kind == "photon":
         _plot_wavy_2d(ax, start, end, color, amplitude=0.025 * line_scale)
-    elif kind == "electron":
-        _plot_arrow_2d(ax, start, end, color, linestyle="--", linewidth=1.65)
     else:
-        _plot_arrow_2d(ax, start, end, color, linewidth=1.65)
-    ax.text(end[0], end[1], f" {momentum_display_label(label)}", color=color, fontsize=11, va="center")
-
-
-def _perpendicular_3d(delta):
-    """Return a stable unit vector perpendicular to a 3D direction."""
-    delta = np.asarray(delta, dtype=float)
-    norm = float(np.linalg.norm(delta))
-    if norm <= 1.0e-14:
-        return np.asarray([0.0, 1.0, 0.0])
-    direction = delta / norm
-    trial = np.asarray([0.0, 0.0, 1.0])
-    perp = np.cross(direction, trial)
-    if np.linalg.norm(perp) <= 1.0e-12:
-        trial = np.asarray([0.0, 1.0, 0.0])
-        perp = np.cross(direction, trial)
-    return perp / np.linalg.norm(perp)
+        _plot_arrow_2d(ax, start, end, color,
+                       linestyle="--" if kind == "electron" else "-",
+                       linewidth=1.75 if kind == "proton" else 1.65)
+    ax.text(end[0], end[1], f" {MOMENTUM_DISPLAY_LABELS.get(label, label)}",
+            color=color, fontsize=11, va="center")
 
 
 def _plot_line_arrow_3d(ax, start, end, color, linestyle="-", linewidth=1.5):
@@ -1144,32 +933,21 @@ def _plot_vector_3d(ax, vector, label, color, line_scale):
     """Draw one styled 3D momentum vector."""
     end = np.asarray(vector, dtype=float)[1:4]
     start = np.zeros(3)
-    kind = momentum_kind(label)
-    if kind == "proton":
-        _plot_line_arrow_3d(ax, start, end, color, linewidth=1.75)
-    elif kind == "photon":
-        _plot_line_arrow_3d(ax, start, end, color, linestyle=":", linewidth=1.6)
-    elif kind == "electron":
-        _plot_line_arrow_3d(ax, start, end, color, linestyle="--", linewidth=1.55)
-    else:
-        _plot_line_arrow_3d(ax, start, end, color, linewidth=1.55)
-    ax.text(end[0], end[1], end[2], f" {momentum_display_label(label)}", color=color, fontsize=9)
+    kind = MOMENTUM_KIND.get(label, "other")
+    _plot_line_arrow_3d(ax, start, end, color,
+                        linestyle={ "proton": "-", "photon": ":", "electron": "--" }.get(kind, "-"),
+                        linewidth={ "proton": 1.75, "photon": 1.6, "electron": 1.55 }.get(kind, 1.55))
+    ax.text(end[0], end[1], end[2], f" {MOMENTUM_DISPLAY_LABELS.get(label, label)}",
+            color=color, fontsize=9)
 
 
 def plot_transverse_momenta(ax, kin, title="Transverse plane"):
     """Draw styled transverse momentum vectors."""
-    colors = {
-        "k": "tab:blue",
-        "p": "tab:orange",
-        "kp": "tab:cyan",
-        "pp": "tab:red",
-        "qout": "tab:green",
-    }
     momenta = kin["momenta"]
     transverse = np.asarray([momenta[name][1:3] for name in DISPLAY_MOMENTA])
     line_scale = max(1.0, float(np.nanmax(np.abs(transverse))) * 1.20)
     for name in DISPLAY_MOMENTA:
-        _plot_vector_2d(ax, momenta[name], name, colors[name], line_scale)
+        _plot_vector_2d(ax, momenta[name], name, MOMENTUM_COLORS[name], line_scale)
     ax.set_xlim(-line_scale, line_scale)
     ax.set_ylim(-line_scale, line_scale)
     ax.axhline(0.0, color="0.82", linewidth=0.8)
@@ -1182,20 +960,13 @@ def plot_transverse_momenta(ax, kin, title="Transverse plane"):
 
 def plot_momentum_panels(fig, grid_spec, kin):
     """Draw 3D and transverse-plane momentum panels."""
-    colors = {
-        "k": "tab:blue",
-        "p": "tab:orange",
-        "kp": "tab:cyan",
-        "pp": "tab:red",
-        "qout": "tab:green",
-    }
     momenta = kin["momenta"]
     vectors = np.asarray([momenta[name][1:4] for name in DISPLAY_MOMENTA])
     line_scale = max(1.0, float(np.nanmax(np.abs(vectors))) * 1.15)
     ax3d = fig.add_subplot(grid_spec[0, 0], projection="3d")
     ax2d = fig.add_subplot(grid_spec[1, 0])
     for name in DISPLAY_MOMENTA:
-        _plot_vector_3d(ax3d, momenta[name], name, colors[name], line_scale)
+        _plot_vector_3d(ax3d, momenta[name], name, MOMENTUM_COLORS[name], line_scale)
     ax3d.set_xlim(-line_scale, line_scale)
     ax3d.set_ylim(-line_scale, line_scale)
     ax3d.set_zlim(-line_scale, line_scale)
@@ -1208,8 +979,9 @@ def plot_momentum_panels(fig, grid_spec, kin):
 
 def format_vector_line(name, vector):
     """Return one compact four-vector line."""
+    label = MOMENTUM_DISPLAY_LABELS.get(name, name)
     return (
-        f"{momentum_display_label(name):10s} $E$={vector[0]:8.4f} "
+        f"{label:10s} $E$={vector[0]:8.4f} "
         f"$p_x$={vector[1]:8.4f} $p_y$={vector[2]:8.4f} $p_z$={vector[3]:8.4f}"
     )
 
@@ -1250,160 +1022,13 @@ def plot_configuration_text(ax, row, kin):
     ax.text(0.0, 1.0, "\n".join(lines), va="top", ha="left", family="monospace", fontsize=9)
 
 
-def format_amplitude_summary(row, max_rows=3):
-    """Return a compact summary of the largest ensemble-weighted components."""
-    records = amplitude_decomposition(row)[:max_rows]
-    lines = []
-    for item in records:
-        lines.append(
-            "  "
-            f"{item['initial_component']}, "
-            rf"$h_e$={format_helicity(item['hOut'])}, "
-            rf"$h_p$={format_helicity(item['sOut'])}, "
-            rf"$h_\gamma$={format_helicity(item['lambda'])}: "
-            f"frac={parse_float(item['fraction']):.3g}, "
-            f"phase={parse_float(item['amplitude_phase']):.3g}"
-        )
-    return lines
-
-
-def plot_egamma_row_text(ax, row, kin):
-    """Draw compact kinematics and amplitude text for an E-gamma row."""
-    ax.axis("off")
-    label = observable_text_label(row["selected_observable"])
-    lines = [
-        (
-            rf"{row['selected_spin_case']}  {row.get('qOut_group', row.get('qOut_regime', 'Egamma'))}  "
-            f"{label}={row['selected_concurrence']:.6g}"
-        ),
-        (
-            rf"$E_\gamma$={kin['qOut']:.6g}, $\phi_\gamma$={kin['phiOut']:.6g}, "
-            rf"$\phi_\ell$={parse_float(row.get('phi_in_electron')):.6g}, "
-            rf"$\phi_P$={kin['phi_in']:.6g}"
-        ),
-        (
-            rf"$Q^2$={kin['Q2']:.6g}, $x_B$={kin['xB']:.6g}, "
-            rf"$t$={kin['t']:.6g}, $W^2$={kin['W2']:.6g}, $y$={kin['y']:.6g}"
-        ),
-        f"final-pair delta_xy={row['pair_delta_xy']:.6g} rad",
-        "largest final-state spin/helicity amplitudes:",
-        *format_amplitude_summary(row),
-    ]
-    ax.text(0.0, 1.0, "\n".join(lines), va="top", ha="left", family="monospace", fontsize=8.5)
-
-
-def save_egamma_summary_pages(pdf, plt, target, energy_rows):
-    """Append pages collecting one selected configuration per E-gamma row."""
-    if not energy_rows:
-        return
-    observable, _file_tag = target
-    by_spin = {}
-    for row in energy_rows:
-        by_spin.setdefault(row["selected_spin_case"], []).append(row)
-    for spin_case, rows in by_spin.items():
-        rows = sorted(rows, key=lambda row: parse_float(row.get("qOut_group_value"), default=np.inf))
-        for start in range(0, len(rows), 4):
-            chunk = rows[start:start + 4]
-            fig_height = max(5.0, 2.25 * len(chunk))
-            fig, axes = plt.subplots(
-                len(chunk),
-                2,
-                figsize=(12.8, fig_height),
-                constrained_layout=True,
-                squeeze=False,
-                gridspec_kw={"width_ratios": (1.0, 1.45)},
-            )
-            for row_index, row in enumerate(chunk):
-                kin = kinematics_from_config_row(row)
-                title = f"{row.get('qOut_group', 'Egamma')} momenta"
-                plot_transverse_momenta(axes[row_index, 0], kin, title=title)
-                plot_egamma_row_text(axes[row_index, 1], row, kin)
-            fig.suptitle(
-                (
-                    f"{spin_case}: best E_gamma configurations for max "
-                    f"{observable_latex_label(observable)}"
-                ),
-                fontsize=15,
-            )
-            pdf.savefig(fig)
-            plt.close(fig)
-
-
-def egamma_pdf_path(base_dir, group_name):
-    """Return the standalone PDF path for one E_gamma group."""
-    return base_dir / f"{file_safe_label(group_name)}_configuration.pdf"
-
-
-def target_sort_index(row):
-    """Return display order for target rows."""
-    targets = [target[0] for target in CONFIG_TARGETS]
-    return targets.index(row["selected_observable"])
-
-
-def save_single_egamma_config_pdf(plt, PdfPages, rows, path):
-    """Save one standalone configuration PDF for one E_gamma group."""
-    rows = sorted(rows, key=target_sort_index)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with PdfPages(path) as pdf:
-        for start in range(0, len(rows), 3):
-            chunk = rows[start:start + 3]
-            fig_height = max(6.0, 2.55 * len(chunk))
-            fig, axes = plt.subplots(
-                len(chunk),
-                2,
-                figsize=(12.8, fig_height),
-                constrained_layout=True,
-                squeeze=False,
-                gridspec_kw={"width_ratios": (1.0, 1.45)},
-            )
-            for row_index, row in enumerate(chunk):
-                kin = kinematics_from_config_row(row)
-                plot_transverse_momenta(
-                    axes[row_index, 0],
-                    kin,
-                    title=(
-                        rf"max {observable_latex_label(row['selected_observable'])}  "
-                        rf"{row['selected_spin_case']}  $E_\gamma$={kin['qOut']:.6g}"
-                    ),
-                )
-                plot_egamma_row_text(axes[row_index, 1], row, kin)
-            group_name = rows[0].get("qOut_group", "Egamma")
-            fig.suptitle(
-                rf"{group_name}: max pairwise-concurrence configurations",
-                fontsize=15,
-            )
-            pdf.savefig(fig)
-            plt.close(fig)
-    return path
-
-
-def save_egamma_config_pdfs(energy_rows, base_dir):
-    """Write one standalone configuration PDF per sampled E_gamma value."""
-    if not energy_rows:
-        return []
-    plt, PdfPages = _require_matplotlib()
-    grouped = {}
-    for row in energy_rows:
-        grouped.setdefault(row.get("qOut_group", "Egamma"), []).append(row)
-    outputs = []
-    for group_name, rows in sorted(
-        grouped.items(),
-        key=lambda item: parse_float(item[1][0].get("qOut_group_value"), default=np.inf),
-    ):
-        path = egamma_pdf_path(base_dir, group_name)
-        outputs.append((group_name, save_single_egamma_config_pdf(plt, PdfPages, rows, path)))
-    return outputs
-
-
 def egamma_target_pdf_path(group_name, target, spin_case):
-    """Return the PDF path for one fixed E_gamma, target, and spin case."""
+    """Return the PDF path under a polarization subdirectory."""
     _observable, file_tag = target
     return (
         EGAMMA_CONFIG_DIR
-        / file_safe_label(group_name)
-        / file_tag
         / file_safe_label(spin_case)
-        / "regions.pdf"
+        / f"{file_safe_label(group_name)}_{file_tag}_regions.pdf"
     )
 
 
@@ -1421,21 +1046,14 @@ def save_egamma_target_region_pdf(target, group_name, rows, key):
     path.parent.mkdir(parents=True, exist_ok=True)
     with PdfPages(path) as pdf:
         plot_egamma_target_scan_map(
-            plt,
-            pdf,
-            rows,
-            target,
-            group_name,
-            spin_case,
-            key,
-            clusters,
+            plt, pdf, rows, target, group_name, spin_case, key, clusters,
         )
         save_detail_pages(pdf, plt, detail_rows)
     return path, detail_rows
 
 
 def save_all_egamma_target_region_pdfs(rows):
-    """Write separate PDFs for every E_gamma, target concurrence, and spin case."""
+    """Write PDFs per E_gamma × target × polarization under polarization folders."""
     outputs = []
     detail_rows = []
     for group_name, _qout in qout_groups(rows):
@@ -1444,9 +1062,11 @@ def save_all_egamma_target_region_pdfs(rows):
             observable, _file_tag = target
             for key in target_columns(group_rows, observable):
                 spin_case = spin_label_from_key(key, observable)
-                path, details = save_egamma_target_region_pdf(target, group_name, group_rows, key)
-                if path is not None:
-                    outputs.append((group_name, target[0], spin_case, path, len(details)))
+                path, details = save_egamma_target_region_pdf(
+                    target, group_name, group_rows, key,
+                )
+                if path is not None and details:
+                    outputs.append((group_name, observable, spin_case, path, len(details)))
                     detail_rows.extend(details)
     return outputs, detail_rows
 
@@ -1510,40 +1130,6 @@ def save_detail_pages(pdf, plt, detail_rows):
         plt.close(fig)
 
 
-def save_configuration_plot(target, grouped_clusters, rows, path, energy_rows=None):
-    """Save scan maps and detailed momentum/amplitude pages for one target."""
-    plt, PdfPages = _require_matplotlib()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    observable, _file_tag = target
-    detail_rows = representative_rows(target, grouped_clusters)
-    energy_rows = list(energy_rows or [])
-    with PdfPages(path) as pdf:
-        for spin_case, clusters in grouped_clusters:
-            if not clusters:
-                continue
-            key = clusters[0]["best"]["selected_concurrence_key"]
-            plot_scan_map(plt, pdf, rows, key, observable, spin_case, clusters)
-        save_egamma_summary_pages(pdf, plt, target, energy_rows)
-        save_detail_pages(pdf, plt, detail_rows)
-    return path
-
-
-def save_spin_plots(target, grouped_clusters, rows, energy_rows, base_path):
-    """Write one configuration plot PDF per selected spin case."""
-    outputs = []
-    for spin_case, clusters in grouped_clusters:
-        path = spin_output_path(base_path, spin_case)
-        spin_energy_rows = [
-            row for row in energy_rows
-            if row.get("selected_spin_case") == spin_case
-        ]
-        outputs.append((
-            spin_case,
-            save_configuration_plot(target, [(spin_case, clusters)], rows, path, spin_energy_rows),
-        ))
-    return outputs
-
-
 def build_target_package(target, rows, egamma_detail_rows=()):
     """Build CSV rows and report metadata for one target observable."""
     observable, file_tag = target
@@ -1569,7 +1155,7 @@ def build_target_package(target, rows, egamma_detail_rows=()):
     ]
     output_details = details + target_egamma_details
     momentum_rows = momentum_configuration_rows(output_details)
-    amplitude_rows = amplitude_decomposition_rows(output_details)
+    amplitude_rows = [r for row in output_details for r in amplitude_decomposition(row)]
     spin_cases = []
     for spin_case, _clusters in grouped_clusters:
         if spin_case not in spin_cases:
@@ -1611,7 +1197,7 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
         f"  total input rows: {total_rows}",
         f"  data csv folder: {DATA_DIR}",
         f"  per-E_gamma config folder: {EGAMMA_CONFIG_DIR}",
-        f"  per-E_gamma/target/polarization PDFs: {len(egamma_outputs)}",
+        f"  config PDFs (one per E_gamma × target, all spin cases collected): {len(egamma_outputs)} spin entries",
         f"  targets: {', '.join(observable_text_label(observable) for observable, _ in CONFIG_TARGETS)}",
         f"  max spin cases per target: {MAX_SPIN_CASES_PER_TARGET}",
         f"  top rows per target/spin case: {TOP_ROWS_PER_TARGET_SPIN}",
@@ -1620,9 +1206,8 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
         f"  amplitude component minimum fraction: {AMPLITUDE_MIN_FRACTION:.0%}",
         f"  amplitude component maximum count: {AMPLITUDE_MAX_COMPONENTS}",
         "  data layout: Data/<target>/<polarization>/... with combined tables under combined/",
-        "  PDF layout: Config_Plot_By_Egamma/<E_gamma>/<target>/<polarization>/regions.pdf",
-        "  no PDF combines different E_gamma values or polarization configs",
-        "  saved per-E_gamma/target/polarization config PDFs:",
+        "  PDF layout: Config_Plot_By_Egamma/<polarization>/<E_gamma>_<target>_regions.pdf",
+        "  saved per-polarization config PDFs:",
     ]
     for group_name, observable, spin_case, path, region_count in egamma_outputs:
         label = observable_text_label(observable)

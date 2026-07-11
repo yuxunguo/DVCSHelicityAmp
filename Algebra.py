@@ -22,7 +22,7 @@ import numpy as np
 # Electron is massless. Proton has mass m.
 # ============================================================
 
-DEFAULT_TOL = 1e-12
+DEFAULT_TOL = 1e-15
 HELICITIES = (-1, 1)
 eta = np.array([1.0, -1.0, -1.0, -1.0])
 
