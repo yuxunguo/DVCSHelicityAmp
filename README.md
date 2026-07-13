@@ -18,6 +18,7 @@ BHHelicityAmp.py  Bethe-Heitler amplitudes and benchmark log generation.
 SpinDensityMat.py Spin-density matrix scans and entanglement observables.
 AlignmentScan.py  C_e_p/C_e_gamma/C_p_gamma, M_e/M_p/M_gamma, and F3 scan at characteristic kinematics.
 ConfigGen.py      Max C_e_p/C_p_gamma/C_e_gamma configuration scans from AlignmentScan CSVs.
+Mathematica/      Analytic Wolfram Language kinematics, amplitudes, density matrices, and concurrence.
 Output/           Generated logs, scan data, CSV files, and plots.
 ```
 
@@ -201,6 +202,72 @@ Output/BHHelicityAmp.log
 
 That log contains benchmark tables comparing the numerical helicity-summed
 result against the analytic benchmark path used in the script.
+
+## Mathematica / Wolfram Language Workflow
+
+`Mathematica/BHHelicityAmp.wl` mirrors the Python conventions for general
+`thetaIn`. Its independent inputs are
+`(s, thetaIn, phiIn, eGamma, phiGamma, m)`. It obtains `pIn` and the physical
+analytic root for `pOut`, constructs all external four-momenta, evaluates the
+complete `4 x 8` Bethe-Heitler helicity-amplitude table, contracts an arbitrary
+incoming `4 x 4` spin density matrix, and computes reduced density matrices
+and concurrence.
+
+Run the example from the repository root with:
+
+```sh
+wolframscript -file Mathematica/Example.wl
+```
+
+On macOS, if `wolframscript` has not been configured with a kernel path, use
+the application kernel directly:
+
+```sh
+/Applications/Wolfram.app/Contents/MacOS/WolframKernel -script Mathematica/Example.wl
+```
+
+The main workflow is:
+
+```text
+kin = UserKinematics[s, thetaIn, phiIn, eGamma, phiGamma, m];
+amps = BHAmplitudeTable[kin, m, F1, F2];
+rhoIn = InitialSpinDensity["L", "L"];
+rhoOut = OutgoingDensityMatrix[amps, rhoIn];
+observables = EntanglementObservables[rhoOut];
+```
+
+To print one complete symbolic helicity amplitude, edit `helicityInputs` in
+`Mathematica/AnalyticAmplitudeTest.wl` and run:
+
+```sh
+/Applications/Wolfram.app/Contents/MacOS/WolframKernel \
+  -script Mathematica/AnalyticAmplitudeTest.wl
+```
+
+The input ordering is
+`{hIn,hOut,sIn,sOut,lambda}`. Add `--summary` to validate that the result is a
+fully contracted scalar without printing the very large expression.
+
+For one fully symbolic channel, use real kinematic assumptions and simplify
+only after selecting the helicities, for example:
+
+```text
+kinSymbolic = UserKinematics[s, thetaIn, phiIn, eGamma, phiGamma, m];
+ampSymbolic = BHAmplitude[
+  kinSymbolic, -1, -1, -1, 1, 1, m, F1t, F2t
+];
+ampExplicit = ComplexExpand[ampSymbolic,
+  TargetFunctions -> {Re, Im}] // Together;
+```
+
+`OutgoingDensityMatrix[amps,rhoIn,False]` returns the unnormalized density
+numerator; its trace is the squared-amplitude signal for that incoming state.
+The default third argument is `True`, which returns a unit-trace matrix.
+
+The helicity basis is ordered as `{-1,+1}`. The amplitude axes are
+`(hIn,sIn)` and `(hOut,sOut,lambda)`. Pairwise Wootters concurrence is
+calculated for both pure and mixed outgoing states. One-to-rest concurrence,
+`F3`, and CKW residuals are returned only when the outgoing state is pure.
 
 ## Spin-Density Matrix Workflow
 
