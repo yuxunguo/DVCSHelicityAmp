@@ -1,11 +1,13 @@
-"""Generate high-concurrence configuration scans from AlignmentScan outputs.
+"""Generate high-entanglement configuration scans from AlignmentScan outputs.
 
-The generator reads the pairwise concurrence scan written by ``AlignmentScan.py``
-and builds one configuration package for each requested maximum:
-``C_e_p``, ``C_p_gamma``, and ``C_e_gamma``.  Each package contains a scan plot,
+The generator reads the entanglement scan written by ``AlignmentScan.py`` and
+builds one configuration package for each requested maximum: ``C_e_p``,
+``C_p_gamma``, ``C_e_gamma``, and ``F3``.  Each package contains a scan plot,
 representative enhanced regions, reconstructed momenta/kinematics, and a
-final-state amplitude decomposition that preserves the AlignmentScan initial-
-spin ensemble weights.
+final-state amplitude decomposition that preserves the AlignmentScan
+initial-spin ensemble weights.  ``F3`` is scanned for every configured
+polarization; the stored purity is carried into the outputs so pure-state and
+mixed-state rows can be distinguished.
 """
 
 import csv
@@ -48,6 +50,7 @@ CONFIG_TARGETS = (
     ("C_e_p", "c_ep"),
     ("C_p_gamma", "c_p_gamma"),
     ("C_e_gamma", "c_e_gamma"),
+    ("F3", "f3"),
 )
 CONFIG_SPIN_CASES = (
     "unpolarized",
@@ -194,7 +197,7 @@ def clean_data_outputs():
 
 
 def alignment_input_path():
-    """Return the best available concurrence CSV for configuration scans."""
+    """Return the best available entanglement CSV for configuration scans."""
     for path in (
         FULL_CONCURRENCE_CSV,
         RANKED_CONCURRENCE_CSV,
@@ -210,7 +213,7 @@ def alignment_input_path():
 
 
 def target_paths(file_tag):
-    """Return output paths for one requested concurrence target."""
+    """Return output paths for one requested entanglement target."""
     prefix = f"max_{file_tag}"
     combined_dir = DATA_DIR / file_tag / "combined"
     return {
@@ -222,7 +225,7 @@ def target_paths(file_tag):
 
 
 def spin_label_from_key(key, observable):
-    """Return the spin-case prefix from a concurrence column name."""
+    """Return the spin-case prefix from an observable column name."""
     suffix = f"_{observable}"
     if key.endswith(suffix):
         return key[: -len(suffix)]
@@ -303,8 +306,11 @@ def kinematics_from_config_row(row):
 
 
 def target_pair_delta(row, observable):
-    """Return transverse angular separation for the target outgoing pair."""
-    first, second = TARGET_FINAL_MOMENTA[observable]
+    """Return transverse separation for a pair target, or NaN for ``F3``."""
+    pair = TARGET_FINAL_MOMENTA.get(observable)
+    if pair is None:
+        return np.nan
+    first, second = pair
     kin = kinematics_from_config_row(row)
     return circular_distance(
         vector_phi_xy(kin["momenta"][first]),
@@ -323,11 +329,13 @@ def source_rows_for_key(rows, key):
 def selected_row(row, key, observable, value):
     """Return a row annotated with the selected target observable metadata."""
     item = dict(row)
+    spin_case = spin_label_from_key(key, observable)
     item["selected_observable"] = observable
     item["selected_observable_label"] = observable_text_label(observable)
-    item["selected_spin_case"] = spin_label_from_key(key, observable)
+    item["selected_spin_case"] = spin_case
     item["selected_concurrence_key"] = key
     item["selected_concurrence"] = value
+    item["selected_purity"] = parse_float(row.get(f"{spin_case}_purity"))
     item["pair_delta_xy"] = target_pair_delta(item, observable)
     item["scan_phi_e_in"] = parse_float(row.get("phi_in_electron"))
     item["scan_phi_p_in"] = parse_float(row.get("phi_in"))
@@ -344,7 +352,7 @@ def scan_x_phi(row):
 
 
 def candidate_rows(rows, key, observable):
-    """Return ranked candidates for one target/spin concurrence column."""
+    """Return ranked candidates for one target/spin observable column."""
     source_rows = source_rows_for_key(rows, key)
     candidates = []
     seen = set()
@@ -378,7 +386,7 @@ def row_distance(a, b):
 
 
 def cluster_candidates(candidates):
-    """Greedily cluster high-concurrence candidate rows by scan coordinates."""
+    """Greedily cluster high-observable candidate rows by scan coordinates."""
     clusters = []
     for row in candidates:
         best_index = None
@@ -441,6 +449,7 @@ def cluster_summary_rows(target, grouped_clusters):
                 "cluster_id": cluster["cluster_id"],
                 "size": len(rows),
                 "max_concurrence": f"{best['selected_concurrence']:.16e}",
+                "best_purity": f"{best['selected_purity']:.16e}",
                 "best_kinematic_point": best.get("kinematic_point", ""),
                 "best_pair_delta_xy": f"{best['pair_delta_xy']:.16e}",
             }
@@ -483,12 +492,16 @@ def example_rows(grouped_clusters):
                     "cluster_id": cluster["cluster_id"],
                     "example_rank": rank,
                     "selected_concurrence": f"{row['selected_concurrence']:.16e}",
+                    "selected_purity": f"{row['selected_purity']:.16e}",
                     "pair_delta_xy": f"{row['pair_delta_xy']:.16e}",
                 }
                 for name in KINEMATIC_COLUMNS:
                     item[name] = row.get(name, "")
                 for key, value in row.items():
-                    if "_C_" in key or key.endswith("_C13"):
+                    is_selected_f3 = (
+                        row["selected_observable"] == "F3" and key.endswith("_F3")
+                    )
+                    if "_C_" in key or key.endswith("_C13") or is_selected_f3:
                         item[key] = value
                 examples.append(item)
     return examples
@@ -543,7 +556,7 @@ def rows_for_qout_group(rows, group_name):
 
 
 def target_egamma_candidates(rows, target, key):
-    """Return high-concurrence candidates for one target/spin at one E_gamma."""
+    """Return high-observable candidates for one target/spin at one E_gamma."""
     observable, _file_tag = target
     candidates = []
     seen = set()
@@ -669,6 +682,7 @@ def _row_meta(row):
         "selected_region": row["selected_region"],
         "cluster_id": row["cluster_id"],
         "selected_concurrence": f"{row['selected_concurrence']:.16e}",
+        "selected_purity": f"{row['selected_purity']:.16e}",
         "pair_delta_xy": f"{row['pair_delta_xy']:.16e}",
         "kinematic_point": row.get("kinematic_point", ""),
     }
@@ -991,12 +1005,13 @@ def plot_configuration_text(ax, row, kin):
     ax.axis("off")
     momenta = kin["momenta"]
     label = observable_text_label(row["selected_observable"])
+    region_line = f"region: {row['selected_region']}"
+    if np.isfinite(row["pair_delta_xy"]):
+        region_line += f"  final-pair delta_xy={row['pair_delta_xy']:.6g} rad"
     lines = [
         f"{row['detail_id']}  {label}={row['selected_concurrence']:.6g}",
-        (
-            f"region: {row['selected_region']}  "
-            f"final-pair delta_xy={row['pair_delta_xy']:.6g} rad"
-        ),
+        region_line,
+        f"outgoing-state purity: {row['selected_purity']:.6g}",
         f"kinematic point: {row.get('kinematic_point', '')}",
         f"incoming state: {selected_initial_state_label(row['selected_spin_case'])}",
         "",
@@ -1033,7 +1048,7 @@ def egamma_target_pdf_path(group_name, target, spin_case):
 
 
 def save_egamma_target_region_pdf(target, group_name, rows, key):
-    """Save one PDF for one E_gamma/target/spin with clustered max-C regions."""
+    """Save one PDF for one E_gamma/target/spin with clustered maxima."""
     observable, _file_tag = target
     spin_case = spin_label_from_key(key, observable)
     candidates = target_egamma_candidates(rows, target, key)
@@ -1187,7 +1202,7 @@ def build_target_package(target, rows, egamma_detail_rows=()):
 def build_report(input_path, total_rows, packages, egamma_outputs):
     """Build the text report for the generated configurations."""
     lines = [
-        "Max pairwise-concurrence configuration generator from AlignmentScan results",
+        "Max entanglement-observable configuration generator from AlignmentScan results",
         f"  input csv: {input_path}",
         f"  required initial-spin averaging version: {SPIN_AVERAGING_VERSION}",
         "  unpolarized decomposition: 1/4 average over electron and proton helicities",
@@ -1241,13 +1256,22 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
             for cluster in clusters:
                 best = cluster["best"]
                 rows = cluster["rows"]
+                pair_range = (
+                    f"final_pair_delta_xy={format_range(rows, 'pair_delta_xy')}, "
+                    if observable in TARGET_FINAL_MOMENTA else ""
+                )
+                best_pair = (
+                    f"pair_delta_xy={best['pair_delta_xy']:.6g}, "
+                    if observable in TARGET_FINAL_MOMENTA else ""
+                )
                 lines.append(
                     "    "
                     f"{spin_case} region {cluster['cluster_id']}: "
                     f"size={len(rows)}, max_{label}={best['selected_concurrence']:.6g}, "
                     f"phi_p_in={format_range(rows, 'phi_in')}, "
                     f"phi_gamma={format_range(rows, 'phiOut')}, "
-                    f"final_pair_delta_xy={format_range(rows, 'pair_delta_xy')}, "
+                    f"purity={format_range(rows, 'selected_purity')}, "
+                    f"{pair_range}"
                     f"Q2={format_range(rows, 'Q2')}, "
                     f"xB={format_range(rows, 'xB')}, "
                     f"t={format_range(rows, 't')}"
@@ -1260,7 +1284,8 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
                     f"phi_p_in={parse_float(best.get('phi_in')):.6g}, "
                     f"qOut={parse_float(best.get('qOut')):.6g}, "
                     f"phi_gamma={parse_float(best.get('phiOut')):.6g}, "
-                    f"pair_delta_xy={best['pair_delta_xy']:.6g}, "
+                    f"purity={best['selected_purity']:.6g}, "
+                    f"{best_pair}"
                     f"Q2={parse_float(best.get('Q2')):.6g}, "
                     f"xB={parse_float(best.get('xB')):.6g}, "
                     f"t={parse_float(best.get('t')):.6g}"

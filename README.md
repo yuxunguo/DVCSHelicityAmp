@@ -17,7 +17,7 @@ Kinematics.py     Four-momentum builders and kinematic validation checks.
 BHHelicityAmp.py  Bethe-Heitler amplitudes and benchmark log generation.
 SpinDensityMat.py Spin-density matrix scans and entanglement observables.
 AlignmentScan.py  C_e_p/C_e_gamma/C_p_gamma, M_e/M_p/M_gamma, and F3 scan at characteristic kinematics.
-ConfigGen.py      Max C_e_p/C_p_gamma/C_e_gamma configuration scans from AlignmentScan CSVs.
+ConfigGen.py      Max C_e_p/C_p_gamma/C_e_gamma/F3 configuration scans from AlignmentScan CSVs.
 Mathematica/      Analytic Wolfram Language kinematics, amplitudes, density matrices, and concurrence.
 Output/           Generated logs, scan data, CSV files, and plots.
 ```
@@ -317,8 +317,10 @@ the scans. The benchmark verifies the trace condition after normalization.
 All reductions are taken from this contracted `8 x 8` matrix. Pairwise
 Wootters concurrence is valid for both mixed and pure outgoing states. The
 one-to-rest concurrence, `F3`, and CKW residual formulas used here require a
-pure three-qubit state; those columns are `NaN` when an unpolarized incoming
-particle makes the contracted outgoing state mixed.
+pure three-qubit state. `SpinDensityMat.py` stores zero for the one-to-rest and
+`F3` columns when the contracted outgoing state is mixed; the accompanying
+purity column identifies those rows as outside the pure-state formula's
+domain.
 
 The output columns are:
 
@@ -498,10 +500,17 @@ anchor.
 `ConfigGen.py` reads
 `Output/AlignmentScan/ConcurrenceScan/electron_photon_concurrence_phase_space.csv`
 when available, then falls back to ranked locator CSVs. It finds the strongest
-regions for each target observable `C_e_p`, `C_p_gamma`, and `C_e_gamma`,
+regions for each target observable `C_e_p`, `C_p_gamma`, `C_e_gamma`, and `F3`,
 clusters them in each fixed-`E_gamma` `phi_in` by
 `phi_gamma` scan for each polarization config, and writes the numerical
 configuration data under `Output/ConfigGen/Data`:
+
+ConfigGen scans `F3` for all configured polarization cases, including
+unpolarized, single-particle polarized, and double-polarized inputs. The
+generated tables include `selected_purity`. For mixed outgoing states,
+`SpinDensityMat.py` stores `F3 = 0` because the implemented `F3` formula is a
+pure-three-qubit-state observable; those zero-valued scans are retained so the
+full polarization set is represented.
 
 `ConfigGen.py` rejects older AlignmentScan CSVs without
 `prepared_spin_ensemble_v4`; rerun `AlignmentScan.py` before configuration
@@ -511,16 +520,16 @@ generation when the convention is missing or stale.
 Output/ConfigGen.log
 Output/ConfigGen/Data/<target>/combined/*.csv
 Output/ConfigGen/Data/<target>/<polarization>/*.csv
-Output/ConfigGen/Config_Plot_By_Egamma/<E_gamma>/<target>/<polarization>/regions.pdf
+Output/ConfigGen/Config_Plot_By_Egamma/<polarization>/<E_gamma>_<target>_regions.pdf
 ```
 
-Each PDF fixes one `E_gamma` value, one target concurrence, and one
+Each PDF fixes one `E_gamma` value, one target entanglement observable, and one
 polarization config. No PDF combines different `E_gamma` values or different
-polarization configs. The first page is the fixed-energy concurrence scan map
-for that target and polarization, with the located maximum-concurrence regions marked;
+polarization configs. The first page is the fixed-energy observable scan map
+for that target and polarization, with the located maximum regions marked;
 the map uses the incoming proton azimuth `phi_in` as the x coordinate, draws
 guide lines at `phi_in = pi/2` and `phi_gamma = pi/2`, and uses a fixed
-`0..1` concurrence color scale;
+`0..1` observable color scale;
 the following pages show the reconstructed momentum configuration, kinematics,
 and final-state helicity-amplitude decomposition for each selected region.
 For incoherent initial-spin ensembles, the decomposition keeps each initial

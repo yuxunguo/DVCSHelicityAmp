@@ -1,4 +1,4 @@
-Max pairwise-concurrence configuration generator from AlignmentScan results
+Max entanglement-observable configuration generator from AlignmentScan results
   input csv: Output/AlignmentScan/ConcurrenceScan/electron_photon_concurrence_phase_space.csv
   required initial-spin averaging version: prepared_spin_ensemble_v4
   unpolarized decomposition: 1/4 average over electron and proton helicities
@@ -8,8 +8,8 @@ Max pairwise-concurrence configuration generator from AlignmentScan results
   total input rows: 12096
   data csv folder: Output/ConfigGen/Data
   per-E_gamma config folder: Output/ConfigGen/Config_Plot_By_Egamma
-  config PDFs (one per E_gamma × target, all spin cases collected): 108 spin entries
-  targets: C_{ep}, C_{p\gamma}, C_{e\gamma}
+  config PDFs (one per E_gamma × target, all spin cases collected): 144 spin entries
+  targets: C_{ep}, C_{p\gamma}, C_{e\gamma}, F_3
   max spin cases per target: None
   top rows per target/spin case: 80
   cluster radius: 0.42
@@ -127,6 +127,42 @@ Max pairwise-concurrence configuration generator from AlignmentScan results
     high_Egamma LTy C_{e\gamma}: Output/ConfigGen/Config_Plot_By_Egamma/lty/high_egamma_c_e_gamma_regions.pdf (4 regions)
     high_Egamma TxTx C_{e\gamma}: Output/ConfigGen/Config_Plot_By_Egamma/txtx/high_egamma_c_e_gamma_regions.pdf (1 regions)
     high_Egamma TxTy C_{e\gamma}: Output/ConfigGen/Config_Plot_By_Egamma/txty/high_egamma_c_e_gamma_regions.pdf (1 regions)
+    low_Egamma unpolarized F_3: Output/ConfigGen/Config_Plot_By_Egamma/unpolarized/low_egamma_f3_regions.pdf (4 regions)
+    low_Egamma L_proton F_3: Output/ConfigGen/Config_Plot_By_Egamma/l_proton/low_egamma_f3_regions.pdf (4 regions)
+    low_Egamma L_electron F_3: Output/ConfigGen/Config_Plot_By_Egamma/l_electron/low_egamma_f3_regions.pdf (4 regions)
+    low_Egamma Tx_proton F_3: Output/ConfigGen/Config_Plot_By_Egamma/tx_proton/low_egamma_f3_regions.pdf (4 regions)
+    low_Egamma Ty_proton F_3: Output/ConfigGen/Config_Plot_By_Egamma/ty_proton/low_egamma_f3_regions.pdf (4 regions)
+    low_Egamma Tx_electron F_3: Output/ConfigGen/Config_Plot_By_Egamma/tx_electron/low_egamma_f3_regions.pdf (4 regions)
+    low_Egamma Ty_electron F_3: Output/ConfigGen/Config_Plot_By_Egamma/ty_electron/low_egamma_f3_regions.pdf (4 regions)
+    low_Egamma LL F_3: Output/ConfigGen/Config_Plot_By_Egamma/ll/low_egamma_f3_regions.pdf (4 regions)
+    low_Egamma LTx F_3: Output/ConfigGen/Config_Plot_By_Egamma/ltx/low_egamma_f3_regions.pdf (4 regions)
+    low_Egamma LTy F_3: Output/ConfigGen/Config_Plot_By_Egamma/lty/low_egamma_f3_regions.pdf (4 regions)
+    low_Egamma TxTx F_3: Output/ConfigGen/Config_Plot_By_Egamma/txtx/low_egamma_f3_regions.pdf (4 regions)
+    low_Egamma TxTy F_3: Output/ConfigGen/Config_Plot_By_Egamma/txty/low_egamma_f3_regions.pdf (4 regions)
+    mid_Egamma unpolarized F_3: Output/ConfigGen/Config_Plot_By_Egamma/unpolarized/mid_egamma_f3_regions.pdf (4 regions)
+    mid_Egamma L_proton F_3: Output/ConfigGen/Config_Plot_By_Egamma/l_proton/mid_egamma_f3_regions.pdf (4 regions)
+    mid_Egamma L_electron F_3: Output/ConfigGen/Config_Plot_By_Egamma/l_electron/mid_egamma_f3_regions.pdf (4 regions)
+    mid_Egamma Tx_proton F_3: Output/ConfigGen/Config_Plot_By_Egamma/tx_proton/mid_egamma_f3_regions.pdf (4 regions)
+    mid_Egamma Ty_proton F_3: Output/ConfigGen/Config_Plot_By_Egamma/ty_proton/mid_egamma_f3_regions.pdf (4 regions)
+    mid_Egamma Tx_electron F_3: Output/ConfigGen/Config_Plot_By_Egamma/tx_electron/mid_egamma_f3_regions.pdf (4 regions)
+    mid_Egamma Ty_electron F_3: Output/ConfigGen/Config_Plot_By_Egamma/ty_electron/mid_egamma_f3_regions.pdf (4 regions)
+    mid_Egamma LL F_3: Output/ConfigGen/Config_Plot_By_Egamma/ll/mid_egamma_f3_regions.pdf (4 regions)
+    mid_Egamma LTx F_3: Output/ConfigGen/Config_Plot_By_Egamma/ltx/mid_egamma_f3_regions.pdf (3 regions)
+    mid_Egamma LTy F_3: Output/ConfigGen/Config_Plot_By_Egamma/lty/mid_egamma_f3_regions.pdf (4 regions)
+    mid_Egamma TxTx F_3: Output/ConfigGen/Config_Plot_By_Egamma/txtx/mid_egamma_f3_regions.pdf (3 regions)
+    mid_Egamma TxTy F_3: Output/ConfigGen/Config_Plot_By_Egamma/txty/mid_egamma_f3_regions.pdf (3 regions)
+    high_Egamma unpolarized F_3: Output/ConfigGen/Config_Plot_By_Egamma/unpolarized/high_egamma_f3_regions.pdf (4 regions)
+    high_Egamma L_proton F_3: Output/ConfigGen/Config_Plot_By_Egamma/l_proton/high_egamma_f3_regions.pdf (4 regions)
+    high_Egamma L_electron F_3: Output/ConfigGen/Config_Plot_By_Egamma/l_electron/high_egamma_f3_regions.pdf (4 regions)
+    high_Egamma Tx_proton F_3: Output/ConfigGen/Config_Plot_By_Egamma/tx_proton/high_egamma_f3_regions.pdf (4 regions)
+    high_Egamma Ty_proton F_3: Output/ConfigGen/Config_Plot_By_Egamma/ty_proton/high_egamma_f3_regions.pdf (4 regions)
+    high_Egamma Tx_electron F_3: Output/ConfigGen/Config_Plot_By_Egamma/tx_electron/high_egamma_f3_regions.pdf (4 regions)
+    high_Egamma Ty_electron F_3: Output/ConfigGen/Config_Plot_By_Egamma/ty_electron/high_egamma_f3_regions.pdf (4 regions)
+    high_Egamma LL F_3: Output/ConfigGen/Config_Plot_By_Egamma/ll/high_egamma_f3_regions.pdf (4 regions)
+    high_Egamma LTx F_3: Output/ConfigGen/Config_Plot_By_Egamma/ltx/high_egamma_f3_regions.pdf (4 regions)
+    high_Egamma LTy F_3: Output/ConfigGen/Config_Plot_By_Egamma/lty/high_egamma_f3_regions.pdf (4 regions)
+    high_Egamma TxTx F_3: Output/ConfigGen/Config_Plot_By_Egamma/txtx/high_egamma_f3_regions.pdf (3 regions)
+    high_Egamma TxTy F_3: Output/ConfigGen/Config_Plot_By_Egamma/txty/high_egamma_f3_regions.pdf (3 regions)
 
 Target C_{ep}:
   selected spin cases: TxTy, TxTx, LTy, LTx, Tx_proton, Ty_proton, LL, L_proton, L_electron, Tx_electron, unpolarized, Ty_electron
@@ -569,5 +605,161 @@ Target C_{e\gamma}:
       best: s=21.5158, theta_in=1.57079, phi_e_in=5.79231, phi_p_in=2.65072, qOut=1.8, phi_gamma=5.79231, pair_delta_xy=2.66388, Q2=13.3352, xB=0.692989, t=-2.54435
     Ty_proton region 3: size=32, max_C_{e\gamma}=1.40725e-11, phi_p_in=3.14159..4.61421, phi_gamma=0.490874..2.55254, final_pair_delta_xy=2.27359..3.14159, Q2=7.5536..19.5244, xB=0.843345..0.987364, t=-15.1357..-3.20225
       best: s=21.5158, theta_in=1.57079, phi_e_in=1.07992, phi_p_in=4.22152, qOut=1.8, phi_gamma=1.07992, pair_delta_xy=3.11511, Q2=16.8537, xB=0.84631, t=-3.21568
+
+Target F_3:
+  selected spin cases: TxTy, TxTx, LTy, LTx, LL, L_electron, L_proton, unpolarized, Tx_proton, Ty_proton, Tx_electron, Ty_electron
+  clusters: 46
+  per-E_gamma region detail rows: 139
+  examples: 90
+  saved examples csv: Output/ConfigGen/Data/f3/combined/max_f3_configuration_examples.csv
+  saved clusters csv: Output/ConfigGen/Data/f3/combined/max_f3_cluster_summary.csv
+  saved momentum configuration csv: Output/ConfigGen/Data/f3/combined/max_f3_momentum_configurations.csv
+  saved final-state amplitude decomposition csv: Output/ConfigGen/Data/f3/combined/max_f3_final_state_amplitude_decomposition.csv
+  saved per-spin csvs:
+    examples:
+      TxTy: Output/ConfigGen/Data/f3/txty/max_f3_configuration_examples.csv
+      TxTx: Output/ConfigGen/Data/f3/txtx/max_f3_configuration_examples.csv
+      LTy: Output/ConfigGen/Data/f3/lty/max_f3_configuration_examples.csv
+      LTx: Output/ConfigGen/Data/f3/ltx/max_f3_configuration_examples.csv
+      LL: Output/ConfigGen/Data/f3/ll/max_f3_configuration_examples.csv
+      L_electron: Output/ConfigGen/Data/f3/l_electron/max_f3_configuration_examples.csv
+      L_proton: Output/ConfigGen/Data/f3/l_proton/max_f3_configuration_examples.csv
+      unpolarized: Output/ConfigGen/Data/f3/unpolarized/max_f3_configuration_examples.csv
+      Tx_proton: Output/ConfigGen/Data/f3/tx_proton/max_f3_configuration_examples.csv
+      Ty_proton: Output/ConfigGen/Data/f3/ty_proton/max_f3_configuration_examples.csv
+      Tx_electron: Output/ConfigGen/Data/f3/tx_electron/max_f3_configuration_examples.csv
+      Ty_electron: Output/ConfigGen/Data/f3/ty_electron/max_f3_configuration_examples.csv
+    clusters:
+      TxTy: Output/ConfigGen/Data/f3/txty/max_f3_cluster_summary.csv
+      TxTx: Output/ConfigGen/Data/f3/txtx/max_f3_cluster_summary.csv
+      LTy: Output/ConfigGen/Data/f3/lty/max_f3_cluster_summary.csv
+      LTx: Output/ConfigGen/Data/f3/ltx/max_f3_cluster_summary.csv
+      LL: Output/ConfigGen/Data/f3/ll/max_f3_cluster_summary.csv
+      L_electron: Output/ConfigGen/Data/f3/l_electron/max_f3_cluster_summary.csv
+      L_proton: Output/ConfigGen/Data/f3/l_proton/max_f3_cluster_summary.csv
+      unpolarized: Output/ConfigGen/Data/f3/unpolarized/max_f3_cluster_summary.csv
+      Tx_proton: Output/ConfigGen/Data/f3/tx_proton/max_f3_cluster_summary.csv
+      Ty_proton: Output/ConfigGen/Data/f3/ty_proton/max_f3_cluster_summary.csv
+      Tx_electron: Output/ConfigGen/Data/f3/tx_electron/max_f3_cluster_summary.csv
+      Ty_electron: Output/ConfigGen/Data/f3/ty_electron/max_f3_cluster_summary.csv
+    momentum configurations:
+      TxTy: Output/ConfigGen/Data/f3/txty/max_f3_momentum_configurations.csv
+      TxTx: Output/ConfigGen/Data/f3/txtx/max_f3_momentum_configurations.csv
+      LTy: Output/ConfigGen/Data/f3/lty/max_f3_momentum_configurations.csv
+      LTx: Output/ConfigGen/Data/f3/ltx/max_f3_momentum_configurations.csv
+      LL: Output/ConfigGen/Data/f3/ll/max_f3_momentum_configurations.csv
+      L_electron: Output/ConfigGen/Data/f3/l_electron/max_f3_momentum_configurations.csv
+      L_proton: Output/ConfigGen/Data/f3/l_proton/max_f3_momentum_configurations.csv
+      unpolarized: Output/ConfigGen/Data/f3/unpolarized/max_f3_momentum_configurations.csv
+      Tx_proton: Output/ConfigGen/Data/f3/tx_proton/max_f3_momentum_configurations.csv
+      Ty_proton: Output/ConfigGen/Data/f3/ty_proton/max_f3_momentum_configurations.csv
+      Tx_electron: Output/ConfigGen/Data/f3/tx_electron/max_f3_momentum_configurations.csv
+      Ty_electron: Output/ConfigGen/Data/f3/ty_electron/max_f3_momentum_configurations.csv
+    final-state amplitude decomposition:
+      TxTy: Output/ConfigGen/Data/f3/txty/max_f3_final_state_amplitude_decomposition.csv
+      TxTx: Output/ConfigGen/Data/f3/txtx/max_f3_final_state_amplitude_decomposition.csv
+      LTy: Output/ConfigGen/Data/f3/lty/max_f3_final_state_amplitude_decomposition.csv
+      LTx: Output/ConfigGen/Data/f3/ltx/max_f3_final_state_amplitude_decomposition.csv
+      LL: Output/ConfigGen/Data/f3/ll/max_f3_final_state_amplitude_decomposition.csv
+      L_electron: Output/ConfigGen/Data/f3/l_electron/max_f3_final_state_amplitude_decomposition.csv
+      L_proton: Output/ConfigGen/Data/f3/l_proton/max_f3_final_state_amplitude_decomposition.csv
+      unpolarized: Output/ConfigGen/Data/f3/unpolarized/max_f3_final_state_amplitude_decomposition.csv
+      Tx_proton: Output/ConfigGen/Data/f3/tx_proton/max_f3_final_state_amplitude_decomposition.csv
+      Ty_proton: Output/ConfigGen/Data/f3/ty_proton/max_f3_final_state_amplitude_decomposition.csv
+      Tx_electron: Output/ConfigGen/Data/f3/tx_electron/max_f3_final_state_amplitude_decomposition.csv
+      Ty_electron: Output/ConfigGen/Data/f3/ty_electron/max_f3_final_state_amplitude_decomposition.csv
+  enhanced regions:
+    TxTy region 0: size=2, max_F_3=0.955766, phi_p_in=1.5708..1.5708, phi_gamma=4.51604..4.90874, purity=1..1, Q2=0.626288..0.626288, xB=0.0378511..0.0378511, t=-0.00130694..-0.00130694
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=1.8, phi_gamma=4.51604, purity=1, Q2=0.626288, xB=0.0378511, t=-0.00130694
+    TxTy region 1: size=39, max_F_3=0.952585, phi_p_in=3.73064..5.00691, phi_gamma=0.392699..1.66897, purity=1..1, Q2=15.6296..16.3597, xB=0.831734..0.841979, t=-3.5678..-3.07724
+      best: s=21.5158, theta_in=1.57079, phi_e_in=1.37445, phi_p_in=4.51604, qOut=1.8, phi_gamma=0.883573, purity=1, Q2=16.0012, xB=0.83885, t=-3.32204
+    TxTy region 2: size=39, max_F_3=0.952585, phi_p_in=4.41786..5.69414, phi_gamma=1.47262..2.74889, purity=1..1, Q2=15.6296..16.3597, xB=0.831734..0.841979, t=-3.5678..-3.07724
+      best: s=21.5158, theta_in=1.57079, phi_e_in=1.76715, phi_p_in=4.90874, qOut=1.8, phi_gamma=2.25802, purity=1, Q2=16.0012, xB=0.83885, t=-3.32204
+    TxTx region 0: size=50, max_F_3=0.952541, phi_p_in=3.53429..5.20326, phi_gamma=0.490874..2.35619, purity=1..1, Q2=15.6554..16.3494, xB=0.834167..0.841979, t=-3.46626..-3.02677
+      best: s=21.5158, theta_in=1.57079, phi_e_in=1.5708, phi_p_in=4.71239, qOut=1.8, phi_gamma=1.07992, purity=1, Q2=15.964, xB=0.839123, t=-3.27157
+    TxTx region 1: size=27, max_F_3=0.952428, phi_p_in=4.61421..5.98866, phi_gamma=1.66897..2.74889, purity=1..1, Q2=15.6554..16.3494, xB=0.834167..0.841979, t=-3.51817..-2.9958
+      best: s=21.5158, theta_in=1.57079, phi_e_in=1.9635, phi_p_in=5.10509, qOut=1.8, phi_gamma=2.45437, purity=1, Q2=16.0391, xB=0.838104, t=-3.38431
+    TxTx region 2: size=3, max_F_3=0.952078, phi_p_in=3.43612..4.02517, phi_gamma=0.392699..0.981748, purity=1..1, Q2=15.7222..16.0882, xB=0.834828..0.837658, t=-3.51817..-2.9958
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0.294524, phi_p_in=3.43612, qOut=1.8, phi_gamma=0.687223, purity=1, Q2=15.9866, xB=0.837658, t=-2.9958
+    LTy region 0: size=20, max_F_3=3.59996e-08, phi_p_in=0.981748..1.9635, phi_gamma=0..5.00691, purity=1..1, Q2=0.000249465..2.67405, xB=0.000351813..0.761913, t=-1.18854..-0.000246022
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.90874, phi_p_in=1.76715, qOut=1, phi_gamma=0.981748, purity=1, Q2=0.987348, xB=0.484571, t=-0.355172
+    LTy region 1: size=25, max_F_3=3.40184e-08, phi_p_in=1.47262..3.14159, phi_gamma=1.9635..3.82882, purity=1..1, Q2=0.013641..3.97665, xB=0.00352333..0.564628, t=-3.34961..-1.54404
+      best: s=21.5158, theta_in=1.57079, phi_e_in=5.59596, phi_p_in=2.45437, qOut=1.8, phi_gamma=2.84707, purity=1, Q2=0.326609, xB=0.0916058, t=-2.27295
+    LTy region 2: size=29, max_F_3=3.38408e-08, phi_p_in=0..6.18501, phi_gamma=0..6.18501, purity=1..1, Q2=0.000422538..6.12622, xB=0.00013845..0.663899, t=-7.40095..-1.65995
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.12334, phi_p_in=0.981748, qOut=1.8, phi_gamma=0.490874, purity=1, Q2=0.701363, xB=0.182364, t=-2.21754
+    LTy region 3: size=6, max_F_3=3.37472e-08, phi_p_in=1.5708..1.5708, phi_gamma=1.9635..3.23977, purity=1..1, Q2=0.0373525..0.28418, xB=0.091619..0.151404, t=-0.0486878..-0.0121938
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=0.5, phi_gamma=3.23977, purity=1, Q2=0.28418, xB=0.107468, t=-0.0121938
+    LTx region 0: size=19, max_F_3=3.39936e-08, phi_p_in=1.37445..2.06167, phi_gamma=0.981748..3.53429, purity=1..1, Q2=0.000249465..1.45828, xB=0.000351813..0.571219, t=-0.891978..-0.00593676
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.81056, phi_p_in=1.66897, qOut=1, phi_gamma=1.76715, purity=1, Q2=0.000249465, xB=0.000351813, t=-0.308298
+    LTx region 1: size=32, max_F_3=3.39147e-08, phi_p_in=0.19635..5.98866, phi_gamma=0.19635..2.45437, purity=1..1, Q2=0.00414797..6.02533, xB=0.00132874..0.663899, t=-2.95813..-2.25128
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.31969, phi_p_in=1.1781, qOut=1.8, phi_gamma=1.47262, purity=1, Q2=0.375392, xB=0.10958, t=-2.39806
+    LTx region 2: size=22, max_F_3=3.33065e-08, phi_p_in=1.9635..3.53429, phi_gamma=1.47262..3.82882, purity=1..1, Q2=0.00414797..6.74696, xB=0.00132874..0.688655, t=-4.25146..-1.15109
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=1.8, phi_gamma=2.65072, purity=1, Q2=1.32573, xB=0.296561, t=-2.8419
+    LTx region 3: size=7, max_F_3=3.02178e-08, phi_p_in=1.37445..1.66897, phi_gamma=0.294524..5.39961, purity=1..1, Q2=0.0795253..1.45828, xB=0.0304426..0.391084, t=-0.320614..-0.000848002
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.51604, phi_p_in=1.37445, qOut=1, phi_gamma=0.294524, purity=1, Q2=0.432263, xB=0.144241, t=-0.265771
+    LL region 0: size=20, max_F_3=1.76704e-08, phi_p_in=0.687223..2.84707, phi_gamma=2.55254..5.98866, purity=1..1, Q2=0.000283805..2.21523, xB=5.83842e-05..0.486673, t=-4.69977..-4.94515e-05
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=1, phi_gamma=4.31969, purity=1, Q2=0.25861, xB=0.0289301, t=-0.000758984
+    LL region 1: size=5, max_F_3=1.67497e-08, phi_p_in=1.5708..1.5708, phi_gamma=3.04342..6.18501, purity=1..1, Q2=0.0270148..0.28418, xB=0.00594677..0.12537, t=-0.0176063..-3.13419e-05
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=0.5, phi_gamma=4.41786, purity=1, Q2=0.0270148, xB=0.00594677, t=-3.13419e-05
+    LL region 2: size=35, max_F_3=9.73022e-09, phi_p_in=0.294524..3.23977, phi_gamma=0..6.18501, purity=1..1, Q2=0.0194621..8.5319, xB=0.00347662..0.60684, t=-7.04722..-0.00130694
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.71239, phi_p_in=1.5708, qOut=1.8, phi_gamma=5.00691, purity=1, Q2=1.33544, xB=0.0816271, t=-0.00635022
+    LL region 3: size=20, max_F_3=6.82507e-09, phi_p_in=0.785398..2.15984, phi_gamma=0..2.35619, purity=1..1, Q2=0.00443996..8.01739, xB=0.00831291..0.763561, t=-2.4109..-0.0147934
+      best: s=21.5158, theta_in=1.57079, phi_e_in=4.61421, phi_p_in=1.47262, qOut=0.5, phi_gamma=1.66897, purity=1, Q2=0.0708659, xB=0.220946, t=-0.0883153
+    L_electron region 0: size=3, max_F_3=7.50887e-12, phi_p_in=4.61421..4.81056, phi_gamma=1.47262..1.66897, purity=1..1, Q2=16.8664..16.8669, xB=0.846846..0.846865, t=-3.21819..-3.21811
+      best: s=21.5158, theta_in=1.57079, phi_e_in=1.47262, phi_p_in=4.61421, qOut=1.8, phi_gamma=1.47262, purity=1, Q2=16.8664, xB=0.846846, t=-3.21811
+    L_electron region 1: size=38, max_F_3=0, phi_p_in=3.14159..3.23977, phi_gamma=0..6.18501, purity=0.704924..0.80648, Q2=7.46024..12.1733, xB=0.617317..0.970648, t=-9.88888..-7.6455
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=0, purity=0.768479, Q2=11.0917, xB=0.837928, t=-8.59851
+    L_electron region 2: size=20, max_F_3=0, phi_p_in=3.14159..3.23977, phi_gamma=0.785398..2.65072, purity=0.665556..0.795639, Q2=7.36508..12.0237, xB=0.861204..0.975871, t=-8.64004..-7.60782
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=1.37445, purity=0.728052, Q2=10.1986, xB=0.973834, t=-7.62459
+    L_electron region 3: size=19, max_F_3=0, phi_p_in=3.14159..3.14159, phi_gamma=2.74889..4.51604, purity=0.660784..0.700548, Q2=6.38379..7.26405, xB=0.610228..0.84108, t=-9.86746..-8.18896
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=2.74889, purity=0.663573, Q2=7.18953, xB=0.84108, t=-8.18896
+    L_proton region 0: size=23, max_F_3=8.0454e-14, phi_p_in=3.14159..4.71239, phi_gamma=1.5708..3.63247, purity=0.644115..1, Q2=6.38379..19.5602, xB=0.663801..0.987788, t=-15.1635..-7.60782
+      best: s=21.5158, theta_in=1.57079, phi_e_in=1.5708, phi_p_in=4.71239, qOut=0.5, phi_gamma=1.5708, purity=1, Q2=19.5602, xB=0.987788, t=-15.1635
+    L_proton region 1: size=1, max_F_3=5.03234e-14, phi_p_in=4.71239..4.71239, phi_gamma=1.5708..1.5708, purity=1..1, Q2=19.1525..19.1525, xB=0.96635..0.96635, t=-10.5424..-10.5424
+      best: s=21.5158, theta_in=1.57079, phi_e_in=1.5708, phi_p_in=4.71239, qOut=1, phi_gamma=1.5708, purity=1, Q2=19.1525, xB=0.96635, t=-10.5424
+    L_proton region 2: size=1, max_F_3=1.86023e-14, phi_p_in=4.71239..4.71239, phi_gamma=1.5708..1.5708, purity=1..1, Q2=16.8669..16.8669, xB=0.846865..0.846865, t=-3.21819..-3.21819
+      best: s=21.5158, theta_in=1.57079, phi_e_in=1.5708, phi_p_in=4.71239, qOut=1.8, phi_gamma=1.5708, purity=1, Q2=16.8669, xB=0.846865, t=-3.21819
+    L_proton region 3: size=55, max_F_3=0, phi_p_in=3.14159..3.23977, phi_gamma=0..6.18501, purity=0.651587..0.778681, Q2=6.39545..12.1733, xB=0.610228..0.975608, t=-9.88888..-7.61201
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=0, purity=0.740365, Q2=11.0917, xB=0.837928, t=-8.59851
+    unpolarized region 0: size=33, max_F_3=0, phi_p_in=3.14159..3.23977, phi_gamma=0..6.18501, purity=0.36608..0.40324, Q2=8.8799..12.1733, xB=0.673461..0.970648, t=-9.72279..-7.6455
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=0, purity=0.38424, Q2=11.0917, xB=0.837928, t=-8.59851
+    unpolarized region 1: size=23, max_F_3=0, phi_p_in=3.14159..3.23977, phi_gamma=0.785398..2.65072, purity=0.332778..0.397819, Q2=7.36508..12.0237, xB=0.861204..0.977978, t=-8.64004..-7.60782
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=1.37445, purity=0.364026, Q2=10.1986, xB=0.973834, t=-7.62459
+    unpolarized region 2: size=14, max_F_3=0, phi_p_in=3.14159..3.14159, phi_gamma=2.74889..4.02517, purity=0.330392..0.340258, Q2=6.38379..7.18953, xB=0.6208..0.84108, t=-9.56822..-8.18896
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=2.74889, purity=0.331786, Q2=7.18953, xB=0.84108, t=-8.18896
+    unpolarized region 3: size=10, max_F_3=0, phi_p_in=3.14159..3.14159, phi_gamma=4.12334..5.10509, purity=0.342102..0.363805, Q2=6.66203..8.62646, xB=0.610228..0.661082, t=-9.88888..-9.65057
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=4.12334, purity=0.342102, Q2=6.66203, xB=0.615211, t=-9.65057
+    Tx_proton region 0: size=33, max_F_3=0, phi_p_in=3.14159..3.23977, phi_gamma=0..6.18501, purity=0.5..0.500274, Q2=8.8799..12.1733, xB=0.673461..0.970648, t=-9.72279..-7.6455
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=0, purity=0.5, Q2=11.0917, xB=0.837928, t=-8.59851
+    Tx_proton region 1: size=23, max_F_3=0, phi_p_in=3.14159..3.23977, phi_gamma=0.785398..2.65072, purity=0.5..0.50024, Q2=7.36508..12.0237, xB=0.861204..0.977978, t=-8.64004..-7.60782
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=1.37445, purity=0.5, Q2=10.1986, xB=0.973834, t=-7.62459
+    Tx_proton region 2: size=14, max_F_3=0, phi_p_in=3.14159..3.14159, phi_gamma=2.74889..4.02517, purity=0.5..0.5, Q2=6.38379..7.18953, xB=0.6208..0.84108, t=-9.56822..-8.18896
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=2.74889, purity=0.5, Q2=7.18953, xB=0.84108, t=-8.18896
+    Tx_proton region 3: size=10, max_F_3=0, phi_p_in=3.14159..3.14159, phi_gamma=4.12334..5.10509, purity=0.5..0.5, Q2=6.66203..8.62646, xB=0.610228..0.661082, t=-9.88888..-9.65057
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=4.12334, purity=0.5, Q2=6.66203, xB=0.615211, t=-9.65057
+    Ty_proton region 0: size=33, max_F_3=0, phi_p_in=3.14159..3.23977, phi_gamma=0..6.18501, purity=0.521166..0.528748, Q2=8.8799..12.1733, xB=0.673461..0.970648, t=-9.72279..-7.6455
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=0, purity=0.528114, Q2=11.0917, xB=0.837928, t=-8.59851
+    Ty_proton region 1: size=23, max_F_3=0, phi_p_in=3.14159..3.23977, phi_gamma=0.785398..2.65072, purity=0.51611..0.524744, Q2=7.36508..12.0237, xB=0.861204..0.977978, t=-8.64004..-7.60782
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=1.37445, purity=0.520563, Q2=10.1986, xB=0.973834, t=-7.62459
+    Ty_proton region 2: size=14, max_F_3=0, phi_p_in=3.14159..3.14159, phi_gamma=2.74889..4.02517, purity=0.516126..0.520999, Q2=6.38379..7.18953, xB=0.6208..0.84108, t=-9.56822..-8.18896
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=2.74889, purity=0.516126, Q2=7.18953, xB=0.84108, t=-8.18896
+    Ty_proton region 3: size=10, max_F_3=0, phi_p_in=3.14159..3.14159, phi_gamma=4.12334..5.10509, purity=0.521605..0.527088, Q2=6.66203..8.62646, xB=0.610228..0.661082, t=-9.88888..-9.65057
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=4.12334, purity=0.521605, Q2=6.66203, xB=0.615211, t=-9.65057
+    Tx_electron region 0: size=33, max_F_3=0, phi_p_in=3.14159..3.23977, phi_gamma=0..6.18501, purity=0.5..0.5, Q2=8.8799..12.1733, xB=0.673461..0.970648, t=-9.72279..-7.6455
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=0, purity=0.5, Q2=11.0917, xB=0.837928, t=-8.59851
+    Tx_electron region 1: size=23, max_F_3=0, phi_p_in=3.14159..3.23977, phi_gamma=0.785398..2.65072, purity=0.5..0.5, Q2=7.36508..12.0237, xB=0.861204..0.977978, t=-8.64004..-7.60782
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=1.37445, purity=0.5, Q2=10.1986, xB=0.973834, t=-7.62459
+    Tx_electron region 2: size=14, max_F_3=0, phi_p_in=3.14159..3.14159, phi_gamma=2.74889..4.02517, purity=0.5..0.5, Q2=6.38379..7.18953, xB=0.6208..0.84108, t=-9.56822..-8.18896
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=2.74889, purity=0.5, Q2=7.18953, xB=0.84108, t=-8.18896
+    Tx_electron region 3: size=10, max_F_3=0, phi_p_in=3.14159..3.14159, phi_gamma=4.12334..5.10509, purity=0.5..0.5, Q2=6.66203..8.62646, xB=0.610228..0.661082, t=-9.88888..-9.65057
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=4.12334, purity=0.5, Q2=6.66203, xB=0.615211, t=-9.65057
+    Ty_electron region 0: size=33, max_F_3=0, phi_p_in=3.14159..3.23977, phi_gamma=0..6.18501, purity=0.5..0.5, Q2=8.8799..12.1733, xB=0.673461..0.970648, t=-9.72279..-7.6455
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=0, purity=0.5, Q2=11.0917, xB=0.837928, t=-8.59851
+    Ty_electron region 1: size=23, max_F_3=0, phi_p_in=3.14159..3.23977, phi_gamma=0.785398..2.65072, purity=0.5..0.5, Q2=7.36508..12.0237, xB=0.861204..0.977978, t=-8.64004..-7.60782
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=1.37445, purity=0.5, Q2=10.1986, xB=0.973834, t=-7.62459
+    Ty_electron region 2: size=14, max_F_3=0, phi_p_in=3.14159..3.14159, phi_gamma=2.74889..4.02517, purity=0.5..0.5, Q2=6.38379..7.18953, xB=0.6208..0.84108, t=-9.56822..-8.18896
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=2.74889, purity=0.5, Q2=7.18953, xB=0.84108, t=-8.18896
+    Ty_electron region 3: size=10, max_F_3=0, phi_p_in=3.14159..3.14159, phi_gamma=4.12334..5.10509, purity=0.5..0.5, Q2=6.66203..8.62646, xB=0.610228..0.661082, t=-9.88888..-9.65057
+      best: s=21.5158, theta_in=1.57079, phi_e_in=0, phi_p_in=3.14159, qOut=0.5, phi_gamma=4.12334, purity=0.5, Q2=6.66203, xB=0.615211, t=-9.65057
 
 Saved log: Output/ConfigGen.log
