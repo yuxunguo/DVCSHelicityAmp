@@ -207,7 +207,7 @@ result against the analytic benchmark path used in the script.
 
 `Mathematica/BHHelicityAmp.wl` mirrors the Python conventions for general
 `thetaIn`. Its independent inputs are
-`(s, thetaIn, phiIn, eGamma, phiGamma, m)`. It obtains `pIn` and the physical
+`(s, thetaIn, phiIn, EGamma, phiGamma, Mp)`. It obtains `pIn` and the physical
 analytic root for `pOut`, constructs all external four-momenta, evaluates the
 complete `4 x 8` Bethe-Heitler helicity-amplitude table, contracts an arbitrary
 incoming `4 x 4` spin density matrix, and computes reduced density matrices
@@ -216,32 +216,32 @@ and concurrence.
 Run the example from the repository root with:
 
 ```sh
-wolframscript -file Mathematica/Example.wl
+wolframscript -file Mathematica/BenchmarkNumeric.wl
 ```
 
 On macOS, if `wolframscript` has not been configured with a kernel path, use
 the application kernel directly:
 
 ```sh
-/Applications/Wolfram.app/Contents/MacOS/WolframKernel -script Mathematica/Example.wl
+/Applications/Wolfram.app/Contents/MacOS/WolframKernel -script Mathematica/BenchmarkNumeric.wl
 ```
 
 The main workflow is:
 
 ```text
-kin = UserKinematics[s, thetaIn, phiIn, eGamma, phiGamma, m];
-amps = BHAmplitudeTable[kin, m, F1, F2];
+kin = UserKinematics[s, thetaIn, phiIn, EGamma, phiGamma, Mp];
+amps = BHAmplitudeTable[kin, Mp, F1, F2];
 rhoIn = InitialSpinDensity["L", "L"];
 rhoOut = OutgoingDensityMatrix[amps, rhoIn];
 observables = EntanglementObservables[rhoOut];
 ```
 
 To print one complete symbolic helicity amplitude, edit `helicityInputs` in
-`Mathematica/AnalyticAmplitudeTest.wl` and run:
+`Mathematica/AnalyticAmplitude.wl` and run:
 
 ```sh
 /Applications/Wolfram.app/Contents/MacOS/WolframKernel \
-  -script Mathematica/AnalyticAmplitudeTest.wl
+  -script Mathematica/AnalyticAmplitude.wl
 ```
 
 The input ordering is
@@ -252,9 +252,9 @@ For one fully symbolic channel, use real kinematic assumptions and simplify
 only after selecting the helicities, for example:
 
 ```text
-kinSymbolic = UserKinematics[s, thetaIn, phiIn, eGamma, phiGamma, m];
+kinSymbolic = UserKinematics[s, thetaIn, phiIn, EGamma, phiGamma, Mp];
 ampSymbolic = BHAmplitude[
-  kinSymbolic, -1, -1, -1, 1, 1, m, F1t, F2t
+  kinSymbolic, -1, -1, -1, 1, 1, Mp, F1t, F2t
 ];
 ampExplicit = ComplexExpand[ampSymbolic,
   TargetFunctions -> {Re, Im}] // Together;

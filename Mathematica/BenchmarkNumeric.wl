@@ -1,30 +1,23 @@
 (* ::Package:: *)
 
 (* Reproduce the numerical kinematics and helicity-amplitude benchmarks in
-   Output/BHHelicityAmp.log.
-
-   Run from the repository root:
-     wolframscript -file Mathematica/Example.wl
-
-   Or, when wolframscript has no configured kernel:
-     /Applications/Wolfram.app/Contents/MacOS/WolframKernel -script Mathematica/Example.wl
-*)
-SetDirectory[NotebookDirectory[]]
-<<"BHHelicityAmp.wl"
+   Output/BHHelicityAmp.log.*)
+SetDirectory[NotebookDirectory[]];
+<<"BHHelicityAmp.wl";
 
 helicities = {-1, 1};
 
 (* Independent user-frame inputs copied from Output/BHHelicityAmp.log. *)
 benchmarkInputs = {
   <|"case" -> "K1", "s" -> 10.25844, "thetaIn" -> 1.10,
-    "phiIn" -> 0.20, "eGamma" -> 0.45, "phiGamma" -> 2.40,
-    "m" -> 0.938|>,
+    "phiIn" -> 0.20, "EGamma" -> 0.45, "phiGamma" -> 2.40,
+    "Mp" -> 0.938|>,
   <|"case" -> "K2", "s" -> 14.01544, "thetaIn" -> 1.45,
-    "phiIn" -> 0.70, "eGamma" -> 0.70, "phiGamma" -> 3.10,
-    "m" -> 0.938|>,
+    "phiIn" -> 0.70, "EGamma" -> 0.70, "phiGamma" -> 3.10,
+    "Mp" -> 0.938|>,
   <|"case" -> "K3", "s" -> 19.64894, "thetaIn" -> 1.90,
-    "phiIn" -> 1.10, "eGamma" -> 0.95, "phiGamma" -> 3.70,
-    "m" -> 0.938|>
+    "phiIn" -> 1.10, "EGamma" -> 0.95, "phiGamma" -> 3.70,
+    "Mp" -> 0.938|>
 };
 
 (* Form-factor rows ff=1,...,6 from the log. *)
@@ -33,18 +26,18 @@ formFactors = {
   {1.0, -0.2}, {0.7, 0.5}, {0.0, 1.0}
 };
 
-makeCase[input_] := Module[{kin, m, amplitudeF1, amplitudeF2},
-  m = input["m"];
+makeCase[input_] := Module[{kin, Mp, amplitudeF1, amplitudeF2},
+  Mp = input["Mp"];
   kin = UserKinematics[
     input["s"], input["thetaIn"], input["phiIn"],
-    input["eGamma"], input["phiGamma"], m
+    input["EGamma"], input["phiGamma"], Mp
   ];
 
   (* The BH amplitude is linear in F1 and F2. These two basis tables allow
      every form-factor row to be reconstructed without repeating the Dirac
      contractions six times. *)
-  amplitudeF1 = BHAmplitudeTable[kin, m, 1.0, 0.0];
-  amplitudeF2 = BHAmplitudeTable[kin, m, 0.0, 1.0];
+  amplitudeF1 = BHAmplitudeTable[kin, Mp, 1.0, 0.0];
+  amplitudeF2 = BHAmplitudeTable[kin, Mp, 0.0, 1.0];
 
   <|"input" -> input, "kin" -> kin,
     "amplitudeF1" -> amplitudeF1, "amplitudeF2" -> amplitudeF2|>
@@ -66,9 +59,9 @@ fixedPositiveM2[amplitudes_] := Total[Abs[amplitudes[[4]]]^2];
 Print["\nIndependent user-frame inputs"];
 Print[TableForm[
   ({#["case"], #["s"], #["thetaIn"], #["phiIn"],
-      #["eGamma"], #["phiGamma"], #["m"]} &) /@ benchmarkInputs,
+      #["EGamma"], #["phiGamma"], #["Mp"]} &) /@ benchmarkInputs,
   TableHeadings -> {None,
-    {"case", "s", "thetaIn", "phiIn", "qOut=EGamma", "phiOut", "m"}}
+    {"case", "s", "thetaIn", "phiIn", "EGamma", "phiGamma", "Mp"}}
 ]];
 
 Print["\nDerived kinematics and invariant diagnostics"];
@@ -95,7 +88,7 @@ Do[
 Print["\nKinematic checks"];
 Do[
   Print[label, "  ", N[KinematicChecks[
-    cases[label]["kin"], cases[label]["input"]["m"]]]],
+    cases[label]["kin"], cases[label]["input"]["Mp"]]]],
   {label, Keys[cases]}
 ];
 
