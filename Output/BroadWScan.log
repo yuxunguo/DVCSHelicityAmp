@@ -1,0 +1,23 @@
+Expanded W-state phase-space search
+  random seed: 271828
+  ranges: s=(15.491407679999998, 25.819012799999996), theta_in=(0.35, 2.8), qOut=(0.3, 1.8)
+  broad valid samples: 3877/4096
+  regular-grid seed samples: 16/16
+  refinement valid samples: 2012/2048
+  total valid samples: 5905
+  best points:
+    Unpolarized: D_W=1.1546949, C=(9.77405e-06, 0, 0), s=25.2256, theta=1.539457, qOut=0.3478392, phi_e=1.571866, phi_gamma=1.321242
+    L proton: D_W=0.94408491, C=(0, 0.6176012, 0), s=21.51584, theta=1.570795, qOut=1, phi_e=4.712389, phi_gamma=4.516039
+    L electron: D_W=0.94254166, C=(0, 0.6168921, 0.002239975), s=21.51584, theta=1.570795, qOut=1, phi_e=4.712389, phi_gamma=4.516039
+    Tx proton: D_W=0.94280905, C=(0, 0.6665613, 0), s=18.19879, theta=2.507681, qOut=1.613165, phi_e=4.494984, phi_gamma=5.806593
+    Ty proton: D_W=0.94280904, C=(0, 0.6666104, 0), s=24.84383, theta=2.8, qOut=1.8, phi_e=5.093768, phi_gamma=3.477303
+    Tx electron: D_W=0.94280914, C=(0, 0, 0.6662299), s=24.20936, theta=2.8, qOut=1.8, phi_e=5.273915, phi_gamma=4.206365
+    Ty electron: D_W=0.94280914, C=(0, 0, 0.6662299), s=24.20936, theta=2.8, qOut=1.8, phi_e=5.273915, phi_gamma=4.206365
+    L electron + L proton: D_W=0.94244894, C=(0.0005181686, 0.6835602, 0.0002052775), s=21.51584, theta=1.570795, qOut=0.5, phi_e=4.712389, phi_gamma=4.12334
+    L electron + Tx proton: D_W=0.94268939, C=(0.0001245248, 0.6676896, 4.547869e-05), s=17.27786, theta=2.17311, qOut=1.493969, phi_e=5.035009, phi_gamma=0.1937125
+    L electron + Ty proton: D_W=0.9420153, C=(0.001473756, 0.7296149, 0.002626956), s=21.51584, theta=1.570795, qOut=1, phi_e=4.712389, phi_gamma=4.516039
+    Tx electron + Tx proton: D_W=0.39901249, C=(0.4494634, 0.3959091, 0.4698824), s=15.49141, theta=0.3997417, qOut=1.222018, phi_e=5.441502, phi_gamma=5.752231
+    Tx electron + Ty proton: D_W=0.27069986, C=(0.405241, 0.6775953, 0.5972722), s=21.51584, theta=1.570795, qOut=0.5, phi_e=4.712389, phi_gamma=4.417865
+  full csv: Output/BroadWScan/broad_w_phase_space.csv
+  ranked csv: Output/BroadWScan/broad_w_top.csv
+  diagnostic plots: Output/BroadWScan/broad_w_search.pdf

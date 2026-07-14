@@ -49,6 +49,7 @@ from SpinDensityMat import (
     outgoing_spin_states,
     initial_spin_average_divisor,
     process_density_matrix_from_amplitudes,
+    spin_case_display_label,
     spin_density_observables_from_amplitudes,
 )
 
@@ -61,7 +62,7 @@ CHARACTERISTIC_THETA_IN_POINTS = (
     ("high_theta_in", 3.14159/2),
 )
 CHARACTERISTIC_QOUT_POINTS = (
-    ("low_Egamma", 0.5),
+    ("low_Egamma", 0.25),
     ("mid_Egamma", 1.0),
     ("high_Egamma", 1.8),
 )
@@ -81,18 +82,18 @@ CONCURRENCE_PHASE_SPACE_CSV = (
 REGENERATE_PLOTS_FROM_CSV = False
 REGENERATE_PLOTS_CSV_PATH = CONCURRENCE_PHASE_SPACE_CSV
 ALIGNMENT_SPIN_CASES = (
-    ("unpolarized", "Unpolarized", SPIN_CASE_UNPOLARIZED),
-    ("L_proton", "Longitudinal proton", SPIN_CASE_L_PROTON),
-    ("L_electron", "Longitudinal electron", SPIN_CASE_L_ELECTRON),
-    ("Tx_proton", "Tx proton", SPIN_CASE_TX_PROTON),
-    ("Ty_proton", "Ty proton", SPIN_CASE_TY_PROTON),
-    ("Tx_electron", "Tx electron", SPIN_CASE_TX_ELECTRON),
-    ("Ty_electron", "Ty electron", SPIN_CASE_TY_ELECTRON),
-    ("LL", "LL", SPIN_CASE_LL),
-    ("LTx", "LTx", SPIN_CASE_LTX),
-    ("LTy", "LTy", SPIN_CASE_LTY),
-    ("TxTx", "TxTx", SPIN_CASE_TXTX),
-    ("TxTy", "TxTy", SPIN_CASE_TXTY),
+    ("unpolarized", spin_case_display_label(SPIN_CASE_UNPOLARIZED), SPIN_CASE_UNPOLARIZED),
+    ("L_proton", spin_case_display_label(SPIN_CASE_L_PROTON), SPIN_CASE_L_PROTON),
+    ("L_electron", spin_case_display_label(SPIN_CASE_L_ELECTRON), SPIN_CASE_L_ELECTRON),
+    ("Tx_proton", spin_case_display_label(SPIN_CASE_TX_PROTON), SPIN_CASE_TX_PROTON),
+    ("Ty_proton", spin_case_display_label(SPIN_CASE_TY_PROTON), SPIN_CASE_TY_PROTON),
+    ("Tx_electron", spin_case_display_label(SPIN_CASE_TX_ELECTRON), SPIN_CASE_TX_ELECTRON),
+    ("Ty_electron", spin_case_display_label(SPIN_CASE_TY_ELECTRON), SPIN_CASE_TY_ELECTRON),
+    ("LL", spin_case_display_label(SPIN_CASE_LL), SPIN_CASE_LL),
+    ("LTx", spin_case_display_label(SPIN_CASE_LTX), SPIN_CASE_LTX),
+    ("LTy", spin_case_display_label(SPIN_CASE_LTY), SPIN_CASE_LTY),
+    ("TxTx", spin_case_display_label(SPIN_CASE_TXTX), SPIN_CASE_TXTX),
+    ("TxTy", spin_case_display_label(SPIN_CASE_TXTY), SPIN_CASE_TXTY),
 )
 
 

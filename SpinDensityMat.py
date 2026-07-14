@@ -78,6 +78,21 @@ SPIN_CASES = (
     SPIN_CASE_TXTX,
     SPIN_CASE_TXTY,
 )
+
+SPIN_CASE_DISPLAY_LABELS = {
+    SPIN_CASE_UNPOLARIZED: "Unpolarized",
+    SPIN_CASE_L_PROTON: "L proton",
+    SPIN_CASE_L_ELECTRON: "L electron",
+    SPIN_CASE_TX_PROTON: "Tx proton",
+    SPIN_CASE_TY_PROTON: "Ty proton",
+    SPIN_CASE_TX_ELECTRON: "Tx electron",
+    SPIN_CASE_TY_ELECTRON: "Ty electron",
+    SPIN_CASE_LL: "L electron + L proton",
+    SPIN_CASE_LTX: "L electron + Tx proton",
+    SPIN_CASE_LTY: "L electron + Ty proton",
+    SPIN_CASE_TXTX: "Tx electron + Tx proton",
+    SPIN_CASE_TXTY: "Tx electron + Ty proton",
+}
 ENTANGLEMENT_NAMES = (
     "C_e_p",
     "C_e_gamma",
@@ -113,14 +128,18 @@ def initial_spin_states():
 
 
 def prepared_spin_coefficients(axis):
-    """Return helicity coefficients for a direct L, Tx, or Ty preparation."""
+    """Return helicity coefficients for a longitudinal/transverse preparation."""
     coefficient = 1.0 / np.sqrt(2.0)
     if axis == "L":
         return {+1: 1.0 + 0.0j}
     if axis == "Tx":
         return {-1: coefficient, +1: coefficient}
+    if axis == "-Tx":
+        return {-1: -coefficient, +1: coefficient}
     if axis == "Ty":
         return {-1: 1.0j * coefficient, +1: coefficient}
+    if axis == "-Ty":
+        return {-1: -1.0j * coefficient, +1: coefficient}
     raise ValueError(f"Unknown prepared spin axis: {axis}")
 
 
@@ -156,6 +175,12 @@ def spin_case_axes(spin_case):
     if spin_case not in cases:
         raise ValueError(f"Unknown spin density case: {spin_case}")
     return cases[spin_case]
+
+
+def spin_case_display_label(spin_case):
+    """Return an explicit user-facing electron/proton polarization label."""
+    spin_case_axes(spin_case)
+    return SPIN_CASE_DISPLAY_LABELS[spin_case]
 
 
 def initial_state_ensemble(spin_case):
@@ -1182,7 +1207,8 @@ def save_point_matrix_plots(scan, output_dir=None):
         output_dir = scan_point_dir(scan)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    rho_symbol = rf"\rho_{{{scan['spin_case']}}}"
+    display_label = spin_case_display_label(scan["spin_case"])
+    rho_symbol = rf"\rho_{{\mathrm{{{display_label}}}}}"
     state_key = "\n".join(_state_tick_labels(scan["out_states"]))
     paths = []
 
@@ -1194,7 +1220,7 @@ def save_point_matrix_plots(scan, output_dir=None):
             stem = _scan_point_stem_from_indices(scan, y_index, x_index)
             matrix = scan["rho"][y_index, x_index]
             title_suffix = (
-                f"{scan['spin_case']}, {scan['x_name']}={x_value:.6g}, "
+                f"{display_label}, {scan['x_name']}={x_value:.6g}, "
                 f"{scan['y_name']}={y_value:.6g}"
             )
 
@@ -1305,7 +1331,8 @@ def build_scan_report(scan, paths):
     )
     point_dir = scan_point_dir(scan)
     lines = [
-        f"Scan {scan['spin_case']}/{scan['label']}",
+        f"Scan {spin_case_display_label(scan['spin_case'])} "
+        f"[{scan['spin_case']}]/{scan['label']}",
         f"  outgoing basis size: {len(scan['out_states'])}",
         "  particle map: 1 = outgoing electron hOut, 2 = outgoing proton sOut, 3 = outgoing photon lambda",
         f"  entanglement observables: {', '.join(scan['entanglement_names'])}",

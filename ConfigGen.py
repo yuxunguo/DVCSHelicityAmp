@@ -28,6 +28,7 @@ from SpinDensityMat import (
     process_density_matrix_from_amplitudes,
     contract_initial_state,
     outgoing_spin_states,
+    spin_case_display_label,
 )
 
 
@@ -641,11 +642,11 @@ def selected_initial_state_label(spin_case):
         "Ty_proton": r"$\frac{1}{2}\sum_{h_e}\rho(h_e,T_{y,p})$",
         "Tx_electron": r"$\frac{1}{2}\sum_{h_p}\rho(T_{x,e},h_p)$",
         "Ty_electron": r"$\frac{1}{2}\sum_{h_p}\rho(T_{y,e},h_p)$",
-        "LL": r"$|L_eL_p\rangle$",
-        "LTx": r"$|L_eT_{x,p}\rangle$",
-        "LTy": r"$|L_eT_{y,p}\rangle$",
-        "TxTx": r"$|T_{x,e}T_{x,p}\rangle$",
-        "TxTy": r"$|T_{x,e}T_{y,p}\rangle$",
+        "LL": r"$|L_e\rangle\otimes|L_p\rangle$",
+        "LTx": r"$|L_e\rangle\otimes|T_{x,p}\rangle$",
+        "LTy": r"$|L_e\rangle\otimes|T_{y,p}\rangle$",
+        "TxTx": r"$|T_{x,e}\rangle\otimes|T_{x,p}\rangle$",
+        "TxTy": r"$|T_{x,e}\rangle\otimes|T_{y,p}\rangle$",
     }
     return labels.get(spin_case, spin_case)
 
@@ -810,12 +811,14 @@ def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, spin_case, k
         ax.text(
             scan_x_phi(best),
             parse_float(best.get("phiOut")),
-            f" region {cluster['cluster_id']} ({best['selected_spin_case']})",
+            f" region {cluster['cluster_id']} "
+            f"({spin_case_display_label(best['selected_spin_case'])})",
             fontsize=8,
             va="center",
         )
     ax.set_title(
-        f"{group_name} {spin_case}: max {observable_latex_label(observable)} regions",
+        f"{group_name} {spin_case_display_label(spin_case)}: "
+        f"max {observable_latex_label(observable)} regions",
         fontsize=14,
     )
     add_pi_over_two_reference_lines(ax)
@@ -1112,7 +1115,7 @@ def save_detail_pages(pdf, plt, detail_rows):
         plot_amplitude_decomposition(amp_ax, row)
         fig.suptitle(
             (
-                f"{row['selected_spin_case']} characteristic max "
+                f"{spin_case_display_label(row['selected_spin_case'])} characteristic max "
                 f"{observable_latex_label(row['selected_observable'])} configuration"
             ),
             fontsize=16,
@@ -1202,7 +1205,10 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
     ]
     for group_name, observable, spin_case, path, region_count in egamma_outputs:
         label = observable_text_label(observable)
-        lines.append(f"    {group_name} {spin_case} {label}: {path} ({region_count} regions)")
+        lines.append(
+            f"    {group_name} {spin_case_display_label(spin_case)} "
+            f"[{spin_case}] {label}: {path} ({region_count} regions)"
+        )
     lines.extend([
         "",
     ])
@@ -1213,7 +1219,11 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
         label = observable_text_label(observable)
         lines.extend([
             f"Target {label}:",
-            f"  selected spin cases: {', '.join(spin for spin, _clusters in grouped_clusters)}",
+            "  selected spin cases: "
+            + ", ".join(
+                f"{spin_case_display_label(spin)} [{spin}]"
+                for spin, _clusters in grouped_clusters
+            ),
             f"  clusters: {sum(len(clusters) for _spin, clusters in grouped_clusters)}",
             f"  per-E_gamma region detail rows: {len(package['egamma_detail_rows'])}",
             f"  examples: {len(package['examples'])}",
@@ -1226,7 +1236,9 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
         for output_label, outputs in package["spin_outputs"]:
             lines.append(f"    {output_label}:")
             for spin_case, path in outputs:
-                lines.append(f"      {spin_case}: {path}")
+                lines.append(
+                    f"      {spin_case_display_label(spin_case)} [{spin_case}]: {path}"
+                )
         lines.append("  enhanced regions:")
         for spin_case, clusters in grouped_clusters:
             for cluster in clusters:
@@ -1242,7 +1254,8 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
                 )
                 lines.append(
                     "    "
-                    f"{spin_case} region {cluster['cluster_id']}: "
+                    f"{spin_case_display_label(spin_case)} [{spin_case}] "
+                    f"region {cluster['cluster_id']}: "
                     f"size={len(rows)}, max_{label}={best['selected_concurrence']:.6g}, "
                     f"phi_p_in={format_range(rows, 'phi_in')}, "
                     f"phi_gamma={format_range(rows, 'phiOut')}, "
