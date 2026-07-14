@@ -4,8 +4,8 @@ This module centralizes the numerical conventions used throughout the
 repository. Four-vectors are contravariant arrays ordered as
 ``[E, px, py, pz]`` and are contracted with the mostly-minus metric
 ``diag(1, -1, -1, -1)``. Helicity labels are integer doubled-helicity values
-``+1`` and ``-1``. The electron is treated as massless, while proton spinors
-carry an explicit mass argument.
+``+1`` and ``-1``. Electron spinors are massless by default but accept an
+explicit mass, while proton spinors always carry a mass argument.
 
 The functions are intentionally small and validation-heavy because they form
 the lowest layer used by both the Bethe-Heitler amplitude and spin-density
@@ -13,6 +13,8 @@ matrix scans.
 """
 
 import numpy as np
+
+from config import ELECTRON_MASS_GEV
 
 # ============================================================
 # Conventions
@@ -258,8 +260,8 @@ def chi_helicity(p3, h, patch="auto", tol=DEFAULT_TOL):
 # External spinors
 # ============================================================
 
-def electron_spinor(k, h, patch="auto"):
-    """Return a massless Dirac spinor for an external electron.
+def electron_spinor(k, h, patch="auto", electron_mass=0.0):
+    """Return a Dirac spinor for an external electron.
 
     Parameters
     ----------
@@ -269,15 +271,24 @@ def electron_spinor(k, h, patch="auto"):
         Electron doubled-helicity label, ``+1`` or ``-1``.
     patch : str
         Patch selector passed to :func:`chi_helicity`.
+    electron_mass : float, optional
+        Electron mass. The default ``0.0`` preserves the massless convention.
     """
     h = _validate_helicity(h, "h")
+    electron_mass = _validate_nonnegative_scalar(electron_mass, "electron_mass")
     k = _as_four_vector(k, "k", dtype=float)
     E = k[0]
     if E <= DEFAULT_TOL:
         raise ValueError("Electron energy must be positive.")
     chi = chi_helicity(k[1:4], h, patch=patch)
-
-    return np.concatenate([np.sqrt(E) * chi, h * np.sqrt(E) * chi])
+    pabs = np.linalg.norm(k[1:4])
+    upper_norm = np.sqrt(E + electron_mass)
+    if upper_norm <= DEFAULT_TOL:
+        raise ValueError("Electron E + electron_mass must be positive.")
+    return np.concatenate([
+        upper_norm * chi,
+        h * pabs / upper_norm * chi,
+    ])
 
 
 def proton_spinor(p, s, m, patch="auto"):

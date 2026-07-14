@@ -18,15 +18,11 @@ import tempfile
 
 import numpy as np
 
-from AlignmentScan import (
-    SPIN_AVERAGING_VERSION,
-    observable_latex_label,
-    observable_text_label,
-)
+from AlignmentScan import observable_latex_label, observable_text_label
+from config import ELECTRON_MASS_GEV, PROTON_MASS_GEV as M
 from FormFactors import yahl_dirac_pauli_from_t
 from Kinematics import kinematics_user_from_independent
 from SpinDensityMat import (
-    M,
     amplitude_table,
     final_state_ensemble,
     process_density_matrix_from_amplitudes,
@@ -100,6 +96,7 @@ KINEMATIC_COLUMNS = (
     "s_regime",
     "theta_in_regime",
     "qOut_regime",
+    "electron_mass",
     "s",
     "sqrt_s",
     "pIn",
@@ -141,22 +138,6 @@ def read_csv_rows(path):
     """Read a CSV file as dictionaries."""
     with path.open(newline="", encoding="utf-8") as handle:
         return list(csv.DictReader(handle))
-
-
-def validate_spin_averaging_version(rows, input_path):
-    """Reject stale AlignmentScan CSVs with incompatible spin conventions."""
-    versions = {
-        str(row.get("initial_spin_averaging_version", "")).strip()
-        for row in rows
-    }
-    if versions == {SPIN_AVERAGING_VERSION}:
-        return
-    found = ", ".join(sorted(version or "<missing>" for version in versions))
-    raise ValueError(
-        f"AlignmentScan CSV {input_path} uses initial-spin averaging version(s) "
-        f"{found}; expected {SPIN_AVERAGING_VERSION}. Re-run AlignmentScan.py "
-        "before running ConfigGen.py."
-    )
 
 
 def clean_legacy_root_csv_outputs():
@@ -302,6 +283,7 @@ def kinematics_from_config_row(row):
         parse_float(row.get("phiOut")),
         M,
         label=row.get("detail_id") or row.get("kinematic_point"),
+        electron_mass=ELECTRON_MASS_GEV,
     )
 
 
@@ -630,9 +612,6 @@ def momentum_configuration_rows(detail_rows):
     for row in detail_rows:
         kin = kinematics_from_config_row(row)
         meta = _row_meta(row)
-        meta["initial_spin_averaging_version"] = row.get(
-            "initial_spin_averaging_version", SPIN_AVERAGING_VERSION
-        )
         for name in DISPLAY_MOMENTA:
             vector = kin["momenta"][name]
             records.append({
@@ -692,7 +671,9 @@ def amplitude_decomposition(row):
     """Return ensemble-aware final-state amplitude decomposition records."""
     kin = kinematics_from_config_row(row)
     F1, F2 = yahl_dirac_pauli_from_t(kin["t"], M)
-    amplitudes = amplitude_table(kin["momenta"], M, F1, F2)
+    amplitudes = amplitude_table(
+        kin["momenta"], M, F1, F2, electron_mass=ELECTRON_MASS_GEV
+    )
     process_rho = process_density_matrix_from_amplitudes(amplitudes)
     contracted_rho = contract_initial_state(process_rho, row["selected_spin_case"])
     ensemble = final_state_ensemble(amplitudes, row["selected_spin_case"])
@@ -700,12 +681,7 @@ def amplitude_decomposition(row):
     if total <= 1.0e-14:
         raise ZeroDivisionError(f"Zero selected amplitude norm for {row['detail_id']}.")
     meta = _row_meta(row)
-    meta.update({
-        "incoming_state": selected_initial_state_label(row["selected_spin_case"]),
-        "initial_spin_averaging_version": row.get(
-            "initial_spin_averaging_version", SPIN_AVERAGING_VERSION
-        ),
-    })
+    meta["incoming_state"] = selected_initial_state_label(row["selected_spin_case"])
     records = []
     for component in ensemble:
         norms = np.abs(component["state"]) ** 2
@@ -1204,7 +1180,7 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
     lines = [
         "Max entanglement-observable configuration generator from AlignmentScan results",
         f"  input csv: {input_path}",
-        f"  required initial-spin averaging version: {SPIN_AVERAGING_VERSION}",
+        f"  electron mass: {ELECTRON_MASS_GEV:.12g} GeV",
         "  unpolarized decomposition: 1/4 average over electron and proton helicities",
         "  single-particle polarization: direct prepared state with an incoherent 1/2 average over the other particle",
         "  double polarization: direct prepared electron-proton product state",
@@ -1299,7 +1275,6 @@ def main():
     """Generate representative configurations from current AlignmentScan CSVs."""
     input_path = alignment_input_path()
     rows = read_csv_rows(input_path)
-    validate_spin_averaging_version(rows, input_path)
     clean_legacy_root_csv_outputs()
     clean_egamma_config_outputs()
     clean_data_outputs()

@@ -106,6 +106,11 @@ two-state outgoing degrees of freedom.
 
 `Kinematics.py` uses one user-frame COM parameterization.
 
+Shared physics and scan settings live in `config.py`, including the proton and
+electron masses, density-matrix trace normalization, and scan worker count.
+AlignmentScan and ConfigGen read these settings directly; generated files do
+not carry internal model-version identifiers.
+
 The kinematics result exposes the direct momentum variables:
 
 ```text
@@ -113,6 +118,7 @@ pIn    incoming COM three-momentum magnitude
 pOut   outgoing proton three-momentum magnitude
 qOut   outgoing real-photon momentum magnitude
 m      proton mass
+electron_mass  electron mass (optional; default 0)
 ```
 
 The scan scripts use the independent user-frame variables:
@@ -125,6 +131,7 @@ phi_in_electron  incoming electron azimuth, phi_in + pi mod 2pi, used in scan pl
 qOut      outgoing real-photon energy/momentum magnitude
 phiOut    outgoing real-photon azimuth
 m         proton mass
+electron_mass  electron mass (optional; default 0)
 ```
 
 `pIn` is fixed by `s`, and `pOut` is solved from energy conservation. Derived
@@ -173,6 +180,27 @@ user_theta_in_phiOut  scan over theta_in and phiOut
 ## Bethe-Heitler Amplitude Workflow
 
 `BHHelicityAmp.py` exposes low-level and convenience functions.
+
+The electron is massless by default for backward compatibility. To turn on
+the physical electron mass, import `ELECTRON_MASS_GEV` from `Algebra` and pass
+it through the amplitude and kinematics calls:
+
+```python
+from Algebra import ELECTRON_MASS_GEV
+from Kinematics import kinematics_user_from_independent
+from BHHelicityAmp import bh_amplitude_core
+
+kin = kinematics_user_from_independent(
+    s, theta_in, phi_in, qOut, phiOut, m,
+    electron_mass=ELECTRON_MASS_GEV,
+)
+amplitude = bh_amplitude_core(
+    kin["momenta"]["k"], kin["momenta"]["kp"], kin["momenta"]["qout"],
+    kin["momenta"]["p"], kin["momenta"]["pp"], epsU,
+    hIn, hOut, sIn, sOut, m, F1, F2,
+    electron_mass=ELECTRON_MASS_GEV,
+)
+```
 
 Important entry points:
 

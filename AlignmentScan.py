@@ -6,7 +6,7 @@ selected two-body concurrences and multipartite observables.
 """
 
 from itertools import product
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import csv
 import math
 import os
@@ -21,13 +21,16 @@ def _progress_bar(iterable, total, desc):
     return iterable
 
 from Algebra import DEFAULT_TOL, mdot
+from config import (
+    ELECTRON_MASS_GEV,
+    NORMALIZE_TRACE,
+    PROTON_MASS_GEV as M,
+    SCAN_WORKERS,
+)
 from FormFactors import YAHL_MODEL_NAME, yahl_dirac_pauli_from_t
 from Kinematics import kinematics_user_from_independent
 from SpinDensityMat import (
-    M,
-    NORMALIZE_TRACE,
     OUTPUT_DIR,
-    SCAN_WORKERS,
     USER_S_CENTER,
     SPIN_CASE_L_PROTON,
     SPIN_CASE_L_ELECTRON,
@@ -91,7 +94,6 @@ ALIGNMENT_SPIN_CASES = (
     ("TxTx", "TxTx", SPIN_CASE_TXTX),
     ("TxTy", "TxTy", SPIN_CASE_TXTY),
 )
-SPIN_AVERAGING_VERSION = "prepared_spin_ensemble_v4"
 
 
 def spin_averaging_description(spin_case):
@@ -262,6 +264,7 @@ def _scan_alignment_point_task(task):
             f"user alignment s={s:.6g}, theta_in={theta_in:.6g}, "
             f"qOut={qOut:.6g}"
         ),
+        electron_mass=settings["electron_mass"],
     )
     momenta = kin["momenta"]
     angle_rad = spatial_opening_angle(momenta["kp"], momenta["qout"])
@@ -295,7 +298,7 @@ def _scan_alignment_point_task(task):
         "s_regime": anchor["s_regime"],
         "theta_in_regime": anchor["theta_in_regime"],
         "qOut_regime": anchor["qOut_regime"],
-        "initial_spin_averaging_version": SPIN_AVERAGING_VERSION,
+        "electron_mass": float(kin["electron_mass"]),
         "s": float(kin["s"]),
         "sqrt_s": float(kin["sqrt_s"]),
         "pIn": float(kin["pIn"]),
@@ -333,7 +336,9 @@ def _scan_alignment_point_task(task):
         for name in COARSE_CONCURRENCE_NAMES:
             row[f"{prefix}_{name}"] = np.nan
 
-    amplitudes = amplitude_table(momenta, kin["m"], F1, F2)
+    amplitudes = amplitude_table(
+        momenta, kin["m"], F1, F2, electron_mass=settings["electron_mass"]
+    )
     process_rho = process_density_matrix_from_amplitudes(amplitudes)
     squared_amplitude = np.nan
     for prefix, _label, spin_case in ALIGNMENT_SPIN_CASES:
@@ -387,6 +392,7 @@ def scan_final_electron_photon_alignment(
     phiOut_values=PHASE_SPACE_PHIOUT_VALUES,
     angle_max_rad=ALIGNMENT_ANGLE_MAX_RAD,
     m=M,
+    electron_mass=ELECTRON_MASS_GEV,
     normalize_trace=NORMALIZE_TRACE,
     max_workers=SCAN_WORKERS,
 ):
@@ -397,6 +403,7 @@ def scan_final_electron_photon_alignment(
         kinematic_points = characteristic_kinematic_points()
     settings = {
         "m": m,
+        "electron_mass": electron_mass,
         "normalize_trace": normalize_trace,
         "angle_max_rad": angle_max_rad,
     }
@@ -415,19 +422,29 @@ def scan_final_electron_photon_alignment(
     ]
     if max_workers and max_workers > 1 and len(tasks) > 1:
         chunksize = _optimal_chunksize(len(tasks), max_workers)
-        with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            _map = executor.map(
-                _scan_alignment_point_task,
-                tasks,
-                chunksize=chunksize,
-            )
-            results = list(
-                _progress_bar(
-                    _map,
-                    total=len(tasks),
-                    desc="Alignment scan",
+        try:
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                _map = executor.map(
+                    _scan_alignment_point_task,
+                    tasks,
+                    chunksize=chunksize,
                 )
-            )
+                results = list(
+                    _progress_bar(
+                        _map,
+                        total=len(tasks),
+                        desc="Alignment scan",
+                    )
+                )
+        except (OSError, PermissionError):
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                results = list(
+                    _progress_bar(
+                        executor.map(_scan_alignment_point_task, tasks),
+                        total=len(tasks),
+                        desc="Alignment scan (thread fallback)",
+                    )
+                )
     else:
         results = [
             _scan_alignment_point_task(task)
@@ -461,10 +478,10 @@ def scan_final_electron_photon_alignment(
         "qOut_values": np.asarray([point["qOut"] for point in kinematic_points], dtype=float),
         "phiOut_values": np.asarray(phiOut_values, dtype=float),
         "m": m,
+        "electron_mass": electron_mass,
         "form_factor_model": YAHL_MODEL_NAME,
         "normalized_to_unit_trace": normalize_trace,
         "spin_cases": ALIGNMENT_SPIN_CASES,
-        "spin_averaging_version": SPIN_AVERAGING_VERSION,
     }
 
 
@@ -495,7 +512,7 @@ def _kinematic_csv_headers():
         "s_regime",
         "theta_in_regime",
         "qOut_regime",
-        "initial_spin_averaging_version",
+        "electron_mass",
         "s",
         "sqrt_s",
         "pIn",
@@ -528,7 +545,7 @@ def _kinematic_csv_row(row):
         row["s_regime"],
         row["theta_in_regime"],
         row["qOut_regime"],
-        row["initial_spin_averaging_version"],
+        f"{row['electron_mass']:.16e}",
         f"{row['s']:.16e}",
         f"{row['sqrt_s']:.16e}",
         f"{row['pIn']:.16e}",
@@ -855,7 +872,6 @@ def load_concurrence_scan_csv(csv_path=CONCURRENCE_PHASE_SPACE_CSV):
         "s_regime",
         "theta_in_regime",
         "qOut_regime",
-        "initial_spin_averaging_version",
     }
     with csv_path.open("r", newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
@@ -915,7 +931,7 @@ def load_concurrence_scan_csv(csv_path=CONCURRENCE_PHASE_SPACE_CSV):
         "form_factor_model": YAHL_MODEL_NAME,
         "normalized_to_unit_trace": NORMALIZE_TRACE,
         "spin_cases": ALIGNMENT_SPIN_CASES,
-        "spin_averaging_version": SPIN_AVERAGING_VERSION,
+        "electron_mass": ELECTRON_MASS_GEV,
         "source_csv": csv_path,
         "missing_observable_columns": sorted(missing_observable_columns),
     }
@@ -1088,7 +1104,7 @@ def build_alignment_report(alignment_scan, alignment_paths):
         f"  theta_in anchor range: {min(alignment_scan['theta_in_values']):.6g} to {max(alignment_scan['theta_in_values']):.6g}",
         f"  qOut/Egamma anchor range: {min(alignment_scan['qOut_values']):.6g} to {max(alignment_scan['qOut_values']):.6g}",
         f"  form factor model: {alignment_scan['form_factor_model']} with F1(t), F2(t)",
-        f"  initial-spin averaging version: {alignment_scan.get('spin_averaging_version', SPIN_AVERAGING_VERSION)}",
+        f"  electron mass: {alignment_scan['electron_mass']:.12g} GeV",
         f"  phi_e_in scan: {len(alignment_scan['phi_in_electron_values'])} values from "
         f"{alignment_scan['phi_in_electron_values'][0]:.6g} to {alignment_scan['phi_in_electron_values'][-1]:.6g}",
         f"  phi_gamma scan: {len(alignment_scan['phiOut_values'])} values from "

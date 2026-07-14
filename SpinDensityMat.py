@@ -21,7 +21,6 @@ per-kinematic-point matrix CSVs/PDFs, and ``Output/SpinDensityMat.log``.
 from itertools import product
 from concurrent.futures import ProcessPoolExecutor
 import csv
-import os
 from pathlib import Path
 import shutil
 import tempfile
@@ -32,13 +31,12 @@ from Algebra import HELICITIES
 from BHHelicityAmp import bh_amplitude_table
 from FormFactors import YAHL_MODEL_NAME, yahl_dirac_pauli_from_t
 from Kinematics import kinematics_user_from_independent
+from config import NORMALIZE_TRACE, PROTON_MASS_GEV as M, SCAN_WORKERS
 
 
 # ============================================================
 # Scan and output settings
 # ============================================================
-
-M = 0.938
 
 USER_BEAM_ENERGY_REFERENCE = 11.0
 USER_S_CENTER = M**2 + 2.0 * M * USER_BEAM_ENERGY_REFERENCE
@@ -52,9 +50,7 @@ USER_FIXED_PHI_IN = 0.0
 USER_FIXED_QOUT = 0.85
 USER_FIXED_PHI_OUT = np.pi
 
-NORMALIZE_TRACE = True
 TRACE_BENCHMARK_TOL = 1e-10
-SCAN_WORKERS = max(1, min(os.cpu_count() or 1, 8))
 SPIN_CASE_UNPOLARIZED = "unpolarized"
 SPIN_CASE_L_PROTON = "L_proton"
 SPIN_CASE_L_ELECTRON = "L_electron"
@@ -297,7 +293,7 @@ def initial_spin_average_divisor(spin_case):
     return float(ensemble_size)
 
 
-def amplitude_table(mom, m, F1, F2):
+def amplitude_table(mom, m, F1, F2, electron_mass=0.0):
     """Return ``A[in_state, out_state]`` for all BH helicity amplitudes.
 
     ``in_state`` spans incoming electron/proton labels ``(hIn, sIn)`` and
@@ -311,6 +307,7 @@ def amplitude_table(mom, m, F1, F2):
         F2,
         initial_states=initial_spin_states(),
         outgoing_states=outgoing_spin_states(),
+        electron_mass=electron_mass,
     )
 
 

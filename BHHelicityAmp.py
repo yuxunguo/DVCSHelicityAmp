@@ -24,6 +24,7 @@ from Algebra import (
     _real_scalar,
     _validate_helicity,
     _validate_lorentz_index,
+    _validate_nonnegative_scalar,
     _validate_positive_scalar,
     cov,
     electron_spinor,
@@ -46,11 +47,11 @@ from Kinematics import (
 # Leptonic BH kernel
 #
 # L^{mu nu} =
-#   (2 k'^mu gamma^nu + gamma^mu slash(q') gamma^nu)/(2 k'.q')
-# + (2 k^mu gamma^nu - gamma^nu slash(q') gamma^mu)/(-2 k.q')
+#   gamma^mu (slash(k'+q') + m_e) gamma^nu / ((k'+q')^2-m_e^2)
+# + gamma^nu (slash(k-q') + m_e) gamma^mu / ((k-q')^2-m_e^2)
 # ============================================================
 
-def lepton_kernel(mu, nu, k, kp, qout):
+def lepton_kernel(mu, nu, k, kp, qout, electron_mass=0.0):
     """Return the leptonic Bethe-Heitler kernel ``L^{mu nu}``.
 
     Parameters
@@ -62,6 +63,8 @@ def lepton_kernel(mu, nu, k, kp, qout):
     k, kp, qout : array-like
         Incoming electron, outgoing electron, and outgoing real-photon
         four-momenta.
+    electron_mass : float, optional
+        Electron mass in the same units as the momenta. The default is zero.
 
     Returns
     -------
@@ -73,15 +76,20 @@ def lepton_kernel(mu, nu, k, kp, qout):
     k = _as_four_vector(k, "k")
     kp = _as_four_vector(kp, "kp")
     qout = _as_four_vector(qout, "qout")
+    electron_mass = _validate_nonnegative_scalar(electron_mass, "electron_mass")
 
-    den1 = 2.0 * mdot(kp, qout)
-    den2 = -2.0 * mdot(k, qout)
+    den1 = mdot(kp + qout, kp + qout) - electron_mass**2
+    den2 = mdot(k - qout, k - qout) - electron_mass**2
     _check_not_singular(den1, "final-state lepton propagator")
     _check_not_singular(den2, "initial-state lepton propagator")
 
-    slash_qout = slash(qout)
-    term1 = (2.0 * kp[mu] * gammaU(nu) + gammaU(mu) @ slash_qout @ gammaU(nu)) / den1
-    term2 = (2.0 * k[mu] * gammaU(nu) - gammaU(nu) @ slash_qout @ gammaU(mu)) / den2
+    mass_identity = electron_mass * np.eye(4, dtype=complex)
+    term1 = (
+        gammaU(mu) @ (slash(kp + qout) + mass_identity) @ gammaU(nu)
+    ) / den1
+    term2 = (
+        gammaU(nu) @ (slash(k - qout) + mass_identity) @ gammaU(mu)
+    ) / den2
     return term1 + term2
 
 
@@ -125,6 +133,7 @@ def bh_amplitude_core(
     hIn, hOut,
     sIn, sOut,
     m, F1, F2,
+    electron_mass=0.0,
 ):
     """Evaluate a fixed-helicity Bethe-Heitler amplitude.
 
@@ -136,14 +145,17 @@ def bh_amplitude_core(
     * ubar(p',sOut) Gamma_nu u(p,sIn)``.
 
     Parameters are validated for four-vector shape, finite entries, positive
-    proton mass, and helicity labels ``+/-1``. Singular propagator or
-    momentum-transfer denominators raise ``ZeroDivisionError``.
+    proton mass, non-negative electron mass, and helicity labels ``+/-1``.
+    Singular propagator or momentum-transfer denominators raise
+    ``ZeroDivisionError``. Pass ``electron_mass=ELECTRON_MASS_GEV`` (imported
+    from :mod:`Algebra`) to enable the physical electron mass.
     """
     hIn = _validate_helicity(hIn, "hIn")
     hOut = _validate_helicity(hOut, "hOut")
     sIn = _validate_helicity(sIn, "sIn")
     sOut = _validate_helicity(sOut, "sOut")
     m = _validate_positive_scalar(m, "m")
+    electron_mass = _validate_nonnegative_scalar(electron_mass, "electron_mass")
     k = _as_four_vector(k, "k", dtype=float)
     kp = _as_four_vector(kp, "kp", dtype=float)
     qout = _as_four_vector(qout, "qout", dtype=float)
@@ -151,8 +163,8 @@ def bh_amplitude_core(
     pp = _as_four_vector(pp, "pp", dtype=float)
     epsU = _as_four_vector(epsU, "epsU")
 
-    ue_in = electron_spinor(k, hIn)
-    ue_out = electron_spinor(kp, hOut)
+    ue_in = electron_spinor(k, hIn, electron_mass=electron_mass)
+    ue_out = electron_spinor(kp, hOut, electron_mass=electron_mass)
     up_in = proton_spinor(p, sIn, m)
     up_out = proton_spinor(pp, sOut, m)
 
@@ -170,7 +182,9 @@ def bh_amplitude_core(
     amp = 0.0 + 0.0j
     for mu in range(4):
         for nu, had in enumerate(had_by_nu):
-            lep = ebar @ lepton_kernel(mu, nu, k, kp, qout) @ ue_in
+            lep = ebar @ lepton_kernel(
+                mu, nu, k, kp, qout, electron_mass=electron_mass
+            ) @ ue_in
             amp += eps_cov_star[mu] * lep * had
     return amp / t
 
@@ -180,6 +194,7 @@ def bh_unpolarized_squared_amplitude_core(
     p, pp,
     m, F1, F2,
     average_initial=True,
+    electron_mass=0.0,
 ):
     """
     Return the unpolarized Bethe-Heitler squared amplitude.
@@ -204,6 +219,7 @@ def bh_unpolarized_squared_amplitude_core(
             hIn, hOut,
             sIn, sOut,
             m, F1, F2,
+            electron_mass=electron_mass,
         )
         total += abs(amp) ** 2
 
@@ -217,6 +233,7 @@ def bh_amplitude_table(
     F2,
     initial_states=None,
     outgoing_states=None,
+    electron_mass=0.0,
 ):
     """Return the full Bethe-Heitler helicity-amplitude table.
 
@@ -253,6 +270,7 @@ def bh_amplitude_table(
                 m,
                 F1,
                 F2,
+                electron_mass=electron_mass,
             )
     return amplitudes
 
@@ -263,6 +281,7 @@ def bh_amplitude_user(
     sIn, sOut,
     lam,
     m, F1, F2,
+    electron_mass=0.0,
 ):
     """Evaluate a fixed-helicity amplitude from user-frame variables.
 
@@ -270,7 +289,10 @@ def bh_amplitude_user(
     ``phiOut`` are converted with :func:`Kinematics.momenta_user`; photon
     polarization is then built from the resulting ``qout`` momentum.
     """
-    mom = momenta_user(pIn, pOut, qOut, theta_in, phi_in, phiOut, m)
+    mom = momenta_user(
+        pIn, pOut, qOut, theta_in, phi_in, phiOut, m,
+        electron_mass=electron_mass,
+    )
     return bh_amplitude_core(
         mom["k"], mom["kp"], mom["qout"],
         mom["p"], mom["pp"],
@@ -278,6 +300,7 @@ def bh_amplitude_user(
         hIn, hOut,
         sIn, sOut,
         m, F1, F2,
+        electron_mass=electron_mass,
     )
 
 
@@ -285,14 +308,19 @@ def bh_unpolarized_squared_amplitude_user(
     pIn, pOut, qOut, theta_in, phi_in, phiOut,
     m, F1, F2,
     average_initial=True,
+    electron_mass=0.0,
 ):
     """Return the unpolarized squared amplitude from user-frame variables."""
-    mom = momenta_user(pIn, pOut, qOut, theta_in, phi_in, phiOut, m)
+    mom = momenta_user(
+        pIn, pOut, qOut, theta_in, phi_in, phiOut, m,
+        electron_mass=electron_mass,
+    )
     return bh_unpolarized_squared_amplitude_core(
         mom["k"], mom["kp"], mom["qout"],
         mom["p"], mom["pp"],
         m, F1, F2,
         average_initial=average_initial,
+        electron_mass=electron_mass,
     )
 
 
@@ -300,12 +328,14 @@ def bh_amplitude_same_electron_helicity(
     pIn, pOut, qOut, theta_in, phi_in, phiOut,
     h, sIn, sOut, lam,
     m, F1, F2,
+    electron_mass=0.0,
 ):
     """Evaluate a user-frame amplitude with ``hIn == hOut == h``."""
     return bh_amplitude_user(
         pIn, pOut, qOut, theta_in, phi_in, phiOut,
         h, h, sIn, sOut, lam,
         m, F1, F2,
+        electron_mass=electron_mass,
     )
 
 
