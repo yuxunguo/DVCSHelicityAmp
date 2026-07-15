@@ -2,7 +2,7 @@
 
 The generator reads the entanglement scan written by ``AlignmentScan.py`` and
 builds one configuration package for each requested maximum: ``C_e_p``,
-``C_p_gamma``, ``C_e_gamma``, and ``F3``.  Each package contains a scan plot,
+``C_p_gamma``, ``C_e_gamma``, ``F3``, GHZ purity, and W purity. Each package contains a scan plot,
 representative enhanced regions, reconstructed momenta/kinematics, and a
 final-state amplitude decomposition that preserves the AlignmentScan
 initial-spin ensemble weights.  ``F3`` is scanned for every configured
@@ -11,15 +11,20 @@ mixed-state rows can be distinguished.
 """
 
 import csv
+from concurrent.futures import ProcessPoolExecutor
 import math
-import os
 from pathlib import Path
-import tempfile
 
 import numpy as np
 
-from AlignmentScan import observable_latex_label, observable_text_label
-from config import ELECTRON_MASS_GEV, PROTON_MASS_GEV as M
+from AlignmentScan import (
+    LEPTON_SPECS,
+    lepton_output_paths,
+    observable_latex_label,
+    observable_text_label,
+    species_spin_label,
+)
+from config import PROTON_MASS_GEV as M, SCAN_WORKERS
 from FormFactors import yahl_dirac_pauli_from_t
 from Kinematics import kinematics_user_from_independent
 from SpinDensityMat import (
@@ -32,22 +37,26 @@ from SpinDensityMat import (
 )
 
 
-ALIGNMENT_CONCURRENCE_DIR = Path("Output") / "AlignmentScan" / "ConcurrenceScan"
-FULL_CONCURRENCE_CSV = ALIGNMENT_CONCURRENCE_DIR / "electron_photon_concurrence_phase_space.csv"
-RANKED_CONCURRENCE_CSV = ALIGNMENT_CONCURRENCE_DIR / "electron_photon_concurrence_top.csv"
-RANKED_E_GAMMA_CSV = ALIGNMENT_CONCURRENCE_DIR / "electron_photon_e_gamma_top.csv"
-LEGACY_RANKED_C13_CSV = ALIGNMENT_CONCURRENCE_DIR / "electron_photon_c13_top.csv"
+CONFIG_LEPTONS = ("electron", "muon", "aux", "massless")
+CONFIGGEN_POLARIZATION_WORKERS = SCAN_WORKERS
+LEPTON_NAME = "electron"
+LEPTON_MASS_GEV = LEPTON_SPECS[LEPTON_NAME]["mass"]
 
-OUTPUT_DIR = Path("Output") / "ConfigGen"
+FULL_CONCURRENCE_CSV = lepton_output_paths(LEPTON_NAME)["concurrence_csv"]
+
+OUTPUT_ROOT = Path("Output") / "ConfigGen"
+OUTPUT_DIR = OUTPUT_ROOT / LEPTON_NAME
 DATA_DIR = OUTPUT_DIR / "Data"
 EGAMMA_CONFIG_DIR = OUTPUT_DIR / "Config_Plot_By_Egamma"
-LOG_PATH = Path("Output") / "ConfigGen.log"
+LOG_PATH = OUTPUT_DIR / "ConfigGen.log"
 
 CONFIG_TARGETS = (
     ("C_e_p", "c_ep"),
     ("C_p_gamma", "c_p_gamma"),
     ("C_e_gamma", "c_e_gamma"),
     ("F3", "f3"),
+    ("GHZ_purity", "ghz_purity"),
+    ("W_purity", "w_purity"),
 )
 CONFIG_SPIN_CASES = (
     "unpolarized",
@@ -93,6 +102,7 @@ TARGET_FINAL_MOMENTA = {
 }
 
 KINEMATIC_COLUMNS = (
+    "lepton",
     "kinematic_point",
     "s_regime",
     "theta_in_regime",
@@ -104,6 +114,7 @@ KINEMATIC_COLUMNS = (
     "pOut",
     "theta_in",
     "phi_in_electron",
+    "phi_in_lepton",
     "phi_in",
     "qOut",
     "phiOut",
@@ -123,6 +134,39 @@ KINEMATIC_COLUMNS = (
 from PlotUtils import require_matplotlib as _require_matplotlib
 
 
+def configure_lepton(name):
+    """Select one AlignmentScan species and its matching ConfigGen output tree."""
+    global LEPTON_NAME, LEPTON_MASS_GEV
+    global FULL_CONCURRENCE_CSV
+    global OUTPUT_DIR, DATA_DIR, EGAMMA_CONFIG_DIR, LOG_PATH
+
+    if name not in LEPTON_SPECS:
+        raise ValueError(f"Unknown lepton {name!r}; choose from {tuple(LEPTON_SPECS)}.")
+    LEPTON_NAME = name
+    LEPTON_MASS_GEV = LEPTON_SPECS[name]["mass"]
+    alignment_paths = lepton_output_paths(name)
+    FULL_CONCURRENCE_CSV = alignment_paths["concurrence_csv"]
+    OUTPUT_DIR = OUTPUT_ROOT / name
+    DATA_DIR = OUTPUT_DIR / "Data"
+    EGAMMA_CONFIG_DIR = OUTPUT_DIR / "Config_Plot_By_Egamma"
+    LOG_PATH = OUTPUT_DIR / "ConfigGen.log"
+
+
+def observable_label(name):
+    """Return the selected species' plain observable label."""
+    return observable_text_label(name, LEPTON_NAME)
+
+
+def observable_math_label(name):
+    """Return the selected species' math-text observable label."""
+    return observable_latex_label(name, LEPTON_NAME)
+
+
+def spin_display_label(spin_case):
+    """Return a polarization label using the selected lepton species."""
+    return species_spin_label(spin_case_display_label(spin_case), LEPTON_NAME)
+
+
 def parse_float(value, default=np.nan):
     """Parse a CSV numeric field, preserving missing values as NaN."""
     if value is None or value == "":
@@ -139,19 +183,6 @@ def read_csv_rows(path):
     """Read a CSV file as dictionaries."""
     with path.open(newline="", encoding="utf-8") as handle:
         return list(csv.DictReader(handle))
-
-
-def clean_legacy_root_csv_outputs():
-    """Remove stale root outputs from older ConfigGen layouts."""
-    if not OUTPUT_DIR.exists():
-        return
-    for path in OUTPUT_DIR.glob("max_*.csv"):
-        path.unlink()
-    for path in OUTPUT_DIR.glob("max_*configuration_scan*.pdf"):
-        path.unlink()
-    summary_path = OUTPUT_DIR / "max_concurrence_by_egamma_configurations.pdf"
-    if summary_path.exists():
-        summary_path.unlink()
 
 
 def clean_egamma_config_outputs():
@@ -179,15 +210,9 @@ def clean_data_outputs():
 
 
 def alignment_input_path():
-    """Return the best available entanglement CSV for configuration scans."""
-    for path in (
-        FULL_CONCURRENCE_CSV,
-        RANKED_CONCURRENCE_CSV,
-        RANKED_E_GAMMA_CSV,
-        LEGACY_RANKED_C13_CSV,
-    ):
-        if path.exists():
-            return path
+    """Return the required full AlignmentScan entanglement CSV."""
+    if FULL_CONCURRENCE_CSV.exists():
+        return FULL_CONCURRENCE_CSV
     raise FileNotFoundError(
         "No AlignmentScan concurrence CSV found. Run AlignmentScan.py first to "
         f"create {FULL_CONCURRENCE_CSV}."
@@ -211,8 +236,6 @@ def spin_label_from_key(key, observable):
     suffix = f"_{observable}"
     if key.endswith(suffix):
         return key[: -len(suffix)]
-    if observable == "C_e_gamma" and key.endswith("_C13"):
-        return key[:-4]
     return key
 
 
@@ -232,11 +255,6 @@ def target_columns(rows, observable):
         key = f"{spin_case}_{observable}"
         if key in names:
             columns.append(key)
-    if observable == "C_e_gamma":
-        for spin_case in CONFIG_SPIN_CASES:
-            key = f"{spin_case}_C13"
-            if key in names:
-                columns.append(key)
     return columns
 
 
@@ -276,6 +294,9 @@ def vector_phi_xy(vector):
 
 def kinematics_from_config_row(row):
     """Rebuild full user-frame kinematics for a ConfigGen row."""
+    lepton_mass = parse_float(row.get("electron_mass"))
+    if not np.isfinite(lepton_mass):
+        lepton_mass = LEPTON_MASS_GEV
     return kinematics_user_from_independent(
         parse_float(row.get("s")),
         parse_float(row.get("theta_in")),
@@ -284,7 +305,7 @@ def kinematics_from_config_row(row):
         parse_float(row.get("phiOut")),
         M,
         label=row.get("detail_id") or row.get("kinematic_point"),
-        electron_mass=ELECTRON_MASS_GEV,
+        electron_mass=lepton_mass,
     )
 
 
@@ -301,20 +322,12 @@ def target_pair_delta(row, observable):
     )
 
 
-def source_rows_for_key(rows, key):
-    """Return rows appropriate for a target/spin column."""
-    if rows and "rank_group" in rows[0]:
-        group_rows = [row for row in rows if row.get("rank_group") == key]
-        return group_rows if group_rows else rows
-    return rows
-
-
 def selected_row(row, key, observable, value):
     """Return a row annotated with the selected target observable metadata."""
     item = dict(row)
     spin_case = spin_label_from_key(key, observable)
     item["selected_observable"] = observable
-    item["selected_observable_label"] = observable_text_label(observable)
+    item["selected_observable_label"] = observable_label(observable)
     item["selected_spin_case"] = spin_case
     item["selected_concurrence_key"] = key
     item["selected_concurrence"] = value
@@ -336,13 +349,10 @@ def scan_x_phi(row):
 
 def candidate_rows(rows, key, observable):
     """Return ranked candidates for one target/spin observable column."""
-    source_rows = source_rows_for_key(rows, key)
     candidates = []
     seen = set()
-    for row in source_rows:
-        if row.get("rank_group") and row.get("rank_group") != key and key not in row:
-            continue
-        value = parse_float(row.get("rank_value") if row.get("rank_group") == key else row.get(key))
+    for row in rows:
+        value = parse_float(row.get(key))
         if not np.isfinite(value):
             continue
         identity = tuple(row.get(name, "") for name in KINEMATIC_COLUMNS)
@@ -426,7 +436,7 @@ def cluster_summary_rows(target, grouped_clusters):
             best = cluster["best"]
             summary = {
                 "selected_observable": observable,
-                "selected_observable_label": observable_text_label(observable),
+                "selected_observable_label": observable_label(observable),
                 "selected_spin_case": spin_case,
                 "selected_region": f"enhanced_region_{cluster['cluster_id']}",
                 "cluster_id": cluster["cluster_id"],
@@ -481,10 +491,11 @@ def example_rows(grouped_clusters):
                 for name in KINEMATIC_COLUMNS:
                     item[name] = row.get(name, "")
                 for key, value in row.items():
-                    is_selected_f3 = (
-                        row["selected_observable"] == "F3" and key.endswith("_F3")
+                    is_selected_multipartite = (
+                        row["selected_observable"] in {"F3", "GHZ_purity", "W_purity"}
+                        and key.endswith(f"_{row['selected_observable']}")
                     )
-                    if "_C_" in key or key.endswith("_C13") or is_selected_f3:
+                    if "_C_" in key or is_selected_multipartite:
                         item[key] = value
                 examples.append(item)
     return examples
@@ -543,8 +554,8 @@ def target_egamma_candidates(rows, target, key):
     observable, _file_tag = target
     candidates = []
     seen = set()
-    for row in source_rows_for_key(rows, key):
-        value = parse_float(row.get("rank_value") if row.get("rank_group") == key else row.get(key))
+    for row in rows:
+        value = parse_float(row.get(key))
         if not np.isfinite(value):
             continue
         identity = (
@@ -648,7 +659,15 @@ def selected_initial_state_label(spin_case):
         "TxTx": r"$|T_{x,e}\rangle\otimes|T_{x,p}\rangle$",
         "TxTy": r"$|T_{x,e}\rangle\otimes|T_{y,p}\rangle$",
     }
-    return labels.get(spin_case, spin_case)
+    label = labels.get(spin_case, spin_case)
+    if LEPTON_NAME == "electron":
+        return label
+    symbol = {"muon": r"\mu", "aux": r"\ell", "massless": r"\ell_0"}[LEPTON_NAME]
+    return (
+        label.replace("h_e", f"h_{{{symbol}}}")
+        .replace("L_e", f"L_{{{symbol}}}")
+        .replace(",e}", f",{symbol}}}")
+    )
 
 
 def _row_meta(row):
@@ -673,7 +692,7 @@ def amplitude_decomposition(row):
     kin = kinematics_from_config_row(row)
     F1, F2 = yahl_dirac_pauli_from_t(kin["t"], M)
     amplitudes = amplitude_table(
-        kin["momenta"], M, F1, F2, electron_mass=ELECTRON_MASS_GEV
+        kin["momenta"], M, F1, F2, electron_mass=kin["electron_mass"]
     )
     process_rho = process_density_matrix_from_amplitudes(amplitudes)
     contracted_rho = contract_initial_state(process_rho, row["selected_spin_case"])
@@ -692,7 +711,7 @@ def amplitude_decomposition(row):
             weighted_norm = float(component["weight"] * norm)
             records.append({
                 **meta,
-                "initial_component": component["label"],
+                "initial_component": species_spin_label(component["label"], LEPTON_NAME),
                 "ensemble_weight": f"{component['weight']:.16e}",
                 "out_index": index,
                 "hOut": h_out, "sOut": s_out, "lambda": lam,
@@ -712,6 +731,40 @@ def amplitude_decomposition(row):
         item["decomposition_rank"] = rank
         item["retained_fraction_total"] = f"{retained:.16e}"
     return selected
+
+
+def _polarization_amplitude_worker(task):
+    """Return amplitude records for one species/polarization detail group."""
+    lepton_name, detail_rows = task
+    configure_lepton(lepton_name)
+    return [
+        record
+        for row in detail_rows
+        for record in amplitude_decomposition(row)
+    ]
+
+
+def parallel_amplitude_decomposition(detail_rows):
+    """Evaluate detail amplitudes in independent polarization processes."""
+    grouped_rows = [
+        [row for row in detail_rows if row["selected_spin_case"] == spin_case]
+        for spin_case in CONFIG_SPIN_CASES
+    ]
+    grouped_rows = [rows for rows in grouped_rows if rows]
+    if not grouped_rows:
+        return []
+
+    worker_count = min(CONFIGGEN_POLARIZATION_WORKERS, len(grouped_rows))
+    tasks = [(LEPTON_NAME, rows) for rows in grouped_rows]
+    if worker_count > 1:
+        try:
+            with ProcessPoolExecutor(max_workers=worker_count) as executor:
+                results = list(executor.map(_polarization_amplitude_worker, tasks))
+        except (OSError, PermissionError):
+            results = [_polarization_amplitude_worker(task) for task in tasks]
+    else:
+        results = [_polarization_amplitude_worker(task) for task in tasks]
+    return [record for spin_records in results for record in spin_records]
 
 
 def _bin_edges_from_values(values, max_bins=SCAN_HEATMAP_MAX_BINS):
@@ -764,7 +817,7 @@ def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, spin_case, k
     y_values = []
     z_values = []
     for row in rows:
-        value = parse_float(row.get("rank_value") if row.get("rank_group") == key else row.get(key))
+        value = parse_float(row.get(key))
         if not np.isfinite(value):
             continue
         x_values.append(scan_x_phi(row))
@@ -812,13 +865,13 @@ def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, spin_case, k
             scan_x_phi(best),
             parse_float(best.get("phiOut")),
             f" region {cluster['cluster_id']} "
-            f"({spin_case_display_label(best['selected_spin_case'])})",
+            f"({spin_display_label(best['selected_spin_case'])})",
             fontsize=8,
             va="center",
         )
     ax.set_title(
-        f"{group_name} {spin_case_display_label(spin_case)}: "
-        f"max {observable_latex_label(observable)} regions",
+        f"{group_name} {spin_display_label(spin_case)}: "
+        f"max {observable_math_label(observable)} regions",
         fontsize=14,
     )
     add_pi_over_two_reference_lines(ax)
@@ -827,7 +880,7 @@ def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, spin_case, k
     ax.set_xlim(0.0, 2.0 * math.pi)
     ax.set_ylim(0.0, 2.0 * math.pi)
     colorbar = fig.colorbar(image, ax=ax)
-    colorbar.set_label(observable_latex_label(observable), fontsize=12)
+    colorbar.set_label(observable_math_label(observable), fontsize=12)
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -983,7 +1036,7 @@ def plot_configuration_text(ax, row, kin):
     """Draw kinematic and momentum text for a detailed configuration page."""
     ax.axis("off")
     momenta = kin["momenta"]
-    label = observable_text_label(row["selected_observable"])
+    label = observable_label(row["selected_observable"])
     region_line = f"region: {row['selected_region']}"
     if np.isfinite(row["pair_delta_xy"]):
         region_line += f"  final-pair delta_xy={row['pair_delta_xy']:.6g} rad"
@@ -1046,22 +1099,75 @@ def save_egamma_target_region_pdf(target, group_name, rows, key):
     return path, detail_rows
 
 
-def save_all_egamma_target_region_pdfs(rows):
-    """Write PDFs per E_gamma × target × polarization under polarization folders."""
+def _save_polarization_egamma_pdfs(rows, spin_case):
+    """Write every E_gamma/target PDF for one polarization configuration."""
     outputs = []
     detail_rows = []
     for group_name, _qout in qout_groups(rows):
         group_rows = rows_for_qout_group(rows, group_name)
         for target in CONFIG_TARGETS:
             observable, _file_tag = target
-            for key in target_columns(group_rows, observable):
-                spin_case = spin_label_from_key(key, observable)
+            matching_keys = [
+                key for key in target_columns(group_rows, observable)
+                if spin_label_from_key(key, observable) == spin_case
+            ]
+            for key in matching_keys:
                 path, details = save_egamma_target_region_pdf(
                     target, group_name, group_rows, key,
                 )
                 if path is not None and details:
                     outputs.append((group_name, observable, spin_case, path, len(details)))
                     detail_rows.extend(details)
+    return outputs, detail_rows
+
+
+_POLARIZATION_WORKER_ROWS = None
+
+
+def _initialize_polarization_worker(lepton_name, input_path):
+    """Load one species' scan once in each polarization worker process."""
+    global _POLARIZATION_WORKER_ROWS
+    configure_lepton(lepton_name)
+    _POLARIZATION_WORKER_ROWS = read_csv_rows(Path(input_path))
+
+
+def _polarization_pdf_worker(spin_case):
+    """Process-pool entry point for one polarization configuration."""
+    if _POLARIZATION_WORKER_ROWS is None:
+        raise RuntimeError("Polarization worker was not initialized with scan rows.")
+    return _save_polarization_egamma_pdfs(_POLARIZATION_WORKER_ROWS, spin_case)
+
+
+def save_all_egamma_target_region_pdfs(rows, input_path=None):
+    """Write PDFs in parallel across polarization configurations."""
+    worker_count = min(CONFIGGEN_POLARIZATION_WORKERS, len(CONFIG_SPIN_CASES))
+    if worker_count < 1:
+        raise ValueError("CONFIGGEN_POLARIZATION_WORKERS must be positive.")
+
+    if worker_count > 1 and input_path is not None:
+        try:
+            with ProcessPoolExecutor(
+                max_workers=worker_count,
+                initializer=_initialize_polarization_worker,
+                initargs=(LEPTON_NAME, str(input_path)),
+            ) as executor:
+                results = list(executor.map(_polarization_pdf_worker, CONFIG_SPIN_CASES))
+        except (OSError, PermissionError):
+            results = [
+                _save_polarization_egamma_pdfs(rows, spin_case)
+                for spin_case in CONFIG_SPIN_CASES
+            ]
+    else:
+        results = [
+            _save_polarization_egamma_pdfs(rows, spin_case)
+            for spin_case in CONFIG_SPIN_CASES
+        ]
+
+    outputs = []
+    detail_rows = []
+    for spin_outputs, spin_details in results:
+        outputs.extend(spin_outputs)
+        detail_rows.extend(spin_details)
     return outputs, detail_rows
 
 
@@ -1115,8 +1221,8 @@ def save_detail_pages(pdf, plt, detail_rows):
         plot_amplitude_decomposition(amp_ax, row)
         fig.suptitle(
             (
-                f"{spin_case_display_label(row['selected_spin_case'])} characteristic max "
-                f"{observable_latex_label(row['selected_observable'])} configuration"
+                f"{spin_display_label(row['selected_spin_case'])} characteristic max "
+                f"{observable_math_label(row['selected_observable'])} configuration"
             ),
             fontsize=16,
         )
@@ -1149,7 +1255,7 @@ def build_target_package(target, rows, egamma_detail_rows=()):
     ]
     output_details = details + target_egamma_details
     momentum_rows = momentum_configuration_rows(output_details)
-    amplitude_rows = [r for row in output_details for r in amplitude_decomposition(row)]
+    amplitude_rows = parallel_amplitude_decomposition(output_details)
     spin_cases = []
     for spin_case, _clusters in grouped_clusters:
         if spin_case not in spin_cases:
@@ -1183,17 +1289,19 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
     lines = [
         "Max entanglement-observable configuration generator from AlignmentScan results",
         f"  input csv: {input_path}",
-        f"  electron mass: {ELECTRON_MASS_GEV:.12g} GeV",
-        "  unpolarized decomposition: 1/4 average over electron and proton helicities",
+        f"  lepton species: {LEPTON_NAME}",
+        f"  lepton mass: {LEPTON_MASS_GEV:.12g} GeV",
+        "  unpolarized decomposition: 1/4 average over lepton and proton helicities",
         "  single-particle polarization: direct prepared state with an incoherent 1/2 average over the other particle",
-        "  double polarization: direct prepared electron-proton product state",
+        "  double polarization: direct prepared lepton-proton product state",
         "  no polarized category is constructed as a helicity asymmetry",
         f"  total input rows: {total_rows}",
         f"  data csv folder: {DATA_DIR}",
         f"  per-E_gamma config folder: {EGAMMA_CONFIG_DIR}",
         f"  config PDFs (one per E_gamma × target, all spin cases collected): {len(egamma_outputs)} spin entries",
-        f"  targets: {', '.join(observable_text_label(observable) for observable, _ in CONFIG_TARGETS)}",
+        f"  targets: {', '.join(observable_label(observable) for observable, _ in CONFIG_TARGETS)}",
         f"  max spin cases per target: {MAX_SPIN_CASES_PER_TARGET}",
+        f"  parallel polarization workers: {CONFIGGEN_POLARIZATION_WORKERS}",
         f"  top rows per target/spin case: {TOP_ROWS_PER_TARGET_SPIN}",
         f"  cluster radius: {CLUSTER_RADIUS}",
         f"  max clusters per target/spin case: {MAX_CLUSTERS_PER_TARGET_SPIN}",
@@ -1204,9 +1312,9 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
         "  saved per-polarization config PDFs:",
     ]
     for group_name, observable, spin_case, path, region_count in egamma_outputs:
-        label = observable_text_label(observable)
+        label = observable_label(observable)
         lines.append(
-            f"    {group_name} {spin_case_display_label(spin_case)} "
+            f"    {group_name} {spin_display_label(spin_case)} "
             f"[{spin_case}] {label}: {path} ({region_count} regions)"
         )
     lines.extend([
@@ -1216,12 +1324,12 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
         observable, _file_tag = package["target"]
         paths = package["paths"]
         grouped_clusters = package["grouped_clusters"]
-        label = observable_text_label(observable)
+        label = observable_label(observable)
         lines.extend([
             f"Target {label}:",
             "  selected spin cases: "
             + ", ".join(
-                f"{spin_case_display_label(spin)} [{spin}]"
+                f"{spin_display_label(spin)} [{spin}]"
                 for spin, _clusters in grouped_clusters
             ),
             f"  clusters: {sum(len(clusters) for _spin, clusters in grouped_clusters)}",
@@ -1237,7 +1345,7 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
             lines.append(f"    {output_label}:")
             for spin_case, path in outputs:
                 lines.append(
-                    f"      {spin_case_display_label(spin_case)} [{spin_case}]: {path}"
+                    f"      {spin_display_label(spin_case)} [{spin_case}]: {path}"
                 )
         lines.append("  enhanced regions:")
         for spin_case, clusters in grouped_clusters:
@@ -1254,7 +1362,7 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
                 )
                 lines.append(
                     "    "
-                    f"{spin_case_display_label(spin_case)} [{spin_case}] "
+                    f"{spin_display_label(spin_case)} [{spin_case}] "
                     f"region {cluster['cluster_id']}: "
                     f"size={len(rows)}, max_{label}={best['selected_concurrence']:.6g}, "
                     f"phi_p_in={format_range(rows, 'phi_in')}, "
@@ -1284,14 +1392,16 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
     return "\n".join(lines) + "\n"
 
 
-def main():
-    """Generate representative configurations from current AlignmentScan CSVs."""
+def _run_species(lepton_name):
+    """Generate one species' configurations from its AlignmentScan CSV."""
+    configure_lepton(lepton_name)
     input_path = alignment_input_path()
     rows = read_csv_rows(input_path)
-    clean_legacy_root_csv_outputs()
     clean_egamma_config_outputs()
     clean_data_outputs()
-    egamma_outputs, egamma_detail_rows = save_all_egamma_target_region_pdfs(rows)
+    egamma_outputs, egamma_detail_rows = save_all_egamma_target_region_pdfs(
+        rows, input_path=input_path
+    )
     packages = [
         build_target_package(target, rows, egamma_detail_rows)
         for target in CONFIG_TARGETS
@@ -1299,7 +1409,26 @@ def main():
     log_text = build_report(input_path, len(rows), packages, egamma_outputs)
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     LOG_PATH.write_text(log_text, encoding="utf-8")
-    print(log_text, end="")
+    return log_text
+
+
+def main():
+    """Generate configurations for every species selected in CONFIG_LEPTONS."""
+    unknown = set(CONFIG_LEPTONS) - set(LEPTON_SPECS)
+    if unknown:
+        raise ValueError(
+            f"Unknown CONFIG_LEPTONS entries: {sorted(unknown)}; "
+            f"choose from {tuple(LEPTON_SPECS)}."
+        )
+    if not CONFIG_LEPTONS:
+        raise ValueError("CONFIG_LEPTONS must contain at least one species.")
+    if CONFIGGEN_POLARIZATION_WORKERS < 1:
+        raise ValueError("CONFIGGEN_POLARIZATION_WORKERS must be positive.")
+
+    # Species are intentionally sequential. Each species creates its own pool
+    # whose tasks are the independent initial-polarization configurations.
+    reports = [_run_species(name) for name in CONFIG_LEPTONS]
+    print("\n".join(report.rstrip() for report in reports))
 
 
 if __name__ == "__main__":

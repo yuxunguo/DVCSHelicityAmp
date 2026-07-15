@@ -280,30 +280,3 @@ def kinematics_user_from_independent(
             )
         ),
     }
-
-
-def energy_balance(pIn, pOut, qOut, theta_in, phi_in, phiOut, m):
-    """Return E_initial - E_final; energy conservation means this is zero."""
-    mom = momenta_user(pIn, pOut, qOut, theta_in, phi_in, phiOut, m)
-    return mom["k"][0] + mom["p"][0] - mom["kp"][0] - mom["pp"][0] - mom["qout"][0]
-
-
-def momentum_conservation_check(pIn, pOut, qOut, theta_in, phi_in, phiOut, m):
-    """Return the residual three-momentum balance vector."""
-    mom = momenta_user(pIn, pOut, qOut, theta_in, phi_in, phiOut, m)
-    return (
-        mom["k"][1:4] + mom["p"][1:4]
-        - mom["kp"][1:4] - mom["pp"][1:4] - mom["qout"][1:4]
-    )
-
-
-def onshell_check(pIn, pOut, qOut, theta_in, phi_in, phiOut, m):
-    """Return mass-shell values for ``k``, ``kp``, ``qout``, ``p``, and ``pp``."""
-    mom = momenta_user(pIn, pOut, qOut, theta_in, phi_in, phiOut, m)
-    return [
-        mdot(mom["k"], mom["k"]),
-        mdot(mom["kp"], mom["kp"]),
-        mdot(mom["qout"], mom["qout"]),
-        mdot(mom["p"], mom["p"]),
-        mdot(mom["pp"], mom["pp"]),
-    ]

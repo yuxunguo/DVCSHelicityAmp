@@ -1,18 +1,18 @@
-"""Final electron-photon alignment phase-space scan.
+"""Final lepton-photon alignment phase-space scans.
 
-This script scans characteristic user-frame kinematics with a fine
-``phi_in_electron`` by ``phi_gamma`` grid and focuses the locator outputs on the
-selected two-body concurrences and multipartite observables.
+The electron, muon, 1 GeV auxiliary-lepton, and massless-lepton scans use the
+same kinematic grid and polarization configurations, but write to independent
+output trees.
+In addition to concurrence and multipartite observables, every polarization
+records projections onto the requested GHZ+ and canonical W target states.
 """
 
 from itertools import product
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import csv
 import math
-import os
 from pathlib import Path
 import shutil
-import tempfile
 
 import numpy as np
 
@@ -22,7 +22,10 @@ def _progress_bar(iterable, total, desc):
 
 from Algebra import DEFAULT_TOL, mdot
 from config import (
+    AUX_LEPTON_MASS_GEV,
     ELECTRON_MASS_GEV,
+    MASSLESS_LEPTON_MASS_GEV,
+    MUON_MASS_GEV,
     NORMALIZE_TRACE,
     PROTON_MASS_GEV as M,
     SCAN_WORKERS,
@@ -46,11 +49,13 @@ from SpinDensityMat import (
     SPIN_CASE_UNPOLARIZED,
     amplitude_table,
     entanglement_mode,
+    ghz_observables_from_density_matrix,
     outgoing_spin_states,
     initial_spin_average_divisor,
     process_density_matrix_from_amplitudes,
     spin_case_display_label,
     spin_density_observables_from_amplitudes,
+    w_observables_from_density_matrix,
 )
 
 
@@ -73,14 +78,50 @@ ALIGNMENT_ANGLE_MAX_DEG = 10.0
 ALIGNMENT_ANGLE_MAX_RAD = np.deg2rad(ALIGNMENT_ANGLE_MAX_DEG)
 
 OUTPUT_ROOT = OUTPUT_DIR.parent
-ALIGNMENT_OUTPUT_DIR = OUTPUT_ROOT / "AlignmentScan"
-ALIGNMENT_LOG_PATH = OUTPUT_ROOT / "AlignmentScan.log"
+ALIGNMENT_OUTPUT_ROOT = OUTPUT_ROOT / "AlignmentScan"
+ALIGNMENT_OUTPUT_DIR = ALIGNMENT_OUTPUT_ROOT / "electron"
 CONCURRENCE_OUTPUT_DIR = ALIGNMENT_OUTPUT_DIR / "ConcurrenceScan"
 CONCURRENCE_PHASE_SPACE_CSV = (
     CONCURRENCE_OUTPUT_DIR / "electron_photon_concurrence_phase_space.csv"
 )
 REGENERATE_PLOTS_FROM_CSV = False
-REGENERATE_PLOTS_CSV_PATH = CONCURRENCE_PHASE_SPACE_CSV
+
+# Script controls. Edit these values directly before running AlignmentScan.py.
+SCAN_LEPTONS = ("electron", "muon", "aux", "massless")
+PHI_IN_POINT_COUNT = len(PHASE_SPACE_PHI_IN_VALUES)
+PHI_OUT_POINT_COUNT = len(PHASE_SPACE_PHIOUT_VALUES)
+ALIGNMENT_SCAN_WORKERS = SCAN_WORKERS
+
+LEPTON_SPECS = {
+    "electron": {
+        "mass": ELECTRON_MASS_GEV,
+        "label": "electron",
+        "output_dir": ALIGNMENT_OUTPUT_ROOT / "electron",
+        "log_path": ALIGNMENT_OUTPUT_ROOT / "electron" / "AlignmentScan.log",
+        "file_stem": "electron_photon",
+    },
+    "muon": {
+        "mass": MUON_MASS_GEV,
+        "label": "muon",
+        "output_dir": ALIGNMENT_OUTPUT_ROOT / "muon",
+        "log_path": ALIGNMENT_OUTPUT_ROOT / "muon" / "AlignmentScan.log",
+        "file_stem": "muon_photon",
+    },
+    "aux": {
+        "mass": AUX_LEPTON_MASS_GEV,
+        "label": "auxiliary lepton",
+        "output_dir": ALIGNMENT_OUTPUT_ROOT / "aux",
+        "log_path": ALIGNMENT_OUTPUT_ROOT / "aux" / "AlignmentScan.log",
+        "file_stem": "aux_photon",
+    },
+    "massless": {
+        "mass": MASSLESS_LEPTON_MASS_GEV,
+        "label": "massless lepton",
+        "output_dir": ALIGNMENT_OUTPUT_ROOT / "massless",
+        "log_path": ALIGNMENT_OUTPUT_ROOT / "massless" / "AlignmentScan.log",
+        "file_stem": "massless_photon",
+    },
+}
 ALIGNMENT_SPIN_CASES = (
     ("unpolarized", spin_case_display_label(SPIN_CASE_UNPOLARIZED), SPIN_CASE_UNPOLARIZED),
     ("L_proton", spin_case_display_label(SPIN_CASE_L_PROTON), SPIN_CASE_L_PROTON),
@@ -109,7 +150,7 @@ def spin_averaging_description(spin_case):
     if spin_case not in descriptions:
         raise ValueError(f"Unknown alignment spin case: {spin_case}")
     return descriptions[spin_case]
-COARSE_CONCURRENCE_NAMES = (
+ENTANGLEMENT_OBSERVABLE_NAMES = (
     "C_e_p",
     "C_e_gamma",
     "C_p_gamma",
@@ -121,6 +162,11 @@ COARSE_CONCURRENCE_NAMES = (
     "M_gamma",
     "F3",
 )
+PROJECTION_PURITY_NAMES = (
+    "GHZ_purity",
+    "W_purity",
+)
+COARSE_CONCURRENCE_NAMES = ENTANGLEMENT_OBSERVABLE_NAMES + PROJECTION_PURITY_NAMES
 SIGNED_CONCURRENCE_OBSERVABLES = {"M_e", "M_p", "M_gamma"}
 COARSE_CONCURRENCE_TOP_N = 60
 COARSE_E_GAMMA_TOP_N = COARSE_CONCURRENCE_TOP_N
@@ -135,6 +181,8 @@ OBSERVABLE_LATEX_LABELS = {
     "M_p": r"$M_p$",
     "M_gamma": r"$M_\gamma$",
     "F3": r"$F_3$",
+    "GHZ_purity": r"$P_{\rm GHZ+}$",
+    "W_purity": r"$P_W$",
 }
 OBSERVABLE_TEXT_LABELS = {
     name: label.replace("$", "")
@@ -150,14 +198,65 @@ HEATMAP_PLOT_STYLE = "grid"  # "grid" or "contour"
 HEATMAP_CONTOUR_LEVELS = 12
 
 
-def observable_latex_label(name):
+def observable_latex_label(name, lepton_name="electron"):
     """Return a LaTeX display label for an observable key."""
-    return OBSERVABLE_LATEX_LABELS.get(name, name)
+    label = OBSERVABLE_LATEX_LABELS.get(name, name)
+    # Braces terminate commands before adjacent labels: ``{\mu}p`` must not
+    # become the invalid math-text command ``\mup``.
+    symbol = {
+        "electron": "e",
+        "muon": r"{\mu}",
+        "aux": r"{\ell}",
+        "massless": r"{\ell_0}",
+    }[lepton_name]
+    return label if lepton_name == "electron" else label.replace("e", symbol)
 
 
-def observable_text_label(name):
+def observable_text_label(name, lepton_name="electron"):
     """Return a plain text report label using LaTeX-style subscripts."""
-    return OBSERVABLE_TEXT_LABELS.get(name, name)
+    label = OBSERVABLE_TEXT_LABELS.get(name, name)
+    symbol = {
+        "electron": "e",
+        "muon": "mu",
+        "aux": "l_aux",
+        "massless": "l_0",
+    }[lepton_name]
+    return label if lepton_name == "electron" else label.replace("e", symbol)
+
+
+def lepton_spec(name):
+    """Return validated immutable scan settings for one lepton species."""
+    try:
+        return dict(LEPTON_SPECS[name])
+    except KeyError as exc:
+        raise ValueError(
+            f"Unknown lepton {name!r}; choose from {tuple(LEPTON_SPECS)}."
+        ) from exc
+
+
+def lepton_name_from_mass(mass):
+    """Return the configured species whose mass matches ``mass``."""
+    for name, spec in LEPTON_SPECS.items():
+        if np.isclose(mass, spec["mass"], rtol=0.0, atol=1.0e-12):
+            return name
+    raise ValueError(f"No configured lepton species has mass {mass:.12g} GeV.")
+
+
+def lepton_output_paths(name):
+    """Return the independent output paths for one lepton species."""
+    spec = lepton_spec(name)
+    output_dir = spec["output_dir"]
+    concurrence_dir = output_dir / "ConcurrenceScan"
+    return {
+        **spec,
+        "concurrence_dir": concurrence_dir,
+        "concurrence_csv": concurrence_dir / f"{spec['file_stem']}_concurrence_phase_space.csv",
+    }
+
+
+def species_spin_label(label, lepton_name):
+    """Replace electron-specific display text for another lepton species."""
+    return label if lepton_name == "electron" else label.replace("electron", lepton_spec(lepton_name)["label"])
 
 
 def characteristic_kinematic_points():
@@ -197,12 +296,13 @@ def proton_phi_from_electron(phi_in_electron):
 from PlotUtils import require_matplotlib as _require_matplotlib
 
 
-def clean_alignment_outputs():
-    """Remove generated alignment-scan outputs before regenerating."""
-    if ALIGNMENT_OUTPUT_DIR.exists():
-        shutil.rmtree(ALIGNMENT_OUTPUT_DIR)
-    if ALIGNMENT_LOG_PATH.exists():
-        ALIGNMENT_LOG_PATH.unlink()
+def clean_alignment_outputs(lepton_name="electron"):
+    """Remove generated outputs for one species before regenerating it."""
+    paths = lepton_output_paths(lepton_name)
+    if paths["output_dir"].exists():
+        shutil.rmtree(paths["output_dir"])
+    if paths["log_path"].exists():
+        paths["log_path"].unlink()
 
 
 def spatial_opening_angle(a, b):
@@ -294,7 +394,11 @@ def _scan_alignment_point_task(task):
             "error": singular_reason,
         }
 
+    lepton_name = settings.get(
+        "lepton_name", lepton_name_from_mass(settings["electron_mass"])
+    )
     row = {
+        "lepton": lepton_name,
         "kinematic_point": anchor["kinematic_point"],
         "s_regime": anchor["s_regime"],
         "theta_in_regime": anchor["theta_in_regime"],
@@ -308,6 +412,7 @@ def _scan_alignment_point_task(task):
         "theta_in": float(kin["theta_in"]),
         "phi_in": float(kin["phi_in"]),
         "phi_in_electron": electron_phi_from_proton(kin["phi_in"]),
+        "phi_in_lepton": electron_phi_from_proton(kin["phi_in"]),
         "phiOut": float(kin["phiOut"]),
         "Q2": float(kin["Q2"]),
         "xB": float(kin["xB"]),
@@ -336,6 +441,18 @@ def _scan_alignment_point_task(task):
         row[f"{prefix}_h_lambda_connected"] = np.nan
         for name in COARSE_CONCURRENCE_NAMES:
             row[f"{prefix}_{name}"] = np.nan
+        for name in (
+            "GHZ_plus_fidelity", "GHZ_minus_fidelity", "GHZ_phase_fidelity",
+            "GHZ_subspace_population", "GHZ_coherence_abs",
+            "GHZ_coherence_phase_rad", "GHZ_coherence_visibility",
+        ):
+            row[f"{prefix}_{name}"] = np.nan
+        for name in (
+            "W_fidelity", "W_subspace_population", "W_subspace_max_fidelity",
+            "Wbar_fidelity", "Wbar_subspace_population",
+            "Wbar_subspace_max_fidelity",
+        ):
+            row[f"{prefix}_{name}"] = np.nan
 
     amplitudes = amplitude_table(
         momenta, kin["m"], F1, F2, electron_mass=settings["electron_mass"]
@@ -362,11 +479,39 @@ def _scan_alignment_point_task(task):
             f"{prefix}_h_lambda": corr["h_lambda"],
             f"{prefix}_h_lambda_connected": corr["h_lambda_connected"],
         })
-        for name in COARSE_CONCURRENCE_NAMES:
-            row[f"{prefix}_{name}"] = spin_data["entanglement"][name]
+        for name, value in spin_data["entanglement"].items():
+            row[f"{prefix}_{name}"] = value
+        ghz = ghz_observables_from_density_matrix(rho)
+        for name, value in ghz.items():
+            row[f"{prefix}_{name}"] = value
+        row[f"{prefix}_GHZ_purity"] = ghz["GHZ_plus_fidelity"]
+        w_observables = w_observables_from_density_matrix(rho)
+        for name, value in w_observables.items():
+            row[f"{prefix}_{name}"] = value
+        row[f"{prefix}_W_purity"] = w_observables["W_fidelity"]
 
     row["squared_amplitude_M2"] = squared_amplitude
     return {"ok": True, "row": row}
+
+
+def _safe_scan_alignment_point_task(task):
+    """Evaluate one point and preserve expected unphysical points as failures."""
+    anchor, phi_in_lepton, phi_out, _settings = task
+    try:
+        return _scan_alignment_point_task(task)
+    except (ValueError, ZeroDivisionError, FloatingPointError, np.linalg.LinAlgError) as exc:
+        phi_in_proton = proton_phi_from_electron(phi_in_lepton)
+        return {
+            "ok": False,
+            "kinematic_point": anchor["kinematic_point"],
+            "s": float(anchor["s"]),
+            "theta_in": float(anchor["theta_in"]),
+            "phi_in": float(phi_in_proton),
+            "phi_in_electron": float(phi_in_lepton),
+            "qOut": float(anchor["qOut"]),
+            "phiOut": float(phi_out),
+            "error": str(exc),
+        }
 
 
 def _optimal_chunksize(num_tasks, num_workers):
@@ -394,10 +539,13 @@ def scan_final_electron_photon_alignment(
     angle_max_rad=ALIGNMENT_ANGLE_MAX_RAD,
     m=M,
     electron_mass=ELECTRON_MASS_GEV,
+    lepton_name=None,
     normalize_trace=NORMALIZE_TRACE,
     max_workers=SCAN_WORKERS,
 ):
     """Scan two angular variables around characteristic user-frame kinematics."""
+    if lepton_name is None:
+        lepton_name = lepton_name_from_mass(electron_mass)
     rows = []
     failures = []
     if kinematic_points is None:
@@ -405,6 +553,7 @@ def scan_final_electron_photon_alignment(
     settings = {
         "m": m,
         "electron_mass": electron_mass,
+        "lepton_name": lepton_name,
         "normalize_trace": normalize_trace,
         "angle_max_rad": angle_max_rad,
     }
@@ -426,7 +575,7 @@ def scan_final_electron_photon_alignment(
         try:
             with ProcessPoolExecutor(max_workers=max_workers) as executor:
                 _map = executor.map(
-                    _scan_alignment_point_task,
+                    _safe_scan_alignment_point_task,
                     tasks,
                     chunksize=chunksize,
                 )
@@ -441,14 +590,14 @@ def scan_final_electron_photon_alignment(
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 results = list(
                     _progress_bar(
-                        executor.map(_scan_alignment_point_task, tasks),
+                        executor.map(_safe_scan_alignment_point_task, tasks),
                         total=len(tasks),
                         desc="Alignment scan (thread fallback)",
                     )
                 )
     else:
         results = [
-            _scan_alignment_point_task(task)
+            _safe_scan_alignment_point_task(task)
             for task in _progress_bar(tasks, total=len(tasks), desc="Alignment scan")
         ]
 
@@ -480,10 +629,27 @@ def scan_final_electron_photon_alignment(
         "phiOut_values": np.asarray(phiOut_values, dtype=float),
         "m": m,
         "electron_mass": electron_mass,
+        "lepton_name": lepton_name,
+        "lepton_label": lepton_spec(lepton_name)["label"],
         "form_factor_model": YAHL_MODEL_NAME,
         "normalized_to_unit_trace": normalize_trace,
         "spin_cases": ALIGNMENT_SPIN_CASES,
     }
+
+
+def scan_final_lepton_photon_alignment(lepton_name, **kwargs):
+    """Scan one configured lepton species using its physical mass."""
+    spec = lepton_spec(lepton_name)
+    if "electron_mass" in kwargs and not np.isclose(kwargs["electron_mass"], spec["mass"]):
+        raise ValueError(
+            f"{lepton_name} requires mass {spec['mass']:.12g} GeV, "
+            f"not {kwargs['electron_mass']:.12g} GeV."
+        )
+    kwargs["electron_mass"] = spec["mass"]
+    return scan_final_electron_photon_alignment(
+        lepton_name=lepton_name,
+        **kwargs,
+    )
 
 
 def _alignment_csv_headers():
@@ -498,6 +664,8 @@ def _alignment_csv_headers():
             f"{prefix}_spin_signal_M2",
             f"{prefix}_cross_section_ratio",
             f"{prefix}_purity",
+            f"{prefix}_GHZ_purity",
+            f"{prefix}_W_purity",
             f"{prefix}_h_out_mean",
             f"{prefix}_lambda_mean",
             f"{prefix}_h_lambda",
@@ -509,6 +677,7 @@ def _alignment_csv_headers():
 def _kinematic_csv_headers():
     """Return common user-frame and derived-invariant CSV headers."""
     return [
+        "lepton",
         "kinematic_point",
         "s_regime",
         "theta_in_regime",
@@ -522,6 +691,7 @@ def _kinematic_csv_headers():
         "theta_in",
         "phi_in",
         "phi_in_electron",
+        "phi_in_lepton",
         "phiOut",
         "Q2",
         "xB",
@@ -542,6 +712,7 @@ def _kinematic_csv_headers():
 def _kinematic_csv_row(row):
     """Return common formatted user-frame and invariant metadata."""
     return [
+        row["lepton"],
         row["kinematic_point"],
         row["s_regime"],
         row["theta_in_regime"],
@@ -555,6 +726,7 @@ def _kinematic_csv_row(row):
         f"{row['theta_in']:.16e}",
         f"{row['phi_in']:.16e}",
         f"{row['phi_in_electron']:.16e}",
+        f"{row['phi_in_lepton']:.16e}",
         f"{row['phiOut']:.16e}",
         f"{row['Q2']:.16e}",
         f"{row['xB']:.16e}",
@@ -584,6 +756,8 @@ def _alignment_csv_row(row):
             f"{row[f'{prefix}_spin_signal_M2']:.16e}",
             f"{row[f'{prefix}_cross_section_ratio']:.16e}",
             f"{row[f'{prefix}_purity']:.16e}",
+            f"{row[f'{prefix}_GHZ_purity']:.16e}",
+            f"{row[f'{prefix}_W_purity']:.16e}",
             f"{row[f'{prefix}_h_out_mean']:.16e}",
             f"{row[f'{prefix}_lambda_mean']:.16e}",
             f"{row[f'{prefix}_h_lambda']:.16e}",
@@ -592,12 +766,17 @@ def _alignment_csv_row(row):
     return values
 
 
-def save_alignment_scan_csv_files(alignment_scan, output_dir=ALIGNMENT_OUTPUT_DIR):
+def save_alignment_scan_csv_files(alignment_scan, output_dir=None):
     """Save full and aligned-only CSV files for the alignment phase-space scan."""
+    spec = lepton_output_paths(alignment_scan.get("lepton_name", "electron"))
+    if output_dir is None:
+        output_dir = spec["output_dir"]
+    output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    stem = spec["file_stem"]
     paths = {
-        "all_csv": output_dir / "electron_photon_spin_correlation_phase_space.csv",
-        "aligned_csv": output_dir / "electron_photon_spin_correlation_aligned.csv",
+        "all_csv": output_dir / f"{stem}_spin_correlation_phase_space.csv",
+        "aligned_csv": output_dir / f"{stem}_spin_correlation_aligned.csv",
     }
     headers = _alignment_csv_headers()
     aligned_rows = [row for row in alignment_scan["rows"] if row["aligned"]]
@@ -826,15 +1005,25 @@ def save_e_gamma_top_csv(rows, output_path, top_n=COARSE_E_GAMMA_TOP_N):
 
 def save_concurrence_scan_csv_files(
     alignment_scan,
-    output_dir=CONCURRENCE_OUTPUT_DIR,
+    output_dir=None,
 ):
     """Save full, aligned-only, and ranked coarse concurrence locator CSV files."""
+    spec = lepton_output_paths(alignment_scan.get("lepton_name", "electron"))
+    if output_dir is None:
+        output_dir = spec["concurrence_dir"]
+    output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    stem = spec["file_stem"]
+    lepton_gamma_stem = (
+        "e_gamma"
+        if alignment_scan.get("lepton_name", "electron") == "electron"
+        else "lepton_gamma"
+    )
     paths = {
-        "all_csv": output_dir / CONCURRENCE_PHASE_SPACE_CSV.name,
-        "aligned_csv": output_dir / "electron_photon_concurrence_aligned.csv",
-        "top_concurrence_csv": output_dir / "electron_photon_concurrence_top.csv",
-        "top_e_gamma_csv": output_dir / "electron_photon_e_gamma_top.csv",
+        "all_csv": output_dir / f"{stem}_concurrence_phase_space.csv",
+        "aligned_csv": output_dir / f"{stem}_concurrence_aligned.csv",
+        "top_concurrence_csv": output_dir / f"{stem}_concurrence_top.csv",
+        "top_e_gamma_csv": output_dir / f"{stem}_{lepton_gamma_stem}_top.csv",
     }
     headers = _concurrence_csv_headers()
     aligned_rows = [row for row in alignment_scan["rows"] if row["aligned"]]
@@ -867,8 +1056,8 @@ def load_concurrence_scan_csv(csv_path=CONCURRENCE_PHASE_SPACE_CSV):
     """Load saved concurrence scan rows for plot regeneration."""
     csv_path = Path(csv_path)
     rows = []
-    missing_observable_columns = set()
     string_columns = {
+        "lepton",
         "kinematic_point",
         "s_regime",
         "theta_in_regime",
@@ -877,11 +1066,17 @@ def load_concurrence_scan_csv(csv_path=CONCURRENCE_PHASE_SPACE_CSV):
     with csv_path.open("r", newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         fieldnames = set(reader.fieldnames or [])
+        missing_columns = set(_concurrence_csv_headers()) - fieldnames
+        if missing_columns:
+            raise ValueError(
+                f"{csv_path} is missing required columns: "
+                + ", ".join(sorted(missing_columns))
+            )
         for raw in reader:
             row = {}
             for key in _kinematic_csv_headers():
                 if key in string_columns:
-                    row[key] = raw.get(key, "")
+                    row[key] = raw[key]
                 else:
                     row[key] = _csv_float(raw, key)
             row["aligned"] = _csv_bool(raw, "aligned")
@@ -893,10 +1088,11 @@ def load_concurrence_scan_csv(csv_path=CONCURRENCE_PHASE_SPACE_CSV):
                 row[f"{prefix}_purity"] = _csv_float(raw, f"{prefix}_purity")
                 for name in COARSE_CONCURRENCE_NAMES:
                     key = f"{prefix}_{name}"
-                    if key not in fieldnames:
-                        missing_observable_columns.add(key)
                     row[key] = _csv_float(raw, key)
             rows.append(row)
+
+    if not rows:
+        raise ValueError(f"{csv_path} contains no scan rows")
 
     kinematic_points = []
     seen_points = set()
@@ -932,9 +1128,10 @@ def load_concurrence_scan_csv(csv_path=CONCURRENCE_PHASE_SPACE_CSV):
         "form_factor_model": YAHL_MODEL_NAME,
         "normalized_to_unit_trace": NORMALIZE_TRACE,
         "spin_cases": ALIGNMENT_SPIN_CASES,
-        "electron_mass": ELECTRON_MASS_GEV,
+        "electron_mass": rows[0]["electron_mass"],
+        "lepton_name": rows[0]["lepton"],
+        "lepton_label": lepton_spec(rows[0]["lepton"])["label"],
         "source_csv": csv_path,
-        "missing_observable_columns": sorted(missing_observable_columns),
     }
 
 
@@ -943,13 +1140,18 @@ def save_concurrence_scan_plot(
     prefix,
     title_prefix,
     output_path=None,
+    output_dir=None,
     plot_style=HEATMAP_PLOT_STYLE,
 ):
     """Save binned concurrence heatmaps for one alignment spin case."""
     plot_style = _heatmap_style(plot_style)
     plt, PdfPages = _require_matplotlib()
     if output_path is None:
-        output_path = CONCURRENCE_OUTPUT_DIR / f"concurrence_scan_{prefix}.pdf"
+        if output_dir is None:
+            output_dir = lepton_output_paths(
+                alignment_scan.get("lepton_name", "electron")
+            )["concurrence_dir"]
+        output_path = Path(output_dir) / f"concurrence_scan_{prefix}.pdf"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     rows = alignment_scan["rows"]
@@ -986,7 +1188,9 @@ def save_concurrence_scan_plot(
                 fig.subplots_adjust(wspace=0.01, hspace=0.0, top=subplot_top)
                 axes_flat = np.atleast_1d(axes).ravel()
                 anchor_meshes = []
-                label = observable_latex_label(name)
+                label = observable_latex_label(
+                    name, alignment_scan.get("lepton_name", "electron")
+                )
                 for index, anchor in enumerate(anchors):
                     ax = axes_flat[index]
                     point_rows = [
@@ -1061,13 +1265,18 @@ def save_concurrence_scan_plot(
     return output_path
 
 
-def save_concurrence_scan_plots(alignment_scan, plot_style=HEATMAP_PLOT_STYLE):
+def save_concurrence_scan_plots(
+    alignment_scan,
+    plot_style=HEATMAP_PLOT_STYLE,
+    output_dir=None,
+):
     """Save selected concurrence scan PDFs for all alignment spin cases."""
     return {
         prefix: save_concurrence_scan_plot(
             alignment_scan,
             prefix,
-            label,
+            species_spin_label(label, alignment_scan.get("lepton_name", "electron")),
+            output_dir=output_dir,
             plot_style=plot_style,
         )
         for prefix, label, _spin_case in ALIGNMENT_SPIN_CASES
@@ -1089,24 +1298,31 @@ def concurrence_summary_line(row, key, display_key=None):
 
 
 def build_alignment_report(alignment_scan, alignment_paths):
-    """Build a text report for the final electron-photon alignment scan."""
+    """Build a text report for one final lepton-photon alignment scan."""
     rows = alignment_scan["rows"]
+    lepton_name = alignment_scan.get("lepton_name", "electron")
+    lepton_label = alignment_scan.get("lepton_label", lepton_name)
     aligned_rows = [row for row in rows if row["aligned"]]
-    locator_label = "/".join(observable_text_label(name) for name in COARSE_CONCURRENCE_NAMES)
+    locator_label = "/".join(
+        observable_text_label(name, lepton_name)
+        for name in COARSE_CONCURRENCE_NAMES
+    )
     lines = [
-        f"{locator_label}-focused user-frame phase-space scan",
+        f"{lepton_label}-photon {locator_label}-focused user-frame phase-space scan",
         "  anchor variables: s, theta_in, qOut",
-        "  scanned variables per anchor: phi_in_electron, phi_gamma",
+        "  scanned variables per anchor: phi_in_lepton, phi_gamma",
         "  locator observables: "
-        f"{', '.join(observable_text_label(name) for name in COARSE_CONCURRENCE_NAMES)}",
+        f"{', '.join(observable_text_label(name, lepton_name) for name in COARSE_CONCURRENCE_NAMES)}",
+        "  GHZ purity: <GHZ+|rho|GHZ+>, GHZ+=(|---〉+|+++〉)/sqrt(2)",
+        "  W purity: <W|rho|W>, W=(|+--〉+|-+-〉+|--+〉)/sqrt(3)",
         f"  angle cut: theta(e', gamma) <= {alignment_scan['angle_max_deg']:.6g} deg",
         f"  characteristic kinematic anchors: {len(alignment_scan['kinematic_points'])}",
         f"  s anchor range: {min(alignment_scan['s_values']):.6g} to {max(alignment_scan['s_values']):.6g}",
         f"  theta_in anchor range: {min(alignment_scan['theta_in_values']):.6g} to {max(alignment_scan['theta_in_values']):.6g}",
         f"  qOut/Egamma anchor range: {min(alignment_scan['qOut_values']):.6g} to {max(alignment_scan['qOut_values']):.6g}",
         f"  form factor model: {alignment_scan['form_factor_model']} with F1(t), F2(t)",
-        f"  electron mass: {alignment_scan['electron_mass']:.12g} GeV",
-        f"  phi_e_in scan: {len(alignment_scan['phi_in_electron_values'])} values from "
+        f"  {lepton_label} mass: {alignment_scan['electron_mass']:.12g} GeV",
+        f"  phi_lepton_in scan: {len(alignment_scan['phi_in_electron_values'])} values from "
         f"{alignment_scan['phi_in_electron_values'][0]:.6g} to {alignment_scan['phi_in_electron_values'][-1]:.6g}",
         f"  phi_gamma scan: {len(alignment_scan['phiOut_values'])} values from "
         f"{alignment_scan['phiOut_values'][0]:.6g} to {alignment_scan['phiOut_values'][-1]:.6g}",
@@ -1118,6 +1334,7 @@ def build_alignment_report(alignment_scan, alignment_paths):
     ]
     lines.append("  initial-spin ensemble conventions:")
     for prefix, label, spin_case in ALIGNMENT_SPIN_CASES:
+        label = species_spin_label(label, lepton_name)
         lines.append(
             f"    {label} ({prefix}): {spin_averaging_description(spin_case)}; "
             f"density divisor={initial_spin_average_divisor(spin_case):.0f}; "
@@ -1130,9 +1347,10 @@ def build_alignment_report(alignment_scan, alignment_paths):
         lines.append("")
         lines.append(f"Top {locator_label} locator points:")
         for observable in COARSE_CONCURRENCE_NAMES:
-            observable_label = observable_text_label(observable)
+            observable_label = observable_text_label(observable, lepton_name)
             lines.append(f"  {observable_label}:")
             for prefix, label, _spin_case in ALIGNMENT_SPIN_CASES:
+                label = species_spin_label(label, lepton_name)
                 key = f"{prefix}_{observable}"
                 finite_rows = [row for row in rows if np.isfinite(row.get(key, np.nan))]
                 if finite_rows:
@@ -1159,10 +1377,11 @@ def build_alignment_report(alignment_scan, alignment_paths):
         f"{alignment_paths['concurrence_csv']['aligned_csv']}",
         "  saved ranked concurrence csv: "
         f"{alignment_paths['concurrence_csv']['top_concurrence_csv']}",
-        "  saved ranked electron-photon csv: "
+        "  saved ranked lepton-photon csv: "
         f"{alignment_paths['concurrence_csv']['top_e_gamma_csv']}",
     ])
     for prefix, label, _spin_case in ALIGNMENT_SPIN_CASES:
+        label = species_spin_label(label, lepton_name)
         lines.append(
             f"  saved {label.lower()} concurrence plot: "
             f"{alignment_paths['concurrence_plots'][prefix]}"
@@ -1172,7 +1391,7 @@ def build_alignment_report(alignment_scan, alignment_paths):
         for point_id, s, theta_in, phi_in, phi_in_electron, qOut, phiOut, message in alignment_scan["failures"][:10]:
             lines.append(
                 f"    point={point_id}, s={s:.8g}, theta_in={theta_in:.8g}, "
-                f"phi_e_in={phi_in_electron:.8g}, phi_p_in={phi_in:.8g}, "
+                f"phi_lepton_in={phi_in_electron:.8g}, phi_p_in={phi_in:.8g}, "
                 f"qOut={qOut:.8g}, phiOut={phiOut:.8g}: {message}"
             )
     return "\n".join(lines)
@@ -1181,17 +1400,42 @@ def build_alignment_report(alignment_scan, alignment_paths):
 def regenerate_concurrence_plots_from_csv(
     csv_path=CONCURRENCE_PHASE_SPACE_CSV,
     plot_style=HEATMAP_PLOT_STYLE,
+    output_dir=None,
 ):
     """Regenerate concurrence plot PDFs from a saved concurrence scan CSV."""
     alignment_scan = load_concurrence_scan_csv(csv_path)
-    plots = save_concurrence_scan_plots(alignment_scan, plot_style=plot_style)
+    plots = save_concurrence_scan_plots(
+        alignment_scan,
+        plot_style=plot_style,
+        output_dir=output_dir,
+    )
     return alignment_scan, plots
 
 
-def main():
-    """Regenerate final electron-photon alignment scan outputs."""
+def _validate_script_settings():
+    """Validate the explicit controls at the top of this script."""
+    unknown = set(SCAN_LEPTONS) - set(LEPTON_SPECS)
+    if unknown:
+        raise ValueError(
+            f"Unknown SCAN_LEPTONS entries: {sorted(unknown)}; "
+            f"choose from {tuple(LEPTON_SPECS)}."
+        )
+    if not SCAN_LEPTONS:
+        raise ValueError("SCAN_LEPTONS must contain at least one species.")
+    if PHI_IN_POINT_COUNT < 1 or PHI_OUT_POINT_COUNT < 1:
+        raise ValueError("Angular point counts must be positive.")
+    if ALIGNMENT_SCAN_WORKERS < 1:
+        raise ValueError("ALIGNMENT_SCAN_WORKERS must be positive.")
+
+
+def _run_species(lepton_name):
+    """Run or reload one species and write its independent output tree."""
+    species_paths = lepton_output_paths(lepton_name)
     if REGENERATE_PLOTS_FROM_CSV:
-        alignment_scan, plots = regenerate_concurrence_plots_from_csv(REGENERATE_PLOTS_CSV_PATH)
+        alignment_scan, plots = regenerate_concurrence_plots_from_csv(
+            species_paths["concurrence_csv"],
+            output_dir=species_paths["concurrence_dir"],
+        )
         lines = [
             "Regenerated concurrence plots from saved CSV without recalculating amplitudes.",
             f"  source csv: {alignment_scan['source_csv']}",
@@ -1202,26 +1446,37 @@ def main():
             f"  rows loaded: {len(alignment_scan['rows'])}",
             f"  characteristic kinematic anchors: {len(alignment_scan['kinematic_points'])}",
         ]
-        if alignment_scan["missing_observable_columns"]:
-            lines.extend([
-                "  missing observable columns in source csv; affected plots use NaN values:",
-                "    " + ", ".join(alignment_scan["missing_observable_columns"]),
-            ])
         for prefix, plot_path in plots.items():
             lines.append(f"  saved {prefix} plot: {plot_path}")
-        print("\n".join(lines))
-        return
+        return "\n".join(lines)
 
-    clean_alignment_outputs()
-    alignment_scan = scan_final_electron_photon_alignment()
+    clean_alignment_outputs(lepton_name)
+    alignment_scan = scan_final_lepton_photon_alignment(
+        lepton_name,
+        phi_in_electron_values=np.linspace(
+            0.0, 2.0 * np.pi, PHI_IN_POINT_COUNT, endpoint=False
+        ),
+        phiOut_values=np.linspace(
+            0.0, 2.0 * np.pi, PHI_OUT_POINT_COUNT, endpoint=False
+        ),
+        max_workers=ALIGNMENT_SCAN_WORKERS,
+    )
     paths = save_alignment_scan_csv_files(alignment_scan)
     paths["concurrence_csv"] = save_concurrence_scan_csv_files(alignment_scan)
     paths["concurrence_plots"] = save_concurrence_scan_plots(alignment_scan)
 
-    log_text = build_alignment_report(alignment_scan, paths) + f"\n\nSaved log: {ALIGNMENT_LOG_PATH}\n"
-    ALIGNMENT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    ALIGNMENT_LOG_PATH.write_text(log_text, encoding="utf-8")
-    print(log_text, end="")
+    log_path = species_paths["log_path"]
+    log_text = build_alignment_report(alignment_scan, paths) + f"\n\nSaved log: {log_path}\n"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text(log_text, encoding="utf-8")
+    return log_text
+
+
+def main():
+    """Regenerate the alignment scans selected in ``SCAN_LEPTONS``."""
+    _validate_script_settings()
+    reports = [_run_species(name) for name in SCAN_LEPTONS]
+    print("\n\n".join(report.rstrip() for report in reports))
 
 
 if __name__ == "__main__":

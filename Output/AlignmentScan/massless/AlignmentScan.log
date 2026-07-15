@@ -1,0 +1,368 @@
+massless lepton-photon C_{l_0p}/C_{l_0\gamma}/C_{p\gamma}/C_{l_0|p\gamma}/C_{p|l_0\gamma}/C_{\gamma|l_0p}/M_l_0/M_p/M_\gamma/F_3/P_{\rm GHZ+}/P_W-focused user-frame phase-space scan
+  anchor variables: s, theta_in, qOut
+  scanned variables per anchor: phi_in_lepton, phi_gamma
+  locator observables: C_{l_0p}, C_{l_0\gamma}, C_{p\gamma}, C_{l_0|p\gamma}, C_{p|l_0\gamma}, C_{\gamma|l_0p}, M_l_0, M_p, M_\gamma, F_3, P_{\rm GHZ+}, P_W
+  GHZ purity: <GHZ+|rho|GHZ+>, GHZ+=(|---〉+|+++〉)/sqrt(2)
+  W purity: <W|rho|W>, W=(|+--〉+|-+-〉+|--+〉)/sqrt(3)
+  angle cut: theta(e', gamma) <= 10 deg
+  characteristic kinematic anchors: 3
+  s anchor range: 21.5158 to 21.5158
+  theta_in anchor range: 1.57079 to 1.57079
+  qOut/Egamma anchor range: 0.25 to 1.8
+  form factor model: YAHL 2018 proton lookup with F1(t), F2(t)
+  massless lepton mass: 0 GeV
+  phi_lepton_in scan: 64 values from 0 to 6.18501
+  phi_gamma scan: 64 values from 0 to 6.18501
+  heatmap x coordinate: phi_p_in
+  heatmap guide lines: phi_p_in=pi/2 and phi_gamma=pi/2
+  heatmap color scales: 0..1 for nonnegative observables, -1..1 for signed observables
+  valid points: 12096
+  aligned points: 128
+  initial-spin ensemble conventions:
+    Unpolarized (unpolarized): direct prepared state; 4 incoherent component(s); density divisor=4; entanglement mode=prepared_state_ensemble_unpolarized
+    L proton (L_proton): direct prepared state; 2 incoherent component(s); density divisor=2; entanglement mode=prepared_state_ensemble_L_proton
+    L massless lepton (L_electron): direct prepared state; 2 incoherent component(s); density divisor=2; entanglement mode=prepared_state_ensemble_L_electron
+    Tx proton (Tx_proton): direct prepared state; 2 incoherent component(s); density divisor=2; entanglement mode=prepared_state_ensemble_Tx_proton
+    Ty proton (Ty_proton): direct prepared state; 2 incoherent component(s); density divisor=2; entanglement mode=prepared_state_ensemble_Ty_proton
+    Tx massless lepton (Tx_electron): direct prepared state; 2 incoherent component(s); density divisor=2; entanglement mode=prepared_state_ensemble_Tx_electron
+    Ty massless lepton (Ty_electron): direct prepared state; 2 incoherent component(s); density divisor=2; entanglement mode=prepared_state_ensemble_Ty_electron
+    L massless lepton + L proton (LL): direct prepared state; 1 incoherent component(s); density divisor=1; entanglement mode=prepared_state_ensemble_LL
+    L massless lepton + Tx proton (LTx): direct prepared state; 1 incoherent component(s); density divisor=1; entanglement mode=prepared_state_ensemble_LTx
+    L massless lepton + Ty proton (LTy): direct prepared state; 1 incoherent component(s); density divisor=1; entanglement mode=prepared_state_ensemble_LTy
+    Tx massless lepton + Tx proton (TxTx): direct prepared state; 1 incoherent component(s); density divisor=1; entanglement mode=prepared_state_ensemble_TxTx
+    Tx massless lepton + Ty proton (TxTy): direct prepared state; 1 incoherent component(s); density divisor=1; entanglement mode=prepared_state_ensemble_TxTy
+  theta range: 6.33588 to 180 deg
+
+Top C_{l_0p}/C_{l_0\gamma}/C_{p\gamma}/C_{l_0|p\gamma}/C_{p|l_0\gamma}/C_{\gamma|l_0p}/M_l_0/M_p/M_\gamma/F_3/P_{\rm GHZ+}/P_W locator points:
+  C_{l_0p}:
+    Unpolarized:
+    unpolarized_C_{l_0p}=1.13575815419e-13, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.690183, xB=0.99463039, t=-17.477223, theta(e',gamma)=180 deg
+    L proton:
+    L_proton_C_{l_0p}=5.14129017137e-12, s=21.515844, theta_in=1.570795, phi_e_in=3.5342917, phi_p_in=0.39269908, qOut=1, phiOut=3.5342917, Q2=8.8141143, xB=0.62384413, t=-4.8516775, theta(e',gamma)=101.51463 deg
+    L massless lepton:
+    L_electron_C_{l_0p}=3.07555270024e-12, s=21.515844, theta_in=1.570795, phi_e_in=2.4543693, phi_p_in=5.5959619, qOut=1.8, phiOut=2.4543693, Q2=16.807187, xB=0.84435039, t=-3.2068018, theta(e',gamma)=176.76909 deg
+    Tx proton:
+    Tx_proton_C_{l_0p}=2.74751332796e-11, s=21.515844, theta_in=1.570795, phi_e_in=0.19634954, phi_p_in=3.3379422, qOut=0.25, phiOut=0.19634954, Q2=12.350574, xB=0.92988955, t=-10.962505, theta(e',gamma)=107.87892 deg
+    Ty proton:
+    Ty_proton_C_{l_0p}=3.69213548623e-11, s=21.515844, theta_in=1.570795, phi_e_in=1.4726216, phi_p_in=4.6142142, qOut=1, phiOut=1.4726216, Q2=19.129214, xB=0.96580005, t=-10.529563, theta(e',gamma)=176.98628 deg
+    Tx massless lepton:
+    Tx_electron_C_{l_0p}=8.02548132117e-14, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=8.6655724e-12, xB=8.1520412e-11, t=-0.01145834, theta(e',gamma)=180 deg
+    Ty massless lepton:
+    Ty_electron_C_{l_0p}=6.99006824645e-14, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=8.6655724e-12, xB=8.1520412e-11, t=-0.01145834, theta(e',gamma)=180 deg
+    L massless lepton + L proton:
+    LL_C_{l_0p}=2.81917007635e-11, s=21.515844, theta_in=1.570795, phi_e_in=3.3379422, phi_p_in=0.19634954, qOut=0.25, phiOut=3.3379422, Q2=8.5224103, xB=0.86225665, t=-7.5645854, theta(e',gamma)=85.527577 deg
+    L massless lepton + Tx proton:
+    LTx_C_{l_0p}=1.90489965116e-10, s=21.515844, theta_in=1.570795, phi_e_in=1.7671459, phi_p_in=4.9087385, qOut=0.25, phiOut=1.7671459, Q2=19.523165, xB=0.99363452, t=-17.328977, theta(e',gamma)=170.01403 deg
+    L massless lepton + Ty proton:
+    LTy_C_{l_0p}=1.91032551512e-10, s=21.515844, theta_in=1.570795, phi_e_in=1.1780972, phi_p_in=4.3196899, qOut=1, phiOut=1.1780972, Q2=18.777267, xB=0.9573951, t=-10.335836, theta(e',gamma)=167.82886 deg
+    Tx massless lepton + Tx proton:
+    TxTx_C_{l_0p}=0.992934946344, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.690183, xB=0.99463039, t=-17.477223, theta(e',gamma)=180 deg
+    Tx massless lepton + Ty proton:
+    TxTy_C_{l_0p}=0.992938619902, s=21.515844, theta_in=1.570795, phi_e_in=1.4726216, phi_p_in=4.6142142, qOut=0.25, phiOut=0.78539816, Q2=19.409786, xB=0.9799475, t=-17.740167, theta(e',gamma)=139.64781 deg
+  C_{l_0\gamma}:
+    Unpolarized:
+    unpolarized_C_{l_0\gamma}=3.4797317805e-11, s=21.515844, theta_in=1.570795, phi_e_in=4.1233404, phi_p_in=0.9817477, qOut=0.25, phiOut=4.1233404, Q2=1.8584088, xB=0.46825425, t=-1.6495442, theta(e',gamma)=37.738312 deg
+    L proton:
+    L_proton_C_{l_0\gamma}=5.69157508702e-11, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.690183, xB=0.99463039, t=-17.477223, theta(e',gamma)=180 deg
+    L massless lepton:
+    L_electron_C_{l_0\gamma}=2.50249670549e-10, s=21.515844, theta_in=1.570795, phi_e_in=4.0251656, phi_p_in=0.88357293, qOut=0.25, phiOut=4.0251656, Q2=2.4935738, xB=0.55014418, t=-2.2133236, theta(e',gamma)=43.912763 deg
+    Tx proton:
+    Tx_proton_C_{l_0\gamma}=2.70374278522e-11, s=21.515844, theta_in=1.570795, phi_e_in=1.8653206, phi_p_in=5.0069133, qOut=1, phiOut=1.8653206, Q2=18.942176, xB=0.96135392, t=-10.426609, theta(e',gamma)=170.91248 deg
+    Ty proton:
+    Ty_proton_C_{l_0\gamma}=3.55262763652e-11, s=21.515844, theta_in=1.570795, phi_e_in=4.1233404, phi_p_in=0.9817477, qOut=0.25, phiOut=4.1233404, Q2=1.8584088, xB=0.46825425, t=-1.6495442, theta(e',gamma)=37.738312 deg
+    Tx massless lepton:
+    Tx_electron_C_{l_0\gamma}=0.930567229074, s=21.515844, theta_in=1.570795, phi_e_in=4.4178647, phi_p_in=1.276272, qOut=1.8, phiOut=4.6142142, Q2=0.46816546, xB=0.027593512, t=-0.42171225, theta(e',gamma)=28.926845 deg
+    Ty massless lepton:
+    Ty_electron_C_{l_0\gamma}=0.930567228142, s=21.515844, theta_in=1.570795, phi_e_in=4.4178647, phi_p_in=1.276272, qOut=1.8, phiOut=4.6142142, Q2=0.46816546, xB=0.027593512, t=-0.42171225, theta(e',gamma)=28.926845 deg
+    L massless lepton + L proton:
+    LL_C_{l_0\gamma}=2.14995338533e-10, s=21.515844, theta_in=1.570795, phi_e_in=4.0251656, phi_p_in=0.88357293, qOut=0.25, phiOut=4.0251656, Q2=2.4935738, xB=0.55014418, t=-2.2133236, theta(e',gamma)=43.912763 deg
+    L massless lepton + Tx proton:
+    LTx_C_{l_0\gamma}=2.33030412119e-10, s=21.515844, theta_in=1.570795, phi_e_in=4.0251656, phi_p_in=0.88357293, qOut=0.25, phiOut=4.0251656, Q2=2.4935738, xB=0.55014418, t=-2.2133236, theta(e',gamma)=43.912763 deg
+    L massless lepton + Ty proton:
+    LTy_C_{l_0\gamma}=2.65240480584e-10, s=21.515844, theta_in=1.570795, phi_e_in=4.0251656, phi_p_in=0.88357293, qOut=0.25, phiOut=4.0251656, Q2=2.4935738, xB=0.55014418, t=-2.2133236, theta(e',gamma)=43.912763 deg
+    Tx massless lepton + Tx proton:
+    TxTx_C_{l_0\gamma}=0.93056726776, s=21.515844, theta_in=1.570795, phi_e_in=5.0069133, phi_p_in=1.8653206, qOut=1.8, phiOut=4.8105638, Q2=0.46816546, xB=0.027593512, t=-0.42171225, theta(e',gamma)=28.926845 deg
+    Tx massless lepton + Ty proton:
+    TxTy_C_{l_0\gamma}=0.930567585203, s=21.515844, theta_in=1.570795, phi_e_in=4.4178647, phi_p_in=1.276272, qOut=1.8, phiOut=4.6142142, Q2=0.46816546, xB=0.027593512, t=-0.42171225, theta(e',gamma)=28.926845 deg
+  C_{p\gamma}:
+    Unpolarized:
+    unpolarized_C_{p\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    L proton:
+    L_proton_C_{p\gamma}=0.681034412175, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.8105638, Q2=0.16184638, xB=0.00971456, t=-8.3794805e-05, theta(e',gamma)=28.926845 deg
+    L massless lepton:
+    L_electron_C_{p\gamma}=0.680828557006, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.8105638, Q2=0.16184638, xB=0.00971456, t=-8.3794805e-05, theta(e',gamma)=28.926845 deg
+    Tx proton:
+    Tx_proton_C_{p\gamma}=0.999986664233, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=8.6655724e-12, xB=8.1520412e-11, t=-0.01145834, theta(e',gamma)=180 deg
+    Ty proton:
+    Ty_proton_C_{p\gamma}=0.99998665476, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=8.6655724e-12, xB=8.1520412e-11, t=-0.01145834, theta(e',gamma)=180 deg
+    Tx massless lepton:
+    Tx_electron_C_{p\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    Ty massless lepton:
+    Ty_electron_C_{p\gamma}=3.83804099613e-13, s=21.515844, theta_in=1.570795, phi_e_in=1.4726216, phi_p_in=4.6142142, qOut=1.8, phiOut=1.4726216, Q2=16.866431, xB=0.84684575, t=-3.2181055, theta(e',gamma)=179.71544 deg
+    L massless lepton + L proton:
+    LL_C_{p\gamma}=0.986759519239, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.9087385, Q2=0.068645974, xB=0.0074683368, t=-4.9451546e-05, theta(e',gamma)=20.294457 deg
+    L massless lepton + Tx proton:
+    LTx_C_{p\gamma}=0.99998665681, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=8.6655724e-12, xB=8.1520412e-11, t=-0.01145834, theta(e',gamma)=180 deg
+    L massless lepton + Ty proton:
+    LTy_C_{p\gamma}=0.999985943815, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=8.6655724e-12, xB=8.1520412e-11, t=-0.01145834, theta(e',gamma)=180 deg
+    Tx massless lepton + Tx proton:
+    TxTx_C_{p\gamma}=0.999986664238, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=8.6655724e-12, xB=8.1520412e-11, t=-0.01145834, theta(e',gamma)=180 deg
+    Tx massless lepton + Ty proton:
+    TxTy_C_{p\gamma}=0.99998665476, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=8.6655724e-12, xB=8.1520412e-11, t=-0.01145834, theta(e',gamma)=180 deg
+  C_{l_0|p\gamma}:
+    Unpolarized:
+    unpolarized_C_{l_0|p\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    L proton:
+    L_proton_C_{l_0|p\gamma}=3.00988702129e-07, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.690183, xB=0.99463039, t=-17.477223, theta(e',gamma)=180 deg
+    L massless lepton:
+    L_electron_C_{l_0|p\gamma}=4.14213391621e-05, s=21.515844, theta_in=1.570795, phi_e_in=1.4726216, phi_p_in=4.6142142, qOut=1.8, phiOut=1.4726216, Q2=16.866431, xB=0.84684575, t=-3.2181055, theta(e',gamma)=179.71544 deg
+    Tx proton:
+    Tx_proton_C_{l_0|p\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    Ty proton:
+    Ty_proton_C_{l_0|p\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    Tx massless lepton:
+    Tx_electron_C_{l_0|p\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    Ty massless lepton:
+    Ty_electron_C_{l_0|p\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    L massless lepton + L proton:
+    LL_C_{l_0|p\gamma}=3.33200093731e-08, s=21.515844, theta_in=1.570795, phi_e_in=0.58904862, phi_p_in=3.7306413, qOut=0.25, phiOut=4.8105638, Q2=13.758676, xB=0.85607013, t=-15.389145, theta(e',gamma)=6.3358759 deg
+    L massless lepton + Tx proton:
+    LTx_C_{l_0|p\gamma}=3.33200093731e-08, s=21.515844, theta_in=1.570795, phi_e_in=1.1780972, phi_p_in=4.3196899, qOut=0.25, phiOut=1.8653206, Q2=18.773451, xB=0.99215592, t=-16.855076, theta(e',gamma)=165.00814 deg
+    L massless lepton + Ty proton:
+    LTy_C_{l_0|p\gamma}=3.65002414999e-08, s=21.515844, theta_in=1.570795, phi_e_in=1.6689711, phi_p_in=4.8105638, qOut=0.25, phiOut=4.9087385, Q2=17.524497, xB=0.88419546, t=-19.719512, theta(e',gamma)=12.663623 deg
+    Tx massless lepton + Tx proton:
+    TxTx_C_{l_0|p\gamma}=1, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.690183, xB=0.99463039, t=-17.477223, theta(e',gamma)=180 deg
+    Tx massless lepton + Ty proton:
+    TxTy_C_{l_0|p\gamma}=1, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=1.5707963, Q2=16.866895, xB=0.84686531, t=-3.2181942, theta(e',gamma)=180 deg
+  C_{p|l_0\gamma}:
+    Unpolarized:
+    unpolarized_C_{p|l_0\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    L proton:
+    L_proton_C_{p|l_0\gamma}=3.00988702129e-07, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.690183, xB=0.99463039, t=-17.477223, theta(e',gamma)=180 deg
+    L massless lepton:
+    L_electron_C_{p|l_0\gamma}=1.5769906706e-07, s=21.515844, theta_in=1.570795, phi_e_in=1.4726216, phi_p_in=4.6142142, qOut=1.8, phiOut=1.4726216, Q2=16.866431, xB=0.84684575, t=-3.2181055, theta(e',gamma)=179.71544 deg
+    Tx proton:
+    Tx_proton_C_{p|l_0\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    Ty proton:
+    Ty_proton_C_{p|l_0\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    Tx massless lepton:
+    Tx_electron_C_{p|l_0\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    Ty massless lepton:
+    Ty_electron_C_{p|l_0\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    L massless lepton + L proton:
+    LL_C_{p|l_0\gamma}=0.986759519311, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.9087385, Q2=0.068645974, xB=0.0074683368, t=-4.9451546e-05, theta(e',gamma)=20.294457 deg
+    L massless lepton + Tx proton:
+    LTx_C_{p|l_0\gamma}=0.999986664238, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=8.6655724e-12, xB=8.1520412e-11, t=-0.01145834, theta(e',gamma)=180 deg
+    L massless lepton + Ty proton:
+    LTy_C_{p|l_0\gamma}=0.999985943817, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=8.6655724e-12, xB=8.1520412e-11, t=-0.01145834, theta(e',gamma)=180 deg
+    Tx massless lepton + Tx proton:
+    TxTx_C_{p|l_0\gamma}=1, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.690183, xB=0.99463039, t=-17.477223, theta(e',gamma)=180 deg
+    Tx massless lepton + Ty proton:
+    TxTy_C_{p|l_0\gamma}=1, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=1.5707963, Q2=16.866895, xB=0.84686531, t=-3.2181942, theta(e',gamma)=180 deg
+  C_{\gamma|l_0p}:
+    Unpolarized:
+    unpolarized_C_{\gamma|l_0p}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    L proton:
+    L_proton_C_{\gamma|l_0p}=3.00988702129e-07, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.690183, xB=0.99463039, t=-17.477223, theta(e',gamma)=180 deg
+    L massless lepton:
+    L_electron_C_{\gamma|l_0p}=4.14213364818e-05, s=21.515844, theta_in=1.570795, phi_e_in=1.4726216, phi_p_in=4.6142142, qOut=1.8, phiOut=1.4726216, Q2=16.866431, xB=0.84684575, t=-3.2181055, theta(e',gamma)=179.71544 deg
+    Tx proton:
+    Tx_proton_C_{\gamma|l_0p}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    Ty proton:
+    Ty_proton_C_{\gamma|l_0p}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    Tx massless lepton:
+    Tx_electron_C_{\gamma|l_0p}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    Ty massless lepton:
+    Ty_electron_C_{\gamma|l_0p}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    L massless lepton + L proton:
+    LL_C_{\gamma|l_0p}=0.986759519311, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.9087385, Q2=0.068645974, xB=0.0074683368, t=-4.9451546e-05, theta(e',gamma)=20.294457 deg
+    L massless lepton + Tx proton:
+    LTx_C_{\gamma|l_0p}=0.999986664238, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=8.6655724e-12, xB=8.1520412e-11, t=-0.01145834, theta(e',gamma)=180 deg
+    L massless lepton + Ty proton:
+    LTy_C_{\gamma|l_0p}=0.999985943817, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=8.6655724e-12, xB=8.1520412e-11, t=-0.01145834, theta(e',gamma)=180 deg
+    Tx massless lepton + Tx proton:
+    TxTx_C_{\gamma|l_0p}=1, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=8.6655724e-12, xB=8.1520412e-11, t=-0.01145834, theta(e',gamma)=180 deg
+    Tx massless lepton + Ty proton:
+    TxTy_C_{\gamma|l_0p}=1, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=1.5707963, Q2=7.423005e-12, xB=2.4338027e-12, t=-2.3671059, theta(e',gamma)=180 deg
+  M_l_0:
+    Unpolarized:
+    unpolarized_M_l_0=-0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0.09817477, Q2=10.505968, xB=0.91021836, t=-9.2283471, theta(e',gamma)=102.38793 deg
+    L proton:
+    L_proton_M_l_0=9.05941955699e-14, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.690183, xB=0.99463039, t=-17.477223, theta(e',gamma)=180 deg
+    L massless lepton:
+    L_electron_M_l_0=1.71572733798e-09, s=21.515844, theta_in=1.570795, phi_e_in=1.4726216, phi_p_in=4.6142142, qOut=1.8, phiOut=1.4726216, Q2=16.866431, xB=0.84684575, t=-3.2181055, theta(e',gamma)=179.71544 deg
+    Tx proton:
+    Tx_proton_M_l_0=-0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0.09817477, Q2=10.505968, xB=0.91021836, t=-9.2283471, theta(e',gamma)=102.38793 deg
+    Ty proton:
+    Ty_proton_M_l_0=-0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0.09817477, Q2=10.505968, xB=0.91021836, t=-9.2283471, theta(e',gamma)=102.38793 deg
+    Tx massless lepton:
+    Tx_electron_M_l_0=-0, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.690183, xB=0.99463039, t=-17.477223, theta(e',gamma)=180 deg
+    Ty massless lepton:
+    Ty_electron_M_l_0=-0, s=21.515844, theta_in=1.570795, phi_e_in=3.9269908, phi_p_in=0.78539816, qOut=0.25, phiOut=1.7671459, Q2=3.0360453, xB=0.96043474, t=-2.5719759, theta(e',gamma)=170.01403 deg
+    L massless lepton + L proton:
+    LL_M_l_0=1.11022302463e-15, s=21.515844, theta_in=1.570795, phi_e_in=0.58904862, phi_p_in=3.7306413, qOut=0.25, phiOut=4.8105638, Q2=13.758676, xB=0.85607013, t=-15.389145, theta(e',gamma)=6.3358759 deg
+    L massless lepton + Tx proton:
+    LTx_M_l_0=1.11022302463e-15, s=21.515844, theta_in=1.570795, phi_e_in=1.276272, phi_p_in=4.4178647, qOut=0.25, phiOut=6.1850105, Q2=18.448684, xB=0.93642881, t=-18.277076, theta(e',gamma)=91.213696 deg
+    L massless lepton + Ty proton:
+    LTy_M_l_0=1.33226762955e-15, s=21.515844, theta_in=1.570795, phi_e_in=1.6689711, phi_p_in=4.8105638, qOut=0.25, phiOut=4.9087385, Q2=17.524497, xB=0.88419546, t=-19.719512, theta(e',gamma)=12.663623 deg
+    Tx massless lepton + Tx proton:
+    TxTx_M_l_0=0.868606496148, s=21.515844, theta_in=1.570795, phi_e_in=0.88357293, phi_p_in=4.0251656, qOut=1.8, phiOut=0.39269908, Q2=16.088194, xB=0.83482781, t=-3.5181728, theta(e',gamma)=174.62288 deg
+    Tx massless lepton + Ty proton:
+    TxTy_M_l_0=0.868667404433, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.9087385, Q2=0.62628797, xB=0.037851093, t=-0.0013069426, theta(e',gamma)=54.940191 deg
+  M_p:
+    Unpolarized:
+    unpolarized_M_p=-0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    L proton:
+    L_proton_M_p=9.05858713993e-14, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.690183, xB=0.99463039, t=-17.477223, theta(e',gamma)=180 deg
+    L massless lepton:
+    L_electron_M_p=1.2449021179e-14, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=1.5707963, Q2=16.866895, xB=0.84686531, t=-3.2181942, theta(e',gamma)=180 deg
+    Tx proton:
+    Tx_proton_M_p=-0, s=21.515844, theta_in=1.570795, phi_e_in=4.5160394, phi_p_in=1.3744468, qOut=0.25, phiOut=4.5160394, Q2=0.21395731, xB=0.085270167, t=-0.18991087, theta(e',gamma)=12.663623 deg
+    Ty proton:
+    Ty_proton_M_p=-0, s=21.515844, theta_in=1.570795, phi_e_in=4.2215151, phi_p_in=1.0799225, qOut=0.25, phiOut=4.2215151, Q2=1.3063517, xB=0.37551888, t=-1.1595321, theta(e',gamma)=31.519666 deg
+    Tx massless lepton:
+    Tx_electron_M_p=-0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    Ty massless lepton:
+    Ty_electron_M_p=-0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    L massless lepton + L proton:
+    LL_M_p=1.90664185551e-08, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=4.4178647, Q2=0.0059180363, xB=0.0026054881, t=-5.9979809e-06, theta(e',gamma)=18.975251 deg
+    L massless lepton + Tx proton:
+    LTx_M_p=4.72317711608e-08, s=21.515844, theta_in=1.570795, phi_e_in=2.8470683, phi_p_in=5.988661, qOut=1.8, phiOut=0.68722339, Q2=4.1393253, xB=0.57191935, t=-2.9957967, theta(e',gamma)=176.76909 deg
+    L massless lepton + Ty proton:
+    LTy_M_p=5.69631275482e-08, s=21.515844, theta_in=1.570795, phi_e_in=4.5160394, phi_p_in=1.3744468, qOut=1, phiOut=1.6689711, Q2=0.27872753, xB=0.29152178, t=-0.38518253, theta(e',gamma)=176.98628 deg
+    Tx massless lepton + Tx proton:
+    TxTx_M_p=0.86860649684, s=21.515844, theta_in=1.570795, phi_e_in=0.88357293, phi_p_in=4.0251656, qOut=1.8, phiOut=0.39269908, Q2=16.088194, xB=0.83482781, t=-3.5181728, theta(e',gamma)=174.62288 deg
+    Tx massless lepton + Ty proton:
+    TxTy_M_p=0.868667403951, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.5160394, Q2=0.62628797, xB=0.037851093, t=-0.0013069426, theta(e',gamma)=54.940191 deg
+  M_\gamma:
+    Unpolarized:
+    unpolarized_M_\gamma=-0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0.09817477, Q2=10.505968, xB=0.91021836, t=-9.2283471, theta(e',gamma)=102.38793 deg
+    L proton:
+    L_proton_M_\gamma=9.058586816e-14, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.690183, xB=0.99463039, t=-17.477223, theta(e',gamma)=180 deg
+    L massless lepton:
+    L_electron_M_\gamma=1.71571451417e-09, s=21.515844, theta_in=1.570795, phi_e_in=1.6689711, phi_p_in=4.8105638, qOut=1.8, phiOut=1.6689711, Q2=16.866431, xB=0.84684575, t=-3.2181055, theta(e',gamma)=179.71544 deg
+    Tx proton:
+    Tx_proton_M_\gamma=-0, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.690183, xB=0.99463039, t=-17.477223, theta(e',gamma)=180 deg
+    Ty proton:
+    Ty_proton_M_\gamma=-0, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.690183, xB=0.99463039, t=-17.477223, theta(e',gamma)=180 deg
+    Tx massless lepton:
+    Tx_electron_M_\gamma=-0, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.690183, xB=0.99463039, t=-17.477223, theta(e',gamma)=180 deg
+    Ty massless lepton:
+    Ty_electron_M_\gamma=-0, s=21.515844, theta_in=1.570795, phi_e_in=3.9269908, phi_p_in=0.78539816, qOut=0.25, phiOut=1.7671459, Q2=3.0360453, xB=0.96043474, t=-2.5719759, theta(e',gamma)=170.01403 deg
+    L massless lepton + L proton:
+    LL_M_\gamma=1.90664185551e-08, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=4.4178647, Q2=0.0059180363, xB=0.0026054881, t=-5.9979809e-06, theta(e',gamma)=18.975251 deg
+    L massless lepton + Tx proton:
+    LTx_M_\gamma=4.72317711608e-08, s=21.515844, theta_in=1.570795, phi_e_in=2.8470683, phi_p_in=5.988661, qOut=1.8, phiOut=0.68722339, Q2=4.1393253, xB=0.57191935, t=-2.9957967, theta(e',gamma)=176.76909 deg
+    L massless lepton + Ty proton:
+    LTy_M_\gamma=5.69631273262e-08, s=21.515844, theta_in=1.570795, phi_e_in=4.5160394, phi_p_in=1.3744468, qOut=1, phiOut=1.6689711, Q2=0.27872753, xB=0.29152178, t=-0.38518253, theta(e',gamma)=176.98628 deg
+    Tx massless lepton + Tx proton:
+    TxTx_M_\gamma=0.868606492398, s=21.515844, theta_in=1.570795, phi_e_in=0.88357293, phi_p_in=4.0251656, qOut=1.8, phiOut=0.39269908, Q2=16.088194, xB=0.83482781, t=-3.5181728, theta(e',gamma)=174.62288 deg
+    Tx massless lepton + Ty proton:
+    TxTy_M_\gamma=0.86866740563, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.5160394, Q2=0.62628797, xB=0.037851093, t=-0.0013069426, theta(e',gamma)=54.940191 deg
+  F_3:
+    Unpolarized:
+    unpolarized_F_3=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    L proton:
+    L_proton_F_3=9.05941988094e-14, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.690183, xB=0.99463039, t=-17.477223, theta(e',gamma)=180 deg
+    L massless lepton:
+    L_electron_F_3=7.5426130299e-12, s=21.515844, theta_in=1.570795, phi_e_in=1.4726216, phi_p_in=4.6142142, qOut=1.8, phiOut=1.4726216, Q2=16.866431, xB=0.84684575, t=-3.2181055, theta(e',gamma)=179.71544 deg
+    Tx proton:
+    Tx_proton_F_3=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    Ty proton:
+    Ty_proton_F_3=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    Tx massless lepton:
+    Tx_electron_F_3=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    Ty massless lepton:
+    Ty_electron_F_3=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.459815, xB=0.90143575, t=-9.2842476, theta(e',gamma)=96.833428 deg
+    L massless lepton + L proton:
+    LL_F_3=2.3888280073e-08, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=4.4178647, Q2=0.0059180363, xB=0.0026054881, t=-5.9979809e-06, theta(e',gamma)=18.975251 deg
+    L massless lepton + Tx proton:
+    LTx_F_3=3.79694769713e-08, s=21.515844, theta_in=1.570795, phi_e_in=4.3196899, phi_p_in=1.1780972, qOut=1.8, phiOut=1.276272, Q2=0.054145835, xB=0.017423489, t=-2.3862185, theta(e',gamma)=179.12828 deg
+    L massless lepton + Ty proton:
+    LTy_F_3=3.40931823259e-08, s=21.515844, theta_in=1.570795, phi_e_in=5.7923115, phi_p_in=2.6507188, qOut=1.8, phiOut=2.9452431, Q2=0.10635739, xB=0.031038948, t=-2.398905, theta(e',gamma)=172.30508 deg
+    Tx massless lepton + Tx proton:
+    TxTx_F_3=0.952540961783, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=2.0616702, Q2=15.964031, xB=0.83912259, t=-3.2715706, theta(e',gamma)=178.4829 deg
+    Tx massless lepton + Ty proton:
+    TxTy_F_3=0.955766051367, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.5160394, Q2=0.62628797, xB=0.037851093, t=-0.0013069426, theta(e',gamma)=54.940191 deg
+  P_{\rm GHZ+}:
+    Unpolarized:
+    unpolarized_P_{\rm GHZ+}=0.482713272628, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=1.1780972, Q2=16.283944, xB=0.84196463, t=-3.2513158, theta(e',gamma)=178.8158 deg
+    L proton:
+    L_proton_P_{\rm GHZ+}=0.482713272628, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=1.9634954, Q2=16.283944, xB=0.84196463, t=-3.2513158, theta(e',gamma)=178.8158 deg
+    L massless lepton:
+    L_electron_P_{\rm GHZ+}=0.482713272628, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=1.1780972, Q2=16.283944, xB=0.84196463, t=-3.2513158, theta(e',gamma)=178.8158 deg
+    Tx proton:
+    Tx_proton_P_{\rm GHZ+}=0.482713272628, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=1.1780972, Q2=16.283944, xB=0.84196463, t=-3.2513158, theta(e',gamma)=178.8158 deg
+    Ty proton:
+    Ty_proton_P_{\rm GHZ+}=0.482713272628, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=1.1780972, Q2=16.283944, xB=0.84196463, t=-3.2513158, theta(e',gamma)=178.8158 deg
+    Tx massless lepton:
+    Tx_electron_P_{\rm GHZ+}=0.482713272628, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=1.1780972, Q2=16.283944, xB=0.84196463, t=-3.2513158, theta(e',gamma)=178.8158 deg
+    Ty massless lepton:
+    Ty_electron_P_{\rm GHZ+}=0.482713272628, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=1.1780972, Q2=16.283944, xB=0.84196463, t=-3.2513158, theta(e',gamma)=178.8158 deg
+    L massless lepton + L proton:
+    LL_P_{\rm GHZ+}=0.489607532164, s=21.515844, theta_in=1.570795, phi_e_in=1.6689711, phi_p_in=4.8105638, qOut=1.8, phiOut=6.1850105, Q2=8.3671975, xB=0.68442324, t=-5.0966855, theta(e',gamma)=166.46183 deg
+    L massless lepton + Tx proton:
+    LTx_P_{\rm GHZ+}=0.485135172014, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=1.9634954, Q2=16.283944, xB=0.84196463, t=-3.2513158, theta(e',gamma)=178.8158 deg
+    L massless lepton + Ty proton:
+    LTy_P_{\rm GHZ+}=0.482713264865, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=1.1780972, Q2=16.283944, xB=0.84196463, t=-3.2513158, theta(e',gamma)=178.8158 deg
+    Tx massless lepton + Tx proton:
+    TxTx_P_{\rm GHZ+}=0.964874304683, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=1.5707963, Q2=16.866895, xB=0.84686531, t=-3.2181942, theta(e',gamma)=180 deg
+    Tx massless lepton + Ty proton:
+    TxTy_P_{\rm GHZ+}=0.958042903705, s=21.515844, theta_in=1.570795, phi_e_in=1.1780972, phi_p_in=4.3196899, qOut=1.8, phiOut=4.5160394, Q2=3.1747032, xB=0.16626257, t=-18.25779, theta(e',gamma)=54.940191 deg
+  P_W:
+    Unpolarized:
+    unpolarized_P_W=0.280155683282, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.8105638, Q2=0.16184638, xB=0.00971456, t=-8.3794805e-05, theta(e',gamma)=28.926845 deg
+    L proton:
+    L_proton_P_W=0.165805926673, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=8.6655724e-12, xB=8.1520412e-11, t=-0.01145834, theta(e',gamma)=180 deg
+    L massless lepton:
+    L_electron_P_W=0.132367744568, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.8105638, Q2=0.01742212, xB=0.0018823296, t=-3.1234365e-06, theta(e',gamma)=10.200877 deg
+    Tx proton:
+    Tx_proton_P_W=0.434654343359, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=5.2032628, Q2=0.015536186, xB=0.0071007132, t=-4.4883804e-05, theta(e',gamma)=31.519666 deg
+    Ty proton:
+    Ty_proton_P_W=0.276692464572, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.8105638, Q2=0.16184638, xB=0.00971456, t=-8.3794805e-05, theta(e',gamma)=28.926845 deg
+    Tx massless lepton:
+    Tx_electron_P_W=0.213190953886, s=21.515844, theta_in=1.570795, phi_e_in=3.828816, phi_p_in=0.68722339, qOut=1.8, phiOut=0.58904862, Q2=0.0041479674, xB=0.0013287416, t=-2.4003102, theta(e',gamma)=176.17556 deg
+    Ty massless lepton:
+    Ty_electron_P_W=0.236023567334, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.9087385, Q2=0.068645974, xB=0.0074683368, t=-4.9451546e-05, theta(e',gamma)=20.294457 deg
+    L massless lepton + L proton:
+    LL_P_W=0.035502032322, s=21.515844, theta_in=1.570795, phi_e_in=4.1233404, phi_p_in=0.9817477, qOut=0.25, phiOut=0.68722339, Q2=1.1839122, xB=0.71539332, t=-1.5121785, theta(e',gamma)=134.47573 deg
+    L massless lepton + Tx proton:
+    LTx_P_W=0.177835132416, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.8105638, Q2=0.01742212, xB=0.0018823296, t=-3.1234365e-06, theta(e',gamma)=10.200877 deg
+    L massless lepton + Ty proton:
+    LTy_P_W=0.164656243399, s=21.515844, theta_in=1.570795, phi_e_in=5.7923115, phi_p_in=2.6507188, qOut=1, phiOut=2.552544, Q2=1.8946706, xB=0.51810024, t=-3.2561709, theta(e',gamma)=147.87282 deg
+    Tx massless lepton + Tx proton:
+    TxTx_P_W=0.402586607892, s=21.515844, theta_in=1.570795, phi_e_in=4.6142142, phi_p_in=1.4726216, qOut=1, phiOut=0.88357293, Q2=0.20354114, xB=0.14586546, t=-0.26627506, theta(e',gamma)=158.24345 deg
+    Tx massless lepton + Ty proton:
+    TxTy_P_W=0.238629482376, s=21.515844, theta_in=1.570795, phi_e_in=5.4977871, phi_p_in=2.3561945, qOut=1.8, phiOut=0.68722339, Q2=8.761596, xB=0.73875963, t=-2.3842028, theta(e',gamma)=176.76909 deg
+  aligned <hOut*lambda> range: 0.0922414 to 0.120712
+  saved full csv: Output/AlignmentScan/massless/massless_photon_spin_correlation_phase_space.csv
+  saved aligned csv: Output/AlignmentScan/massless/massless_photon_spin_correlation_aligned.csv
+  saved concurrence full csv: Output/AlignmentScan/massless/ConcurrenceScan/massless_photon_concurrence_phase_space.csv
+  saved concurrence aligned csv: Output/AlignmentScan/massless/ConcurrenceScan/massless_photon_concurrence_aligned.csv
+  saved ranked concurrence csv: Output/AlignmentScan/massless/ConcurrenceScan/massless_photon_concurrence_top.csv
+  saved ranked lepton-photon csv: Output/AlignmentScan/massless/ConcurrenceScan/massless_photon_lepton_gamma_top.csv
+  saved unpolarized concurrence plot: Output/AlignmentScan/massless/ConcurrenceScan/concurrence_scan_unpolarized.pdf
+  saved l proton concurrence plot: Output/AlignmentScan/massless/ConcurrenceScan/concurrence_scan_L_proton.pdf
+  saved l massless lepton concurrence plot: Output/AlignmentScan/massless/ConcurrenceScan/concurrence_scan_L_electron.pdf
+  saved tx proton concurrence plot: Output/AlignmentScan/massless/ConcurrenceScan/concurrence_scan_Tx_proton.pdf
+  saved ty proton concurrence plot: Output/AlignmentScan/massless/ConcurrenceScan/concurrence_scan_Ty_proton.pdf
+  saved tx massless lepton concurrence plot: Output/AlignmentScan/massless/ConcurrenceScan/concurrence_scan_Tx_electron.pdf
+  saved ty massless lepton concurrence plot: Output/AlignmentScan/massless/ConcurrenceScan/concurrence_scan_Ty_electron.pdf
+  saved l massless lepton + l proton concurrence plot: Output/AlignmentScan/massless/ConcurrenceScan/concurrence_scan_LL.pdf
+  saved l massless lepton + tx proton concurrence plot: Output/AlignmentScan/massless/ConcurrenceScan/concurrence_scan_LTx.pdf
+  saved l massless lepton + ty proton concurrence plot: Output/AlignmentScan/massless/ConcurrenceScan/concurrence_scan_LTy.pdf
+  saved tx massless lepton + tx proton concurrence plot: Output/AlignmentScan/massless/ConcurrenceScan/concurrence_scan_TxTx.pdf
+  saved tx massless lepton + ty proton concurrence plot: Output/AlignmentScan/massless/ConcurrenceScan/concurrence_scan_TxTy.pdf
+  invalid phase-space points: 192
+    point=high_s_high_theta_in_low_Egamma, s=21.515844, theta_in=1.570795, phi_lepton_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=4.712389: final-state lepton propagator is singular (kp·qout ≈ 0)
+    point=high_s_high_theta_in_low_Egamma, s=21.515844, theta_in=1.570795, phi_lepton_in=0.09817477, phi_p_in=3.2397674, qOut=0.25, phiOut=4.712389: final-state lepton propagator is singular (kp·qout ≈ 0)
+    point=high_s_high_theta_in_low_Egamma, s=21.515844, theta_in=1.570795, phi_lepton_in=0.19634954, phi_p_in=3.3379422, qOut=0.25, phiOut=4.712389: final-state lepton propagator is singular (kp·qout ≈ 0)
+    point=high_s_high_theta_in_low_Egamma, s=21.515844, theta_in=1.570795, phi_lepton_in=0.29452431, phi_p_in=3.436117, qOut=0.25, phiOut=4.712389: final-state lepton propagator is singular (kp·qout ≈ 0)
+    point=high_s_high_theta_in_low_Egamma, s=21.515844, theta_in=1.570795, phi_lepton_in=0.39269908, phi_p_in=3.5342917, qOut=0.25, phiOut=4.712389: final-state lepton propagator is singular (kp·qout ≈ 0)
+    point=high_s_high_theta_in_low_Egamma, s=21.515844, theta_in=1.570795, phi_lepton_in=0.49087385, phi_p_in=3.6324665, qOut=0.25, phiOut=4.712389: final-state lepton propagator is singular (kp·qout ≈ 0)
+    point=high_s_high_theta_in_low_Egamma, s=21.515844, theta_in=1.570795, phi_lepton_in=0.58904862, phi_p_in=3.7306413, qOut=0.25, phiOut=4.712389: final-state lepton propagator is singular (kp·qout ≈ 0)
+    point=high_s_high_theta_in_low_Egamma, s=21.515844, theta_in=1.570795, phi_lepton_in=0.68722339, phi_p_in=3.828816, qOut=0.25, phiOut=4.712389: final-state lepton propagator is singular (kp·qout ≈ 0)
+    point=high_s_high_theta_in_low_Egamma, s=21.515844, theta_in=1.570795, phi_lepton_in=0.78539816, phi_p_in=3.9269908, qOut=0.25, phiOut=4.712389: final-state lepton propagator is singular (kp·qout ≈ 0)
+    point=high_s_high_theta_in_low_Egamma, s=21.515844, theta_in=1.570795, phi_lepton_in=0.88357293, phi_p_in=4.0251656, qOut=0.25, phiOut=4.712389: final-state lepton propagator is singular (kp·qout ≈ 0)
+
+Saved log: Output/AlignmentScan/massless/AlignmentScan.log

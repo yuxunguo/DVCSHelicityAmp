@@ -10,13 +10,25 @@ for all helicity amplitudes; no spinors or gamma matrices remain.
 from itertools import product
 import json
 from pathlib import Path
-import sys
 
 import sympy as sp
 
 
 I = sp.I
 SQRT2 = sp.sqrt(2)
+
+# Explicit script settings.
+MARKDOWN_OUTPUT_PATH = Path("Output") / "AnalyticBH_theta_pi_over_2.md"
+TEX_OUTPUT_PATH = Path("Output") / "AnalyticBH_theta_pi_over_2.tex"
+WRITE_VALIDATION_JSON = False
+VALIDATION_OUTPUT_PATH = Path("Output") / "AnalyticBH_symbolic_validation.json"
+VALIDATION_S = 12.0
+VALIDATION_ALPHA = 0.4
+VALIDATION_PHOTON_ENERGY = 0.8
+VALIDATION_PHI = 1.1
+VALIDATION_PROTON_MASS = 0.938
+VALIDATION_F1 = 0.7
+VALIDATION_F2 = 1.2
 
 
 def gamma_matrices():
@@ -214,105 +226,6 @@ def write_markdown(amplitudes, definitions, output_path):
     return 16, 16, 0
 
 
-def write_tex_cse(amplitudes, definitions, output_path):
-    """Write all contracted amplitudes as a standalone LaTeX document."""
-    nonzero = {key: value for key, value in amplitudes.items() if value != 0}
-    zero = [key for key, value in amplitudes.items() if value == 0]
-    replacements, reduced = sp.cse(
-        list(nonzero.values()), symbols=sp.numbered_symbols("x"), order="canonical"
-    )
-    source_symbols = set().union(*(expression.free_symbols for expression in nonzero.values()))
-    tex_names_by_text = {
-        "Epr": r"E'", "F1": r"F_1", "F2": r"F_2",
-        "ca": r"c_a", "sa": r"s_a", "cf": r"c_f", "sf": r"s_f",
-    }
-    symbol_names = {
-        symbol: tex_names_by_text[symbol.name]
-        for symbol in source_symbols
-        if symbol.name in tex_names_by_text
-    }
-
-    def latex(expression):
-        return sp.latex(expression, symbol_names=symbol_names)
-
-    definition_tex = {
-        "P": r"\dfrac{s-m^2}{2\sqrt{s}}",
-        "R": r"p_{\mathrm{Out}}\text{, fixed by energy conservation}",
-        "w": r"q_{\mathrm{Out}}",
-        "E": r"\sqrt{P^2+m^2}",
-        "Epr": r"\sqrt{R^2+m^2}",
-        "K": r"\sqrt{R^2+w^2+2Rw\,s_f}",
-        "A": r"\sqrt{E+m}",
-        "B": r"\sqrt{E'+m}",
-        "ca": r"\cos\phi_{\mathrm{in}}",
-        "sa": r"\sin\phi_{\mathrm{in}}",
-        "cf": r"\cos\phi_{\mathrm{Out}}",
-        "sf": r"\sin\phi_{\mathrm{Out}}",
-    }
-    display_names = {
-        "Epr": "E'", "ca": "c_a", "sa": "s_a", "cf": "c_f", "sf": "s_f"
-    }
-    lines = [
-        r"\documentclass[10pt]{article}",
-        r"\usepackage[margin=0.55in,landscape]{geometry}",
-        r"\usepackage{amsmath,amssymb,graphicx}",
-        r"\allowdisplaybreaks",
-        r"\setlength{\parindent}{0pt}",
-        r"\begin{document}",
-        r"\title{Fully Contracted Bethe--Heitler Helicity Amplitudes}",
-        r"\author{Planar user frame: $\theta_{\mathrm{in}}=\pi/2$}",
-        r"\date{}",
-        r"\maketitle",
-        r"All Dirac matrices, external spinors, polarization vectors, and Lorentz-index sums are contracted. Helicity labels are doubled helicities in $\{-1,+1\}$.",
-        r"\section*{Definitions}",
-        r"\begin{align*}",
-    ]
-    definition_rows = []
-    for name in definitions:
-        shown = display_names.get(name, name)
-        definition_rows.append(rf"{shown} &= {definition_tex[name]}")
-    definition_rows += [
-        r"t &= 2m^2-2EE'+2PRs_a",
-        r"F_1 &= F_1(t), & F_2 &= F_2(t)",
-    ]
-    lines.append(r" \\[3pt]".join(definition_rows))
-    lines += [
-        r"\end{align*}",
-        r"The scalar substitutions below only abbreviate the completely contracted expressions.",
-        r"\section*{Common scalar subexpressions}",
-    ]
-    for symbol, expression in replacements:
-        lines += [
-            r"\begin{equation*}",
-            rf"\displaystyle {latex(symbol)}={latex(expression)}",
-            r"\end{equation*}",
-        ]
-    lines.append(r"\section*{Nonzero helicity amplitudes}")
-    for key, expression in zip(nonzero, reduced):
-        h, hp, s, spout, lam = key
-        label = rf"\mathcal{{M}}_{{h={h},\,h'={hp},\,s={s},\,s'={spout},\,\lambda={lam}}}"
-        lines += [
-            r"\begin{equation*}",
-            rf"\displaystyle {label}={latex(expression)}",
-            r"\end{equation*}",
-        ]
-    lines += [
-        r"\section*{Identically zero helicity amplitudes}",
-        r"For a massless electron, helicity conservation gives $\mathcal{M}=0$ whenever $h'\ne h$.",
-        r"\begin{align*}",
-    ]
-    zero_rows = []
-    for h, hp, s, spout, lam in zero:
-        zero_rows.append(
-            rf"\mathcal{{M}}_{{h={h},\,h'={hp},\,s={s},\,s'={spout},\,\lambda={lam}}}&=0"
-        )
-    lines.append(r" \\[3pt]".join(zero_rows))
-    lines += [r"\end{align*}", r"\end{document}", ""]
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text("\n".join(lines), encoding="utf-8")
-    return len(nonzero), len(zero), len(replacements)
-
-
 def write_tex(amplitudes, leptonic_numerators, hadronic, output_path):
     """Write a physics-organized TeX result without anonymous CSE variables."""
     all_expressions = [
@@ -451,18 +364,26 @@ def write_tex(amplitudes, leptonic_numerators, hadronic, output_path):
 
 def main():
     amplitudes, definitions, leptonic, hadronic, leptonic_numerators = derive_amplitudes()
-    output = Path("Output") / "AnalyticBH_theta_pi_over_2.md"
-    counts = write_markdown(amplitudes, definitions, output)
-    print(f"Wrote {output}: {counts[0]} nonzero, {counts[1]} zero, {counts[2]} common expressions")
-    tex_output = Path("Output") / "AnalyticBH_theta_pi_over_2.tex"
-    tex_counts = write_tex(amplitudes, leptonic_numerators, hadronic, tex_output)
+    counts = write_markdown(amplitudes, definitions, MARKDOWN_OUTPUT_PATH)
     print(
-        f"Wrote {tex_output}: {tex_counts[0]} nonzero, "
+        f"Wrote {MARKDOWN_OUTPUT_PATH}: {counts[0]} nonzero, "
+        f"{counts[1]} zero, {counts[2]} common expressions"
+    )
+    tex_counts = write_tex(
+        amplitudes, leptonic_numerators, hadronic, TEX_OUTPUT_PATH
+    )
+    print(
+        f"Wrote {TEX_OUTPUT_PATH}: {tex_counts[0]} nonzero, "
         f"{tex_counts[1]} zero, {tex_counts[2]} anonymous x substitutions"
     )
-    if "--validation-json" in sys.argv:
-        s_value, alpha, w_value, phi, m_value = 12.0, 0.4, 0.8, 1.1, 0.938
-        f1_value, f2_value = 0.7, 1.2
+    if WRITE_VALIDATION_JSON:
+        s_value = VALIDATION_S
+        alpha = VALIDATION_ALPHA
+        w_value = VALIDATION_PHOTON_ENERGY
+        phi = VALIDATION_PHI
+        m_value = VALIDATION_PROTON_MASS
+        f1_value = VALIDATION_F1
+        f2_value = VALIDATION_F2
         P_value = (s_value - m_value**2) / (2.0 * s_value**0.5)
         target = s_value**0.5
         low, high = 0.0, target
@@ -505,9 +426,10 @@ def main():
             "inputs": {"s": s_value, "alpha": alpha, "w": w_value, "phi": phi, "m": m_value, "F1": f1_value, "F2": f2_value},
             "amplitudes": rows,
         }
-        path = Path("Output") / "AnalyticBH_symbolic_validation.json"
-        path.write_text(json.dumps(validation, indent=2), encoding="utf-8")
-        print(f"Wrote {path}")
+        VALIDATION_OUTPUT_PATH.write_text(
+            json.dumps(validation, indent=2), encoding="utf-8"
+        )
+        print(f"Wrote {VALIDATION_OUTPUT_PATH}")
 
 
 if __name__ == "__main__":

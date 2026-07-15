@@ -14,7 +14,6 @@ matrix scans.
 
 import numpy as np
 
-from config import ELECTRON_MASS_GEV
 
 # ============================================================
 # Conventions
@@ -138,11 +137,6 @@ def mdot(a, b):
 def cov(v):
     """Lower-index vector v_mu = g_{mu nu} v^nu."""
     return eta * _as_four_vector(v, "v")
-
-
-def spatial(v):
-    """Return the spatial three-vector ``[px, py, pz]`` from a four-vector."""
-    return _as_four_vector(v, "v", dtype=float)[1:4]
 
 
 # ============================================================

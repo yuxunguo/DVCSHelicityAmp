@@ -23,7 +23,6 @@ from concurrent.futures import ProcessPoolExecutor
 import csv
 from pathlib import Path
 import shutil
-import tempfile
 
 import numpy as np
 
@@ -370,8 +369,8 @@ def normalized_density_matrix(rho):
     rho = np.asarray(rho, dtype=complex)
     rho = 0.5 * (rho + rho.conj().T)
     trace = trace_value(rho)
-    if abs(trace) <= 1e-14:
-        raise ZeroDivisionError("Cannot normalize a zero-trace density matrix.")
+    if not np.isfinite(trace) or trace <= 0.0:
+        raise ZeroDivisionError("Cannot normalize a nonpositive or nonfinite trace.")
     return rho / trace
 
 
@@ -506,6 +505,72 @@ def entanglement_measures_from_density_matrix(rho):
         "M_e": c_e_rest**2 - c_e_p**2 - c_e_gamma**2,
         "M_p": c_p_rest**2 - c_e_p**2 - c_p_gamma**2,
         "M_gamma": c_gamma_rest**2 - c_e_gamma**2 - c_p_gamma**2,
+    }
+
+
+def ghz_observables_from_density_matrix(rho):
+    """Return observables for ``(|---\u27e9 + |+++\u27e9) / sqrt(2)``.
+
+    ``phase_fidelity`` maximizes the overlap over the relative phase between
+    the two GHZ basis components.  It therefore distinguishes a harmless
+    phase convention from leakage outside the GHZ subspace.
+    """
+    rho = normalized_density_matrix(rho)
+    minus_index = outgoing_spin_states().index((-1, -1, -1))
+    plus_index = outgoing_spin_states().index((+1, +1, +1))
+    p_minus = float(np.real(rho[minus_index, minus_index]))
+    p_plus = float(np.real(rho[plus_index, plus_index]))
+    coherence = complex(rho[minus_index, plus_index])
+    population = p_minus + p_plus
+    plus_fidelity = 0.5 * population + float(np.real(coherence))
+    minus_fidelity = 0.5 * population - float(np.real(coherence))
+    phase_fidelity = 0.5 * population + abs(coherence)
+    visibility = 0.0 if population <= 0.0 else 2.0 * abs(coherence) / population
+    return {
+        "GHZ_plus_fidelity": float(np.clip(plus_fidelity, 0.0, 1.0)),
+        "GHZ_minus_fidelity": float(np.clip(minus_fidelity, 0.0, 1.0)),
+        "GHZ_phase_fidelity": float(np.clip(phase_fidelity, 0.0, 1.0)),
+        "GHZ_subspace_population": float(np.clip(population, 0.0, 1.0)),
+        "GHZ_coherence_abs": float(abs(coherence)),
+        "GHZ_coherence_phase_rad": float(np.angle(coherence)),
+        "GHZ_coherence_visibility": float(np.clip(visibility, 0.0, 1.0)),
+    }
+
+
+def w_observables_from_density_matrix(rho):
+    """Return projections onto canonical W and opposite-helicity W states.
+
+    The canonical state is ``(|+--\u27e9 + |-+-\u27e9 + |--+\u27e9) / sqrt(3)``.
+    ``W_subspace_max_fidelity`` is the largest possible overlap with any
+    normalized state in that three-dimensional single-excitation subspace.
+    """
+    rho = normalized_density_matrix(rho)
+    states = outgoing_spin_states()
+    w_indices = [states.index(labels) for labels in (
+        (+1, -1, -1), (-1, +1, -1), (-1, -1, +1),
+    )]
+    wbar_indices = [states.index(labels) for labels in (
+        (-1, +1, +1), (+1, -1, +1), (+1, +1, -1),
+    )]
+
+    def subspace_observables(indices):
+        block = rho[np.ix_(indices, indices)]
+        equal_state = np.ones(3, dtype=complex) / np.sqrt(3.0)
+        fidelity = float(np.real(np.vdot(equal_state, block @ equal_state)))
+        population = float(np.real(np.trace(block)))
+        eigenvalues = np.linalg.eigvalsh(0.5 * (block + block.conj().T))
+        maximum = float(max(0.0, eigenvalues[-1]))
+        return fidelity, population, maximum
+
+    w_fidelity, w_population, w_maximum = subspace_observables(w_indices)
+    wbar_fidelity, wbar_population, wbar_maximum = subspace_observables(wbar_indices)
+    return {
+        "W_fidelity": float(np.clip(w_fidelity, 0.0, 1.0)),
+        "W_subspace_population": float(np.clip(w_population, 0.0, 1.0)),
+        "W_subspace_max_fidelity": float(np.clip(w_maximum, 0.0, 1.0)),
+        "Wbar_fidelity": float(np.clip(wbar_fidelity, 0.0, 1.0)),
+        "Wbar_subspace_population": float(np.clip(wbar_population, 0.0, 1.0)),
+        "Wbar_subspace_max_fidelity": float(np.clip(wbar_maximum, 0.0, 1.0)),
     }
 
 

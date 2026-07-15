@@ -5,14 +5,16 @@ from pathlib import Path
 
 import numpy as np
 
-from Algebra import HELICITIES, photon_pol
+from Algebra import photon_pol
 from BHHelicityAmp import bh_amplitude_core
 from Kinematics import kinematics_user_from_independent
 
+REFERENCE_PATH = Path("Output") / "AnalyticBH_symbolic_validation.json"
+MAX_ABSOLUTE_DIFFERENCE = 1.0e-10
+
 
 def main():
-    path = Path("Output") / "AnalyticBH_symbolic_validation.json"
-    reference = json.loads(path.read_text(encoding="utf-8"))
+    reference = json.loads(REFERENCE_PATH.read_text(encoding="utf-8"))
     inputs = reference["inputs"]
     kin = kinematics_user_from_independent(
         inputs["s"],
@@ -34,7 +36,7 @@ def main():
         symbolic = complex(*pair)
         maximum = max(maximum, abs(numerical - symbolic))
     print(f"maximum absolute difference over 32 amplitudes: {maximum:.16e}")
-    if maximum > 1.0e-10:
+    if maximum > MAX_ABSOLUTE_DIFFERENCE:
         raise SystemExit("Contracted symbolic amplitudes failed validation.")
 
 

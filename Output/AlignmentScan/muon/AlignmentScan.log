@@ -1,0 +1,357 @@
+muon-photon C_{mup}/C_{mu\gamma}/C_{p\gamma}/C_{mu|p\gamma}/C_{p|mu\gamma}/C_{\gamma|mup}/M_mu/M_p/M_\gamma/F_3/P_{\rm GHZ+}/P_W-focused user-frame phase-space scan
+  anchor variables: s, theta_in, qOut
+  scanned variables per anchor: phi_in_lepton, phi_gamma
+  locator observables: C_{mup}, C_{mu\gamma}, C_{p\gamma}, C_{mu|p\gamma}, C_{p|mu\gamma}, C_{\gamma|mup}, M_mu, M_p, M_\gamma, F_3, P_{\rm GHZ+}, P_W
+  GHZ purity: <GHZ+|rho|GHZ+>, GHZ+=(|---〉+|+++〉)/sqrt(2)
+  W purity: <W|rho|W>, W=(|+--〉+|-+-〉+|--+〉)/sqrt(3)
+  angle cut: theta(e', gamma) <= 10 deg
+  characteristic kinematic anchors: 3
+  s anchor range: 21.5158 to 21.5158
+  theta_in anchor range: 1.57079 to 1.57079
+  qOut/Egamma anchor range: 0.25 to 1.8
+  form factor model: YAHL 2018 proton lookup with F1(t), F2(t)
+  muon mass: 0.1056583755 GeV
+  phi_lepton_in scan: 64 values from 0 to 6.18501
+  phi_gamma scan: 64 values from 0 to 6.18501
+  heatmap x coordinate: phi_p_in
+  heatmap guide lines: phi_p_in=pi/2 and phi_gamma=pi/2
+  heatmap color scales: 0..1 for nonnegative observables, -1..1 for signed observables
+  valid points: 12288
+  aligned points: 320
+  initial-spin ensemble conventions:
+    Unpolarized (unpolarized): direct prepared state; 4 incoherent component(s); density divisor=4; entanglement mode=prepared_state_ensemble_unpolarized
+    L proton (L_proton): direct prepared state; 2 incoherent component(s); density divisor=2; entanglement mode=prepared_state_ensemble_L_proton
+    L muon (L_electron): direct prepared state; 2 incoherent component(s); density divisor=2; entanglement mode=prepared_state_ensemble_L_electron
+    Tx proton (Tx_proton): direct prepared state; 2 incoherent component(s); density divisor=2; entanglement mode=prepared_state_ensemble_Tx_proton
+    Ty proton (Ty_proton): direct prepared state; 2 incoherent component(s); density divisor=2; entanglement mode=prepared_state_ensemble_Ty_proton
+    Tx muon (Tx_electron): direct prepared state; 2 incoherent component(s); density divisor=2; entanglement mode=prepared_state_ensemble_Tx_electron
+    Ty muon (Ty_electron): direct prepared state; 2 incoherent component(s); density divisor=2; entanglement mode=prepared_state_ensemble_Ty_electron
+    L muon + L proton (LL): direct prepared state; 1 incoherent component(s); density divisor=1; entanglement mode=prepared_state_ensemble_LL
+    L muon + Tx proton (LTx): direct prepared state; 1 incoherent component(s); density divisor=1; entanglement mode=prepared_state_ensemble_LTx
+    L muon + Ty proton (LTy): direct prepared state; 1 incoherent component(s); density divisor=1; entanglement mode=prepared_state_ensemble_LTy
+    Tx muon + Tx proton (TxTx): direct prepared state; 1 incoherent component(s); density divisor=1; entanglement mode=prepared_state_ensemble_TxTx
+    Tx muon + Ty proton (TxTy): direct prepared state; 1 incoherent component(s); density divisor=1; entanglement mode=prepared_state_ensemble_TxTy
+  theta range: 0 to 180 deg
+
+Top C_{mup}/C_{mu\gamma}/C_{p\gamma}/C_{mu|p\gamma}/C_{p|mu\gamma}/C_{\gamma|mup}/M_mu/M_p/M_\gamma/F_3/P_{\rm GHZ+}/P_W locator points:
+  C_{mup}:
+    Unpolarized:
+    unpolarized_C_{mup}=0.139492217862, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.8105638, Q2=0.19984494, xB=0.01200182, t=-0.00012816329, theta(e',gamma)=29.277972 deg
+    L proton:
+    L_proton_C_{mup}=0.316754901037, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.8105638, Q2=0.19984494, xB=0.01200182, t=-0.00012816329, theta(e',gamma)=29.277972 deg
+    L muon:
+    L_electron_C_{mup}=0.14697891076, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.8105638, Q2=0.19984494, xB=0.01200182, t=-0.00012816329, theta(e',gamma)=29.277972 deg
+    Tx proton:
+    Tx_proton_C_{mup}=0.152554889343, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.8105638, Q2=0.19984494, xB=0.01200182, t=-0.00012816329, theta(e',gamma)=29.277972 deg
+    Ty proton:
+    Ty_proton_C_{mup}=0.139947960015, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.8105638, Q2=0.19984494, xB=0.01200182, t=-0.00012816329, theta(e',gamma)=29.277972 deg
+    Tx muon:
+    Tx_electron_C_{mup}=0.316693404355, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.8105638, Q2=0.19984494, xB=0.01200182, t=-0.00012816329, theta(e',gamma)=29.277972 deg
+    Ty muon:
+    Ty_electron_C_{mup}=0.139553668355, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.8105638, Q2=0.19984494, xB=0.01200182, t=-0.00012816329, theta(e',gamma)=29.277972 deg
+    L muon + L proton:
+    LL_C_{mup}=0.688438661104, s=21.515844, theta_in=1.570795, phi_e_in=1.6689711, phi_p_in=4.8105638, qOut=0.25, phiOut=1.6689711, Q2=19.625062, xB=0.9943727, t=-17.418119, theta(e',gamma)=175.00998 deg
+    L muon + Tx proton:
+    LTx_C_{mup}=0.671191315078, s=21.515844, theta_in=1.570795, phi_e_in=5.7923115, phi_p_in=2.6507188, qOut=1.8, phiOut=5.8904862, Q2=13.886697, xB=0.72801836, t=-2.4235604, theta(e',gamma)=157.0163 deg
+    L muon + Ty proton:
+    LTy_C_{mup}=0.702403163976, s=21.515844, theta_in=1.570795, phi_e_in=5.8904862, phi_p_in=2.7488936, qOut=1.8, phiOut=5.988661, Q2=14.617135, xB=0.75971823, t=-2.5891138, theta(e',gamma)=160.68831 deg
+    Tx muon + Tx proton:
+    TxTx_C_{mup}=0.992932749267, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=0.68722339, Q2=19.278792, xB=0.97616077, t=-17.837996, theta(e',gamma)=134.4789 deg
+    Tx muon + Ty proton:
+    TxTy_C_{mup}=0.992919781935, s=21.515844, theta_in=1.570795, phi_e_in=1.4726216, phi_p_in=4.6142142, qOut=0.25, phiOut=0.29452431, Q2=18.972467, xB=0.95813795, t=-18.169572, theta(e',gamma)=113.3128 deg
+  C_{mu\gamma}:
+    Unpolarized:
+    unpolarized_C_{mu\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    L proton:
+    L_proton_C_{mu\gamma}=0.239544930227, s=21.515844, theta_in=1.570795, phi_e_in=3.0434179, phi_p_in=6.1850105, qOut=0.25, phiOut=4.712389, Q2=9.6321401, xB=0.80603782, t=-10.852489, theta(e',gamma)=0 deg
+    L muon:
+    L_electron_C_{mu\gamma}=0.666257241327, s=21.515844, theta_in=1.570795, phi_e_in=5.3014376, phi_p_in=2.1598449, qOut=0.25, phiOut=4.712389, Q2=1.4785343, xB=0.38945904, t=-1.6657063, theta(e',gamma)=0 deg
+    Tx proton:
+    Tx_proton_C_{mu\gamma}=0.0922417299222, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=5.0069133, Q2=0.15451665, xB=0.017015711, t=-0.00025924191, theta(e',gamma)=30.205479 deg
+    Ty proton:
+    Ty_proton_C_{mu\gamma}=0.0928198293883, s=21.515844, theta_in=1.570795, phi_e_in=3.3379422, phi_p_in=0.19634954, qOut=0.25, phiOut=4.712389, Q2=7.0609547, xB=0.75286335, t=-7.9554979, theta(e',gamma)=0 deg
+    Tx muon:
+    Tx_electron_C_{mu\gamma}=0.996098772335, s=21.515844, theta_in=1.570795, phi_e_in=5.0069133, phi_p_in=1.8653206, qOut=1.8, phiOut=4.712389, Q2=0.11829184, xB=0.0070539545, t=-0.42456438, theta(e',gamma)=0 deg
+    Ty muon:
+    Ty_electron_C_{mu\gamma}=0.998839453381, s=21.515844, theta_in=1.570795, phi_e_in=4.9087385, phi_p_in=1.7671459, qOut=1.8, phiOut=4.712389, Q2=0.074021334, xB=0.0044257084, t=-0.18945797, theta(e',gamma)=0 deg
+    L muon + L proton:
+    LL_C_{mu\gamma}=0.671225715594, s=21.515844, theta_in=1.570795, phi_e_in=4.1233404, phi_p_in=0.9817477, qOut=0.25, phiOut=4.712389, Q2=1.4785343, xB=0.38945904, t=-1.6657063, theta(e',gamma)=0 deg
+    L muon + Tx proton:
+    LTx_C_{mu\gamma}=0.69162835755, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.6142142, Q2=0.021496979, xB=0.0023238442, t=-4.7622338e-06, theta(e',gamma)=10.209708 deg
+    L muon + Ty proton:
+    LTy_C_{mu\gamma}=0.664401643741, s=21.515844, theta_in=1.570795, phi_e_in=4.1233404, phi_p_in=0.9817477, qOut=0.25, phiOut=4.712389, Q2=1.4785343, xB=0.38945904, t=-1.6657063, theta(e',gamma)=0 deg
+    Tx muon + Tx proton:
+    TxTx_C_{mu\gamma}=0.994610775316, s=21.515844, theta_in=1.570795, phi_e_in=4.4178647, phi_p_in=1.276272, qOut=1.8, phiOut=4.712389, Q2=0.11829184, xB=0.0070539545, t=-0.42456438, theta(e',gamma)=0 deg
+    Tx muon + Ty proton:
+    TxTy_C_{mu\gamma}=0.996547618792, s=21.515844, theta_in=1.570795, phi_e_in=4.4178647, phi_p_in=1.276272, qOut=1.8, phiOut=4.712389, Q2=0.11829184, xB=0.0070539545, t=-0.42456438, theta(e',gamma)=0 deg
+  C_{p\gamma}:
+    Unpolarized:
+    unpolarized_C_{p\gamma}=5.55111512313e-17, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=4.712389, Q2=3.7515459, xB=0.18387378, t=-19.719607, theta(e',gamma)=0 deg
+    L proton:
+    L_proton_C_{p\gamma}=0.606369131653, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=4.3196899, Q2=0.010411607, xB=0.0046617514, t=-1.92644e-05, theta(e',gamma)=25.26508 deg
+    L muon:
+    L_electron_C_{p\gamma}=0.486274251918, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=5.0069133, Q2=0.15451665, xB=0.017015711, t=-0.00025924191, theta(e',gamma)=30.205479 deg
+    Tx proton:
+    Tx_proton_C_{p\gamma}=0.99998663211, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=2.9848261e-07, xB=2.8062228e-06, t=-0.011472131, theta(e',gamma)=180 deg
+    Ty proton:
+    Ty_proton_C_{p\gamma}=0.999986622665, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=2.9848261e-07, xB=2.8062228e-06, t=-0.011472131, theta(e',gamma)=180 deg
+    Tx muon:
+    Tx_electron_C_{p\gamma}=0.387677415221, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.8105638, Q2=0.19984494, xB=0.01200182, t=-0.00012816329, theta(e',gamma)=29.277972 deg
+    Ty muon:
+    Ty_electron_C_{p\gamma}=0.236599388668, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.6142142, Q2=0.19984494, xB=0.01200182, t=-0.00012816329, theta(e',gamma)=29.277972 deg
+    L muon + L proton:
+    LL_C_{p\gamma}=0.974550711967, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.712389, Q2=0.038347299, xB=0.0022976717, t=-4.6545334e-06, theta(e',gamma)=0 deg
+    L muon + Tx proton:
+    LTx_C_{p\gamma}=0.999986632113, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=2.9848261e-07, xB=2.8062228e-06, t=-0.011472131, theta(e',gamma)=180 deg
+    L muon + Ty proton:
+    LTy_C_{p\gamma}=0.999985905613, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=2.9848261e-07, xB=2.8062228e-06, t=-0.011472131, theta(e',gamma)=180 deg
+    Tx muon + Tx proton:
+    TxTx_C_{p\gamma}=0.999986631997, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=2.9848261e-07, xB=2.8062228e-06, t=-0.011472131, theta(e',gamma)=180 deg
+    Tx muon + Ty proton:
+    TxTy_C_{p\gamma}=0.999986622674, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=2.9848261e-07, xB=2.8062228e-06, t=-0.011472131, theta(e',gamma)=180 deg
+  C_{mu|p\gamma}:
+    Unpolarized:
+    unpolarized_C_{mu|p\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    L proton:
+    L_proton_C_{mu|p\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    L muon:
+    L_electron_C_{mu|p\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    Tx proton:
+    Tx_proton_C_{mu|p\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    Ty proton:
+    Ty_proton_C_{mu|p\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    Tx muon:
+    Tx_electron_C_{mu|p\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    Ty muon:
+    Ty_electron_C_{mu|p\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    L muon + L proton:
+    LL_C_{mu|p\gamma}=0.97666032895, s=21.515844, theta_in=1.570795, phi_e_in=1.4726216, phi_p_in=4.6142142, qOut=0.25, phiOut=1.4726216, Q2=19.625062, xB=0.9943727, t=-17.418119, theta(e',gamma)=175.00998 deg
+    L muon + Tx proton:
+    LTx_C_{mu|p\gamma}=0.77358345807, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.8105638, Q2=0.19984494, xB=0.01200182, t=-0.00012816329, theta(e',gamma)=29.277972 deg
+    L muon + Ty proton:
+    LTy_C_{mu|p\gamma}=0.774054372331, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.6142142, Q2=0.19984494, xB=0.01200182, t=-0.00012816329, theta(e',gamma)=29.277972 deg
+    Tx muon + Tx proton:
+    TxTx_C_{mu|p\gamma}=0.999999561444, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=2.6507188, Q2=19.105805, xB=0.96765828, t=-18.01394, theta(e',gamma)=123.99946 deg
+    Tx muon + Ty proton:
+    TxTy_C_{mu|p\gamma}=0.999999357029, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.666831, xB=0.99462079, t=-17.455191, theta(e',gamma)=180 deg
+  C_{p|mu\gamma}:
+    Unpolarized:
+    unpolarized_C_{p|mu\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    L proton:
+    L_proton_C_{p|mu\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    L muon:
+    L_electron_C_{p|mu\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    Tx proton:
+    Tx_proton_C_{p|mu\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    Ty proton:
+    Ty_proton_C_{p|mu\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    Tx muon:
+    Tx_electron_C_{p|mu\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    Ty muon:
+    Ty_electron_C_{p|mu\gamma}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    L muon + L proton:
+    LL_C_{p|mu\gamma}=0.990102481178, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.5160394, Q2=0.072647598, xB=0.007907963, t=-5.5464823e-05, theta(e',gamma)=20.311601 deg
+    L muon + Tx proton:
+    LTx_C_{p|mu\gamma}=0.999986632113, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=2.9848261e-07, xB=2.8062228e-06, t=-0.011472131, theta(e',gamma)=180 deg
+    L muon + Ty proton:
+    LTy_C_{p|mu\gamma}=0.9999859122, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=2.9848261e-07, xB=2.8062228e-06, t=-0.011472131, theta(e',gamma)=180 deg
+    Tx muon + Tx proton:
+    TxTx_C_{p|mu\gamma}=1, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.666831, xB=0.99462079, t=-17.455191, theta(e',gamma)=180 deg
+    Tx muon + Ty proton:
+    TxTy_C_{p|mu\gamma}=1, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=1.5707963, Q2=0.00028835841, xB=9.4267802e-05, t=-2.3757025, theta(e',gamma)=180 deg
+  C_{\gamma|mup}:
+    Unpolarized:
+    unpolarized_C_{\gamma|mup}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    L proton:
+    L_proton_C_{\gamma|mup}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    L muon:
+    L_electron_C_{\gamma|mup}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    Tx proton:
+    Tx_proton_C_{\gamma|mup}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    Ty proton:
+    Ty_proton_C_{\gamma|mup}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    Tx muon:
+    Tx_electron_C_{\gamma|mup}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    Ty muon:
+    Ty_electron_C_{\gamma|mup}=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    L muon + L proton:
+    LL_C_{\gamma|mup}=0.978913060014, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1, phiOut=4.5160394, Q2=0.072647598, xB=0.007907963, t=-5.5464823e-05, theta(e',gamma)=20.311601 deg
+    L muon + Tx proton:
+    LTx_C_{\gamma|mup}=0.999986632113, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=2.9848261e-07, xB=2.8062228e-06, t=-0.011472131, theta(e',gamma)=180 deg
+    L muon + Ty proton:
+    LTy_C_{\gamma|mup}=0.9999859122, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=2.9848261e-07, xB=2.8062228e-06, t=-0.011472131, theta(e',gamma)=180 deg
+    Tx muon + Tx proton:
+    TxTx_C_{\gamma|mup}=1, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1, phiOut=1.5707963, Q2=19.128262, xB=0.9662768, t=-10.523825, theta(e',gamma)=180 deg
+    Tx muon + Ty proton:
+    TxTy_C_{\gamma|mup}=1, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=1.5707963, Q2=0.00028835841, xB=9.4267802e-05, t=-2.3757025, theta(e',gamma)=180 deg
+  M_mu:
+    Unpolarized:
+    unpolarized_M_mu=-0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    L proton:
+    L_proton_M_mu=-0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=1.1780972, Q2=10.223012, xB=0.98260953, t=-8.7721193, theta(e',gamma)=159.98833 deg
+    L muon:
+    L_electron_M_mu=-5.2754247496e-19, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=1.5707963, Q2=2.9848261e-07, xB=2.8062228e-06, t=-0.011472131, theta(e',gamma)=180 deg
+    Tx proton:
+    Tx_proton_M_mu=-0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    Ty proton:
+    Ty_proton_M_mu=-0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0.68722339, Q2=10.517791, xB=0.95715422, t=-8.9229142, theta(e',gamma)=134.4789 deg
+    Tx muon:
+    Tx_electron_M_mu=-0, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=4.712389, Q2=17.544477, xB=0.88330443, t=-19.76743, theta(e',gamma)=0 deg
+    Ty muon:
+    Ty_electron_M_mu=-0, s=21.515844, theta_in=1.570795, phi_e_in=4.4178647, phi_p_in=1.276272, qOut=0.25, phiOut=1.0799225, Q2=0.28236966, xB=0.55948938, t=-0.38844107, theta(e',gamma)=154.94691 deg
+    L muon + L proton:
+    LL_M_mu=0.472577292161, s=21.515844, theta_in=1.570795, phi_e_in=1.4726216, phi_p_in=4.6142142, qOut=0.25, phiOut=1.4726216, Q2=19.625062, xB=0.9943727, t=-17.418119, theta(e',gamma)=175.00998 deg
+    L muon + Tx proton:
+    LTx_M_mu=0.297995993434, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.6142142, Q2=0.19984494, xB=0.01200182, t=-0.00012816329, theta(e',gamma)=29.277972 deg
+    L muon + Ty proton:
+    LTy_M_mu=0.0414786743037, s=21.515844, theta_in=1.570795, phi_e_in=2.7488936, phi_p_in=5.8904862, qOut=1, phiOut=2.6507188, Q2=15.614143, xB=0.886349, t=-8.365641, theta(e',gamma)=144.19165 deg
+    Tx muon + Tx proton:
+    TxTx_M_mu=0.999998714058, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.666831, xB=0.99462079, t=-17.455191, theta(e',gamma)=180 deg
+    Tx muon + Ty proton:
+    TxTy_M_mu=0.999998714058, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.666831, xB=0.99462079, t=-17.455191, theta(e',gamma)=180 deg
+  M_p:
+    Unpolarized:
+    unpolarized_M_p=-0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    L proton:
+    L_proton_M_p=-0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=4.712389, Q2=8.7723181, xB=0.79099991, t=-9.883715, theta(e',gamma)=0 deg
+    L muon:
+    L_electron_M_p=-0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    Tx proton:
+    Tx_proton_M_p=-0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    Ty proton:
+    Ty_proton_M_p=-0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=4.712389, Q2=8.7723181, xB=0.79099991, t=-9.883715, theta(e',gamma)=0 deg
+    Tx muon:
+    Tx_electron_M_p=-0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    Ty muon:
+    Ty_electron_M_p=-0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    L muon + L proton:
+    LL_M_p=0.472577292004, s=21.515844, theta_in=1.570795, phi_e_in=1.4726216, phi_p_in=4.6142142, qOut=0.25, phiOut=1.4726216, Q2=19.625062, xB=0.9943727, t=-17.418119, theta(e',gamma)=175.00998 deg
+    L muon + Tx proton:
+    LTx_M_p=0.297995998284, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.6142142, Q2=0.19984494, xB=0.01200182, t=-0.00012816329, theta(e',gamma)=29.277972 deg
+    L muon + Ty proton:
+    LTy_M_p=0.0414786743517, s=21.515844, theta_in=1.570795, phi_e_in=2.7488936, phi_p_in=5.8904862, qOut=1, phiOut=2.6507188, Q2=15.614143, xB=0.886349, t=-8.365641, theta(e',gamma)=144.19165 deg
+    Tx muon + Tx proton:
+    TxTx_M_p=0.999998714058, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.666831, xB=0.99462079, t=-17.455191, theta(e',gamma)=180 deg
+    Tx muon + Ty proton:
+    TxTy_M_p=0.999998714058, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.666831, xB=0.99462079, t=-17.455191, theta(e',gamma)=180 deg
+  M_\gamma:
+    Unpolarized:
+    unpolarized_M_\gamma=-0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    L proton:
+    L_proton_M_\gamma=-0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    L muon:
+    L_electron_M_\gamma=-1.50574933697e-15, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=4.712389, Q2=3.7515459, xB=0.18387378, t=-19.719607, theta(e',gamma)=0 deg
+    Tx proton:
+    Tx_proton_M_\gamma=-0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    Ty proton:
+    Ty_proton_M_\gamma=-0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    Tx muon:
+    Tx_electron_M_\gamma=-0, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=4.712389, Q2=17.544477, xB=0.88330443, t=-19.76743, theta(e',gamma)=0 deg
+    Ty muon:
+    Ty_electron_M_\gamma=-0, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=4.712389, Q2=17.544477, xB=0.88330443, t=-19.76743, theta(e',gamma)=0 deg
+    L muon + L proton:
+    LL_M_\gamma=0.472577290054, s=21.515844, theta_in=1.570795, phi_e_in=1.6689711, phi_p_in=4.8105638, qOut=0.25, phiOut=1.6689711, Q2=19.625062, xB=0.9943727, t=-17.418119, theta(e',gamma)=175.00998 deg
+    L muon + Tx proton:
+    LTx_M_\gamma=0.297995998799, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.6142142, Q2=0.19984494, xB=0.01200182, t=-0.00012816329, theta(e',gamma)=29.277972 deg
+    L muon + Ty proton:
+    LTy_M_\gamma=0.0414786711282, s=21.515844, theta_in=1.570795, phi_e_in=2.7488936, phi_p_in=5.8904862, qOut=1, phiOut=2.6507188, Q2=15.614143, xB=0.886349, t=-8.365641, theta(e',gamma)=144.19165 deg
+    Tx muon + Tx proton:
+    TxTx_M_\gamma=0.999998714058, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.666831, xB=0.99462079, t=-17.455191, theta(e',gamma)=180 deg
+    Tx muon + Ty proton:
+    TxTy_M_\gamma=0.999998714058, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.666831, xB=0.99462079, t=-17.455191, theta(e',gamma)=180 deg
+  F_3:
+    Unpolarized:
+    unpolarized_F_3=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    L proton:
+    L_proton_F_3=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    L muon:
+    L_electron_F_3=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    Tx proton:
+    Tx_proton_F_3=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    Ty proton:
+    Ty_proton_F_3=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    Tx muon:
+    Tx_electron_F_3=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    Ty muon:
+    Ty_electron_F_3=0, s=21.515844, theta_in=1.570795, phi_e_in=0, phi_p_in=3.1415927, qOut=0.25, phiOut=0, Q2=10.447554, xB=0.90138094, t=-9.2726044, theta(e',gamma)=96.837956 deg
+    L muon + L proton:
+    LL_F_3=0.730521980145, s=21.515844, theta_in=1.570795, phi_e_in=1.4726216, phi_p_in=4.6142142, qOut=0.25, phiOut=1.4726216, Q2=19.625062, xB=0.9943727, t=-17.418119, theta(e',gamma)=175.00998 deg
+    L muon + Tx proton:
+    LTx_F_3=0.647972387874, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.6142142, Q2=0.19984494, xB=0.01200182, t=-0.00012816329, theta(e',gamma)=29.277972 deg
+    L muon + Ty proton:
+    LTy_F_3=0.658028835274, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.6142142, Q2=0.19984494, xB=0.01200182, t=-0.00012816329, theta(e',gamma)=29.277972 deg
+    Tx muon + Tx proton:
+    TxTx_F_3=0.999999571352, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.666831, xB=0.99462079, t=-17.455191, theta(e',gamma)=180 deg
+    Tx muon + Ty proton:
+    TxTy_F_3=0.999999571352, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=0.25, phiOut=1.5707963, Q2=19.666831, xB=0.99462079, t=-17.455191, theta(e',gamma)=180 deg
+  P_{\rm GHZ+}:
+    Unpolarized:
+    unpolarized_P_{\rm GHZ+}=0.482446385656, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=0.9817477, Q2=15.546897, xB=0.83490892, t=-3.2802228, theta(e',gamma)=178.17114 deg
+    L proton:
+    L_proton_P_{\rm GHZ+}=0.482446385656, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=0.9817477, Q2=15.546897, xB=0.83490892, t=-3.2802228, theta(e',gamma)=178.17114 deg
+    L muon:
+    L_electron_P_{\rm GHZ+}=0.482446385656, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=0.9817477, Q2=15.546897, xB=0.83490892, t=-3.2802228, theta(e',gamma)=178.17114 deg
+    Tx proton:
+    Tx_proton_P_{\rm GHZ+}=0.482446385656, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=0.9817477, Q2=15.546897, xB=0.83490892, t=-3.2802228, theta(e',gamma)=178.17114 deg
+    Ty proton:
+    Ty_proton_P_{\rm GHZ+}=0.482446385656, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=0.9817477, Q2=15.546897, xB=0.83490892, t=-3.2802228, theta(e',gamma)=178.17114 deg
+    Tx muon:
+    Tx_electron_P_{\rm GHZ+}=0.482446385656, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=2.1598449, Q2=15.546897, xB=0.83490892, t=-3.2802228, theta(e',gamma)=178.17114 deg
+    Ty muon:
+    Ty_electron_P_{\rm GHZ+}=0.482446385656, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=0.9817477, Q2=15.546897, xB=0.83490892, t=-3.2802228, theta(e',gamma)=178.17114 deg
+    L muon + L proton:
+    LL_P_{\rm GHZ+}=0.489909827829, s=21.515844, theta_in=1.570795, phi_e_in=1.4726216, phi_p_in=4.6142142, qOut=1.8, phiOut=3.1415927, Q2=8.9235188, xB=0.71222253, t=-4.6271399, theta(e',gamma)=168.96286 deg
+    L muon + Tx proton:
+    LTx_P_{\rm GHZ+}=0.490378043802, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=2.1598449, Q2=15.546897, xB=0.83490892, t=-3.2802228, theta(e',gamma)=178.17114 deg
+    L muon + Ty proton:
+    LTy_P_{\rm GHZ+}=0.48000599406, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=1.0799225, Q2=15.930248, xB=0.83847709, t=-3.2544056, theta(e',gamma)=178.52269 deg
+    Tx muon + Tx proton:
+    TxTx_P_{\rm GHZ+}=0.92464049017, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.712389, Q2=0.038347299, xB=0.0022976717, t=-4.6545334e-06, theta(e',gamma)=0 deg
+    Tx muon + Ty proton:
+    TxTy_P_{\rm GHZ+}=0.948062957376, s=21.515844, theta_in=1.570795, phi_e_in=1.3744468, phi_p_in=4.5160394, qOut=1.8, phiOut=4.4178647, Q2=3.5433043, xB=0.19128036, t=-17.802378, theta(e',gamma)=77.167078 deg
+  P_W:
+    Unpolarized:
+    unpolarized_P_W=0.284127467757, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=1.8, phiOut=4.8105638, Q2=0.19984494, xB=0.01200182, t=-0.00012816329, theta(e',gamma)=29.277972 deg
+    L proton:
+    L_proton_P_W=0.181642932445, s=21.515844, theta_in=1.570795, phi_e_in=4.3196899, phi_p_in=1.1780972, qOut=0.25, phiOut=4.712389, Q2=0.66789974, xB=0.22369619, t=-0.75235301, theta(e',gamma)=0 deg
+    L muon:
+    L_electron_P_W=0.333333332923, s=21.515844, theta_in=1.570795, phi_e_in=1.5707963, phi_p_in=4.712389, qOut=1.8, phiOut=1.5707963, Q2=16.833462, xB=0.8462385, t=-3.2024729, theta(e',gamma)=180 deg
+    Tx proton:
+    Tx_proton_P_W=0.428812211114, s=21.515844, theta_in=1.570795, phi_e_in=4.712389, phi_p_in=1.5707963, qOut=0.25, phiOut=5.3014376, Q2=0.021647944, xB=0.010159703, t=-9.2367453e-05, theta(e',gamma)=37.741224 deg
+    Ty proton:
+    Ty_proton_P_W=0.327917495395, s=21.515844, theta_in=1.570795, phi_e_in=3.436117, phi_p_in=0.29452431, qOut=0.25, phiOut=4.712389, Q2=6.2258947, xB=0.72870837, t=-7.014624, theta(e',gamma)=0 deg
+    Tx muon:
+    Tx_electron_P_W=0.323298420186, s=21.515844, theta_in=1.570795, phi_e_in=5.3014376, phi_p_in=2.1598449, qOut=1, phiOut=5.3014376, Q2=2.8326867, xB=0.26159408, t=-1.5565418, theta(e',gamma)=57.868238 deg
+    Ty muon:
+    Ty_electron_P_W=0.316379123501, s=21.515844, theta_in=1.570795, phi_e_in=6.1850105, phi_p_in=3.0434179, qOut=0.25, phiOut=6.1850105, Q2=9.4812478, xB=0.88337663, t=-8.414958, theta(e',gamma)=91.218276 deg
+    L muon + L proton:
+    LL_P_W=0.651135558905, s=21.515844, theta_in=1.570795, phi_e_in=1.6689711, phi_p_in=4.8105638, qOut=1.8, phiOut=1.6689711, Q2=16.833022, xB=0.84621992, t=-3.2023889, theta(e',gamma)=179.72301 deg
+    L muon + Tx proton:
+    LTx_P_W=0.378716850284, s=21.515844, theta_in=1.570795, phi_e_in=5.3014376, phi_p_in=2.1598449, qOut=0.25, phiOut=4.712389, Q2=1.4785343, xB=0.38945904, t=-1.6657063, theta(e',gamma)=0 deg
+    L muon + Ty proton:
+    LTy_P_W=0.408856185029, s=21.515844, theta_in=1.570795, phi_e_in=3.6324665, phi_p_in=0.49087385, qOut=0.25, phiOut=3.6324665, Q2=5.688932, xB=0.77220935, t=-5.0490811, theta(e',gamma)=68.073478 deg
+    Tx muon + Tx proton:
+    TxTx_P_W=0.577875041086, s=21.515844, theta_in=1.570795, phi_e_in=5.0069133, phi_p_in=1.8653206, qOut=1.8, phiOut=4.712389, Q2=0.11829184, xB=0.0070539545, t=-0.42456438, theta(e',gamma)=0 deg
+    Tx muon + Ty proton:
+    TxTy_P_W=0.497697790521, s=21.515844, theta_in=1.570795, phi_e_in=3.828816, phi_p_in=0.68722339, qOut=1, phiOut=3.828816, Q2=5.7009075, xB=0.45949456, t=-3.1348935, theta(e',gamma)=81.667237 deg
+  aligned <hOut*lambda> range: -0.999999 to 0.92982
+  saved full csv: Output/AlignmentScan/muon/muon_photon_spin_correlation_phase_space.csv
+  saved aligned csv: Output/AlignmentScan/muon/muon_photon_spin_correlation_aligned.csv
+  saved concurrence full csv: Output/AlignmentScan/muon/ConcurrenceScan/muon_photon_concurrence_phase_space.csv
+  saved concurrence aligned csv: Output/AlignmentScan/muon/ConcurrenceScan/muon_photon_concurrence_aligned.csv
+  saved ranked concurrence csv: Output/AlignmentScan/muon/ConcurrenceScan/muon_photon_concurrence_top.csv
+  saved ranked lepton-photon csv: Output/AlignmentScan/muon/ConcurrenceScan/muon_photon_lepton_gamma_top.csv
+  saved unpolarized concurrence plot: Output/AlignmentScan/muon/ConcurrenceScan/concurrence_scan_unpolarized.pdf
+  saved l proton concurrence plot: Output/AlignmentScan/muon/ConcurrenceScan/concurrence_scan_L_proton.pdf
+  saved l muon concurrence plot: Output/AlignmentScan/muon/ConcurrenceScan/concurrence_scan_L_electron.pdf
+  saved tx proton concurrence plot: Output/AlignmentScan/muon/ConcurrenceScan/concurrence_scan_Tx_proton.pdf
+  saved ty proton concurrence plot: Output/AlignmentScan/muon/ConcurrenceScan/concurrence_scan_Ty_proton.pdf
+  saved tx muon concurrence plot: Output/AlignmentScan/muon/ConcurrenceScan/concurrence_scan_Tx_electron.pdf
+  saved ty muon concurrence plot: Output/AlignmentScan/muon/ConcurrenceScan/concurrence_scan_Ty_electron.pdf
+  saved l muon + l proton concurrence plot: Output/AlignmentScan/muon/ConcurrenceScan/concurrence_scan_LL.pdf
+  saved l muon + tx proton concurrence plot: Output/AlignmentScan/muon/ConcurrenceScan/concurrence_scan_LTx.pdf
+  saved l muon + ty proton concurrence plot: Output/AlignmentScan/muon/ConcurrenceScan/concurrence_scan_LTy.pdf
+  saved tx muon + tx proton concurrence plot: Output/AlignmentScan/muon/ConcurrenceScan/concurrence_scan_TxTx.pdf
+  saved tx muon + ty proton concurrence plot: Output/AlignmentScan/muon/ConcurrenceScan/concurrence_scan_TxTy.pdf
+
+Saved log: Output/AlignmentScan/muon/AlignmentScan.log

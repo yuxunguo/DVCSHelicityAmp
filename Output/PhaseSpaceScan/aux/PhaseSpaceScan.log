@@ -1,0 +1,174 @@
+AlignmentScan-style entanglement phase-space scan (aux)
+  random seed: 271828
+  parallel workers: 10
+  aux mass: 1 GeV
+  threshold: sqrt(s)=1.938 GeV
+  ranges: sqrt(s)=(1.9399379999999997, 100.0) GeV, s=(3.763359443843999, 10000.0), theta_in=(0.35, 2.8)
+  qOut fraction of kinematic maximum: (0.05, 0.95)
+  phase-space valid samples: 8192/8192
+  observables: C_{l_auxp}, C_{l_aux\gamma}, C_{p\gamma}, C_{l_aux|p\gamma}, C_{p|l_aux\gamma}, C_{\gamma|l_auxp}, M_l_aux, M_p, M_\gamma, F_3, P_{\rm GHZ+}, P_W
+  polarization cases: 12
+  AlignmentScan seed samples: 144/144
+  refinement valid samples: 4096/4096
+  total valid samples: 12432
+  best points by observable and polarization:
+  C_{l_auxp}:
+    Unpolarized [unpolarized]: 0.40357142, sqrt(s)=2.187463, theta=1.675512, qOut=0.01383826, phi_lepton=2.056368, phi_gamma=6.155605
+    L proton [L_proton]: 0.57716644, sqrt(s)=2.187463, theta=1.675512, qOut=0.01383826, phi_lepton=2.056368, phi_gamma=6.155605
+    L auxiliary lepton [L_electron]: 0.62449426, sqrt(s)=2.187463, theta=1.675512, qOut=0.01383826, phi_lepton=2.056368, phi_gamma=6.155605
+    Tx proton [Tx_proton]: 0.5840231, sqrt(s)=2.187463, theta=1.675512, qOut=0.01383826, phi_lepton=2.056368, phi_gamma=6.155605
+    Ty proton [Ty_proton]: 0.51237946, sqrt(s)=2.242028, theta=2.22118, qOut=0.002685866, phi_lepton=1.404046, phi_gamma=3.87258
+    Tx auxiliary lepton [Tx_electron]: 0.50077544, sqrt(s)=2.187463, theta=1.675512, qOut=0.01383826, phi_lepton=2.056368, phi_gamma=6.155605
+    Ty auxiliary lepton [Ty_electron]: 0.54326847, sqrt(s)=2.242028, theta=2.22118, qOut=0.002685866, phi_lepton=1.404046, phi_gamma=3.87258
+    L auxiliary lepton + L proton [LL]: 0.91561689, sqrt(s)=2.049654, theta=1.773944, qOut=0.001060463, phi_lepton=1.583932, phi_gamma=1.940786
+    L auxiliary lepton + Tx proton [LTx]: 0.99557889, sqrt(s)=49.88754, theta=1.58799, qOut=22.88581, phi_lepton=1.756163, phi_gamma=1.721579
+    L auxiliary lepton + Ty proton [LTy]: 0.99539442, sqrt(s)=49.88754, theta=1.58799, qOut=22.88581, phi_lepton=1.756163, phi_gamma=1.721579
+    Tx auxiliary lepton + Tx proton [TxTx]: 0.99994953, sqrt(s)=73.15397, theta=1.608361, qOut=0.3610106, phi_lepton=1.559457, phi_gamma=4.497499
+    Tx auxiliary lepton + Ty proton [TxTy]: 0.9999494, sqrt(s)=73.15397, theta=1.608361, qOut=0.3610106, phi_lepton=1.559457, phi_gamma=4.497499
+  C_{l_aux\gamma}:
+    Unpolarized [unpolarized]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    L proton [L_proton]: 0.7245037, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=2.25802, phi_gamma=4.712389
+    L auxiliary lepton [L_electron]: 0.73974444, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=5.890486, phi_gamma=4.614214
+    Tx proton [Tx_proton]: 0.17790325, sqrt(s)=2.522508, theta=1.573456, qOut=0.4067802, phi_lepton=6.072961, phi_gamma=4.509776
+    Ty proton [Ty_proton]: 0.20795794, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=3.436117, phi_gamma=4.810564
+    Tx auxiliary lepton [Tx_electron]: 0.99815435, sqrt(s)=100, theta=1.483581, qOut=41.01703, phi_lepton=5.181276, phi_gamma=4.710571
+    Ty auxiliary lepton [Ty_electron]: 0.99821583, sqrt(s)=100, theta=1.483581, qOut=41.01703, phi_lepton=5.181276, phi_gamma=4.710571
+    L auxiliary lepton + L proton [LL]: 0.9172961, sqrt(s)=2.984914, theta=1.680404, qOut=0.771395, phi_lepton=2.541357, phi_gamma=2.448658
+    L auxiliary lepton + Tx proton [LTx]: 0.75636271, sqrt(s)=2.60367, theta=1.277538, qOut=0.1923171, phi_lepton=2.115309, phi_gamma=4.676012
+    L auxiliary lepton + Ty proton [LTy]: 0.76179672, sqrt(s)=2.60367, theta=1.277538, qOut=0.1923171, phi_lepton=2.115309, phi_gamma=4.676012
+    Tx auxiliary lepton + Tx proton [TxTx]: 0.9982288, sqrt(s)=100, theta=1.483581, qOut=41.01703, phi_lepton=5.181276, phi_gamma=4.710571
+    Tx auxiliary lepton + Ty proton [TxTy]: 0.99820968, sqrt(s)=100, theta=1.483581, qOut=41.01703, phi_lepton=5.181276, phi_gamma=4.710571
+  C_{p\gamma}:
+    Unpolarized [unpolarized]: 1.5829156e-11, sqrt(s)=1.939938, theta=1.564011, qOut=1.936126e-05, phi_lepton=4.378971, phi_gamma=6.260416
+    L proton [L_proton]: 0.81539738, sqrt(s)=4.638517, theta=1.570795, qOut=1, phi_lepton=4.712389, phi_gamma=4.31969
+    L auxiliary lepton [L_electron]: 0.17106995, sqrt(s)=4.638517, theta=1.570795, qOut=1, phi_lepton=4.712389, phi_gamma=3.730641
+    Tx proton [Tx_proton]: 0.99998334, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=4.712389, phi_gamma=1.570796
+    Ty proton [Ty_proton]: 0.99998334, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=4.712389, phi_gamma=1.570796
+    Tx auxiliary lepton [Tx_electron]: 0.34849326, sqrt(s)=2.581197, theta=2.4821, qOut=0.5121404, phi_lepton=1.713915, phi_gamma=1.950696
+    Ty auxiliary lepton [Ty_electron]: 0.35259401, sqrt(s)=3.180495, theta=1.66124, qOut=0.889299, phi_lepton=4.79833, phi_gamma=3.739731
+    L auxiliary lepton + L proton [LL]: 0.86431392, sqrt(s)=4.638517, theta=1.570795, qOut=1, phi_lepton=4.712389, phi_gamma=4.31969
+    L auxiliary lepton + Tx proton [LTx]: 0.99998334, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=4.712389, phi_gamma=1.570796
+    L auxiliary lepton + Ty proton [LTy]: 0.99998266, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=4.712389, phi_gamma=1.570796
+    Tx auxiliary lepton + Tx proton [TxTx]: 0.99998334, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=4.712389, phi_gamma=1.570796
+    Tx auxiliary lepton + Ty proton [TxTy]: 0.99998334, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=4.712389, phi_gamma=1.570796
+  C_{l_aux|p\gamma}:
+    Unpolarized [unpolarized]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    L proton [L_proton]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    L auxiliary lepton [L_electron]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    Tx proton [Tx_proton]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    Ty proton [Ty_proton]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    Tx auxiliary lepton [Tx_electron]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    Ty auxiliary lepton [Ty_electron]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    L auxiliary lepton + L proton [LL]: 0.98974611, sqrt(s)=2.453235, theta=1.466966, qOut=0.4233592, phi_lepton=1.21587, phi_gamma=1.535206
+    L auxiliary lepton + Tx proton [LTx]: 0.99997376, sqrt(s)=4.638517, theta=1.570795, qOut=1, phi_lepton=1.570796, phi_gamma=1.374447
+    L auxiliary lepton + Ty proton [LTy]: 0.99994878, sqrt(s)=4.638517, theta=1.570795, qOut=1, phi_lepton=1.472622, phi_gamma=1.668971
+    Tx auxiliary lepton + Tx proton [TxTx]: 0.99999981, sqrt(s)=80.9274, theta=2.10748, qOut=33.48902, phi_lepton=3.080032, phi_gamma=4.712211
+    Tx auxiliary lepton + Ty proton [TxTy]: 0.99999942, sqrt(s)=73.15397, theta=1.608361, qOut=0.3610106, phi_lepton=1.559457, phi_gamma=4.497499
+  C_{p|l_aux\gamma}:
+    Unpolarized [unpolarized]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    L proton [L_proton]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    L auxiliary lepton [L_electron]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    Tx proton [Tx_proton]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    Ty proton [Ty_proton]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    Tx auxiliary lepton [Tx_electron]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    Ty auxiliary lepton [Ty_electron]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    L auxiliary lepton + L proton [LL]: 0.98207994, sqrt(s)=4.638517, theta=1.570795, qOut=1, phi_lepton=4.712389, phi_gamma=4.31969
+    L auxiliary lepton + Tx proton [LTx]: 0.99998334, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=4.712389, phi_gamma=1.570796
+    L auxiliary lepton + Ty proton [LTy]: 0.99998267, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=4.712389, phi_gamma=1.570796
+    Tx auxiliary lepton + Tx proton [TxTx]: 1, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=4.712389, phi_gamma=1.570796
+    Tx auxiliary lepton + Ty proton [TxTy]: 1, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=1.570796, phi_gamma=4.712389
+  C_{\gamma|l_auxp}:
+    Unpolarized [unpolarized]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    L proton [L_proton]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    L auxiliary lepton [L_electron]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    Tx proton [Tx_proton]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    Ty proton [Ty_proton]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    Tx auxiliary lepton [Tx_electron]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    Ty auxiliary lepton [Ty_electron]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    L auxiliary lepton + L proton [LL]: 0.98138829, sqrt(s)=2.7577, theta=1.560249, qOut=0.6287289, phi_lepton=2.270325, phi_gamma=2.119638
+    L auxiliary lepton + Tx proton [LTx]: 0.99998334, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=4.712389, phi_gamma=1.570796
+    L auxiliary lepton + Ty proton [LTy]: 0.99998267, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=4.712389, phi_gamma=1.570796
+    Tx auxiliary lepton + Tx proton [TxTx]: 1, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=1.570796, phi_gamma=4.712389
+    Tx auxiliary lepton + Ty proton [TxTy]: 1, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=1.570796, phi_gamma=4.712389
+  M_l_aux:
+    Unpolarized [unpolarized]: -0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    L proton [L_proton]: -0, sqrt(s)=16.53707, theta=1.790026, qOut=5.157494, phi_lepton=4.115039, phi_gamma=2.801507
+    L auxiliary lepton [L_electron]: -5.3147449e-17, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=4.712389, phi_gamma=1.570796
+    Tx proton [Tx_proton]: -0, sqrt(s)=83.47952, theta=2.535802, qOut=3.600414, phi_lepton=4.653083, phi_gamma=5.117271
+    Ty proton [Ty_proton]: -0, sqrt(s)=83.47952, theta=2.535802, qOut=3.600414, phi_lepton=4.653083, phi_gamma=5.117271
+    Tx auxiliary lepton [Tx_electron]: -0, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=4.712389, phi_gamma=1.570796
+    Ty auxiliary lepton [Ty_electron]: -0, sqrt(s)=2.819294, theta=1.428424, qOut=0.5633058, phi_lepton=4.536608, phi_gamma=2.284137
+    L auxiliary lepton + L proton [LL]: 0.15709026, sqrt(s)=4.638517, theta=1.570795, qOut=1, phi_lepton=2.25802, phi_gamma=2.25802
+    L auxiliary lepton + Tx proton [LTx]: 0.50658409, sqrt(s)=2.523571, theta=1.567906, qOut=0.4726672, phi_lepton=1.38123, phi_gamma=1.986158
+    L auxiliary lepton + Ty proton [LTy]: 0.65089497, sqrt(s)=2.581197, theta=2.4821, qOut=0.5121404, phi_lepton=1.713915, phi_gamma=1.950696
+    Tx auxiliary lepton + Tx proton [TxTx]: 0.99973396, sqrt(s)=77.2192, theta=1.589309, qOut=37.7527, phi_lepton=1.756249, phi_gamma=1.749695
+    Tx auxiliary lepton + Ty proton [TxTy]: 0.99972874, sqrt(s)=77.2192, theta=1.589309, qOut=37.7527, phi_lepton=1.756249, phi_gamma=1.749695
+  M_p:
+    Unpolarized [unpolarized]: -0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    L proton [L_proton]: -0, sqrt(s)=34.05158, theta=2.11229, qOut=3.879076, phi_lepton=5.831219, phi_gamma=4.739664
+    L auxiliary lepton [L_electron]: -0, sqrt(s)=83.47952, theta=2.535802, qOut=3.600414, phi_lepton=4.653083, phi_gamma=5.117271
+    Tx proton [Tx_proton]: -0, sqrt(s)=28.42091, theta=1.027835, qOut=3.089928, phi_lepton=1.671382, phi_gamma=4.76649
+    Ty proton [Ty_proton]: -0, sqrt(s)=28.42091, theta=1.027835, qOut=3.089928, phi_lepton=1.671382, phi_gamma=4.76649
+    Tx auxiliary lepton [Tx_electron]: -0, sqrt(s)=83.47952, theta=2.535802, qOut=3.600414, phi_lepton=4.653083, phi_gamma=5.117271
+    Ty auxiliary lepton [Ty_electron]: -0, sqrt(s)=83.47952, theta=2.535802, qOut=3.600414, phi_lepton=4.653083, phi_gamma=5.117271
+    L auxiliary lepton + L proton [LL]: 0.15709026, sqrt(s)=4.638517, theta=1.570795, qOut=1, phi_lepton=2.25802, phi_gamma=2.25802
+    L auxiliary lepton + Tx proton [LTx]: 0.50658409, sqrt(s)=2.523571, theta=1.567906, qOut=0.4726672, phi_lepton=1.38123, phi_gamma=1.986158
+    L auxiliary lepton + Ty proton [LTy]: 0.65089496, sqrt(s)=2.581197, theta=2.4821, qOut=0.5121404, phi_lepton=1.713915, phi_gamma=1.950696
+    Tx auxiliary lepton + Tx proton [TxTx]: 0.99973396, sqrt(s)=77.2192, theta=1.589309, qOut=37.7527, phi_lepton=1.756249, phi_gamma=1.749695
+    Tx auxiliary lepton + Ty proton [TxTy]: 0.99972874, sqrt(s)=77.2192, theta=1.589309, qOut=37.7527, phi_lepton=1.756249, phi_gamma=1.749695
+  M_\gamma:
+    Unpolarized [unpolarized]: -0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    L proton [L_proton]: -0, sqrt(s)=3.226019, theta=2.052398, qOut=0.5164333, phi_lepton=6.12737, phi_gamma=1.286958
+    L auxiliary lepton [L_electron]: -0, sqrt(s)=5.936654, theta=1.505995, qOut=2.375307, phi_lepton=1.149227, phi_gamma=0.6038351
+    Tx proton [Tx_proton]: -0, sqrt(s)=42.0675, theta=1.616315, qOut=3.247595, phi_lepton=0.4255366, phi_gamma=0.4114083
+    Ty proton [Ty_proton]: -0, sqrt(s)=42.0675, theta=1.616315, qOut=3.247595, phi_lepton=0.4255366, phi_gamma=0.4114083
+    Tx auxiliary lepton [Tx_electron]: -8.1158454e-26, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=1.570796, phi_gamma=4.712389
+    Ty auxiliary lepton [Ty_electron]: -0, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=4.712389, phi_gamma=1.570796
+    L auxiliary lepton + L proton [LL]: 0.15709025, sqrt(s)=4.638517, theta=1.570795, qOut=1, phi_lepton=0.8835729, phi_gamma=0.8835729
+    L auxiliary lepton + Tx proton [LTx]: 0.50658409, sqrt(s)=2.523571, theta=1.567906, qOut=0.4726672, phi_lepton=1.38123, phi_gamma=1.986158
+    L auxiliary lepton + Ty proton [LTy]: 0.65089497, sqrt(s)=2.581197, theta=2.4821, qOut=0.5121404, phi_lepton=1.713915, phi_gamma=1.950696
+    Tx auxiliary lepton + Tx proton [TxTx]: 0.99973396, sqrt(s)=77.2192, theta=1.589309, qOut=37.7527, phi_lepton=1.756249, phi_gamma=1.749695
+    Tx auxiliary lepton + Ty proton [TxTy]: 0.99972874, sqrt(s)=77.2192, theta=1.589309, qOut=37.7527, phi_lepton=1.756249, phi_gamma=1.749695
+  F_3:
+    Unpolarized [unpolarized]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    L proton [L_proton]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    L auxiliary lepton [L_electron]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    Tx proton [Tx_proton]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    Ty proton [Ty_proton]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    Tx auxiliary lepton [Tx_electron]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    Ty auxiliary lepton [Ty_electron]: 0, sqrt(s)=9.533038, theta=2.214246, qOut=0.7325195, phi_lepton=2.629976, phi_gamma=1.473632
+    L auxiliary lepton + L proton [LL]: 0.8480576, sqrt(s)=2.453235, theta=1.466966, qOut=0.4233592, phi_lepton=1.21587, phi_gamma=1.535206
+    L auxiliary lepton + Tx proton [LTx]: 0.89211194, sqrt(s)=2.523571, theta=1.567906, qOut=0.4726672, phi_lepton=1.38123, phi_gamma=1.986158
+    L auxiliary lepton + Ty proton [LTy]: 0.85633854, sqrt(s)=2.581197, theta=2.4821, qOut=0.5121404, phi_lepton=1.713915, phi_gamma=1.950696
+    Tx auxiliary lepton + Tx proton [TxTx]: 0.99991075, sqrt(s)=77.2192, theta=1.589309, qOut=37.7527, phi_lepton=1.756249, phi_gamma=1.749695
+    Tx auxiliary lepton + Ty proton [TxTy]: 0.99990419, sqrt(s)=77.2192, theta=1.589309, qOut=37.7527, phi_lepton=1.756249, phi_gamma=1.749695
+  P_{\rm GHZ+}:
+    Unpolarized [unpolarized]: 0.49703425, sqrt(s)=84.43318, theta=1.642859, qOut=41.00247, phi_lepton=1.660749, phi_gamma=1.295017
+    L proton [L_proton]: 0.49703425, sqrt(s)=84.43318, theta=1.642859, qOut=41.00247, phi_lepton=1.660749, phi_gamma=1.295017
+    L auxiliary lepton [L_electron]: 0.49703425, sqrt(s)=84.43318, theta=1.642859, qOut=41.00247, phi_lepton=1.660749, phi_gamma=1.295017
+    Tx proton [Tx_proton]: 0.49703425, sqrt(s)=84.43318, theta=1.642859, qOut=41.00247, phi_lepton=1.660749, phi_gamma=1.295017
+    Ty proton [Ty_proton]: 0.49703425, sqrt(s)=84.43318, theta=1.642859, qOut=41.00247, phi_lepton=1.660749, phi_gamma=1.295017
+    Tx auxiliary lepton [Tx_electron]: 0.49703425, sqrt(s)=84.43318, theta=1.642859, qOut=41.00247, phi_lepton=1.660749, phi_gamma=1.295017
+    Ty auxiliary lepton [Ty_electron]: 0.49703425, sqrt(s)=84.43318, theta=1.642859, qOut=41.00247, phi_lepton=1.660749, phi_gamma=1.295017
+    L auxiliary lepton + L proton [LL]: 0.62167596, sqrt(s)=2.339879, theta=1.53039, qOut=0.2554874, phi_lepton=0.6055975, phi_gamma=1.141544
+    L auxiliary lepton + Tx proton [LTx]: 0.63285498, sqrt(s)=2.444757, theta=2.169073, qOut=0.3020199, phi_lepton=1.21332, phi_gamma=3.748404
+    L auxiliary lepton + Ty proton [LTy]: 0.49749602, sqrt(s)=84.43318, theta=1.642859, qOut=41.00247, phi_lepton=1.660749, phi_gamma=1.295017
+    Tx auxiliary lepton + Tx proton [TxTx]: 0.98385095, sqrt(s)=77.6329, theta=1.917571, qOut=37.34455, phi_lepton=2.097377, phi_gamma=2.163716
+    Tx auxiliary lepton + Ty proton [TxTy]: 0.98766515, sqrt(s)=89.77484, theta=1.116987, qOut=42.63813, phi_lepton=2.181121, phi_gamma=2.443428
+  P_W:
+    Unpolarized [unpolarized]: 0.23954081, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=2.06167, phi_gamma=4.712389
+    L proton [L_proton]: 0.26503268, sqrt(s)=2.130835, theta=2.626599, qOut=0.1754757, phi_lepton=3.330499, phi_gamma=4.381809
+    L auxiliary lepton [L_electron]: 0.35312735, sqrt(s)=2.271347, theta=1.531786, qOut=0.2887609, phi_lepton=1.828246, phi_gamma=2.047828
+    Tx proton [Tx_proton]: 0.35645869, sqrt(s)=4.638517, theta=1.570795, qOut=1, phi_lepton=4.712389, phi_gamma=0.2945243
+    Ty proton [Ty_proton]: 0.37703026, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=3.436117, phi_gamma=4.810564
+    Tx auxiliary lepton [Tx_electron]: 0.42856768, sqrt(s)=4.638517, theta=1.570795, qOut=1, phi_lepton=4.614214, phi_gamma=5.105088
+    Ty auxiliary lepton [Ty_electron]: 0.30490371, sqrt(s)=26.7556, theta=1.293261, qOut=3.534182, phi_lepton=5.926055, phi_gamma=4.703733
+    L auxiliary lepton + L proton [LL]: 0.42692692, sqrt(s)=2.333274, theta=1.502187, qOut=0.3358913, phi_lepton=1.681056, phi_gamma=1.55443
+    L auxiliary lepton + Tx proton [LTx]: 0.61086152, sqrt(s)=2.271347, theta=1.531786, qOut=0.2887609, phi_lepton=1.828246, phi_gamma=2.047828
+    L auxiliary lepton + Ty proton [LTy]: 0.42765751, sqrt(s)=4.638517, theta=1.570795, qOut=0.25, phi_lepton=5.595962, phi_gamma=5.792311
+    Tx auxiliary lepton + Tx proton [TxTx]: 0.51437698, sqrt(s)=4.638517, theta=1.570795, qOut=1, phi_lepton=4.712389, phi_gamma=4.12334
+    Tx auxiliary lepton + Ty proton [TxTy]: 0.50946408, sqrt(s)=4.638517, theta=1.570795, qOut=1, phi_lepton=4.025166, phi_gamma=4.908739
+  full csv: Output/PhaseSpaceScan/aux/ConcurrenceScan/aux_photon_entanglement_phase_space.csv
+  aligned csv: Output/PhaseSpaceScan/aux/ConcurrenceScan/aux_photon_entanglement_aligned.csv
+  ranked csv: Output/PhaseSpaceScan/aux/ConcurrenceScan/aux_photon_entanglement_top.csv
+  per-polarization plots: Output/PhaseSpaceScan/aux/ConcurrenceScan

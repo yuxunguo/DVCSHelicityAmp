@@ -1,8 +1,8 @@
 """Small prepared-spin example using the same physics path as ConfigGen.
 
 Edit the input block below and run ``python3 FixedHelicityTest.py``. Fixed
-helicities and longitudinal/transverse pure states are supported for both
-incoming particles.
+helicities, longitudinal/transverse pure states, and unpolarized helicity
+averages are supported for both incoming particles.
 """
 
 import csv
@@ -17,6 +17,7 @@ from Kinematics import kinematics_user_from_independent
 from PlotUtils import require_matplotlib
 from SpinDensityMat import (
     amplitude_table,
+    entanglement_measures_from_density_matrix,
     entanglement_measures_from_state,
     initial_spin_states,
     outgoing_spin_states,
@@ -25,15 +26,18 @@ from SpinDensityMat import (
 
 
 # ---------------------------------------------------------------------------
-# Each state may be -1, +1, "L", "Tx", "-Tx", "Ty", or "-Ty".
+# Each state may be -1, +1, "U", "L", "Tx", "-Tx", "Ty", or "-Ty".
+# "U" (or "unpolarized") is the equal incoherent average over helicities.
 # ---------------------------------------------------------------------------
-S = 10.25844
-THETA_IN = 1.10
-PHI_IN = 0.20
-QOUT = 0.45
-PHIOUT = 2.40
-ELECTRON_STATE = "Tx"
-PROTON_STATE = "Ty"
+# Near-maximal proton-photon concurrence from the transverse-proton scan:
+# C_p_gamma = 0.9999305343 at phi_in = pi/2.
+S = 21.515844
+THETA_IN = 1.570795
+PHI_IN = np.pi / 2.0
+QOUT = 0.50
+PHIOUT = np.pi / 2.0
+ELECTRON_STATE = "U"
+PROTON_STATE = "Tx"
 
 OUTPUT_DIR = Path("Output") / "FixedHelicityTest"
 
@@ -45,8 +49,19 @@ def _state_coefficients(state, particle):
     if isinstance(state, str) and state in {"L", "Tx", "-Tx", "Ty", "-Ty"}:
         return prepared_spin_coefficients(state)
     raise ValueError(
-        f"{particle}_state must be -1, +1, 'L', 'Tx', '-Tx', 'Ty', or '-Ty'."
+        f"{particle}_state must be -1, +1, 'U', 'unpolarized', 'L', "
+        "'Tx', '-Tx', 'Ty', or '-Ty'."
     )
+
+
+def _state_ensemble(state, particle):
+    """Return ``(weight, coefficients, label)`` terms for one particle."""
+    if isinstance(state, str) and state.lower() in {"u", "unpolarized"}:
+        return [
+            (0.5, {helicity: 1.0 + 0.0j}, f"{particle} h={helicity:+d}")
+            for helicity in HELICITIES
+        ]
+    return [(1.0, _state_coefficients(state, particle), f"{particle} {state}")]
 
 
 def evaluate_prepared_spin_configuration(
@@ -58,9 +73,9 @@ def evaluate_prepared_spin_configuration(
     electron_state,
     proton_state,
 ):
-    """Return momenta and entanglement for one pure prepared spin product."""
-    electron_coefficients = _state_coefficients(electron_state, "electron")
-    proton_coefficients = _state_coefficients(proton_state, "proton")
+    """Return momenta and entanglement for a prepared initial spin ensemble."""
+    electron_ensemble = _state_ensemble(electron_state, "electron")
+    proton_ensemble = _state_ensemble(proton_state, "proton")
 
     kin = kinematics_user_from_independent(
         s,
@@ -80,19 +95,41 @@ def evaluate_prepared_spin_configuration(
         F2,
         electron_mass=ELECTRON_MASS_GEV,
     )
-    outgoing_state = np.zeros(len(outgoing_spin_states()), dtype=complex)
-    for h_in, electron_coefficient in electron_coefficients.items():
-        for s_in, proton_coefficient in proton_coefficients.items():
-            incoming_index = initial_spin_states().index((h_in, s_in))
-            outgoing_state += (
-                electron_coefficient
-                * proton_coefficient
-                * amplitudes[incoming_index]
-            )
-    norm = float(np.vdot(outgoing_state, outgoing_state).real)
+    outgoing_components = []
+    outgoing_rho = np.zeros(
+        (len(outgoing_spin_states()), len(outgoing_spin_states())), dtype=complex
+    )
+    for electron_weight, electron_coefficients, electron_label in electron_ensemble:
+        for proton_weight, proton_coefficients, proton_label in proton_ensemble:
+            outgoing_state = np.zeros(len(outgoing_spin_states()), dtype=complex)
+            for h_in, electron_coefficient in electron_coefficients.items():
+                for s_in, proton_coefficient in proton_coefficients.items():
+                    incoming_index = initial_spin_states().index((h_in, s_in))
+                    outgoing_state += (
+                        electron_coefficient
+                        * proton_coefficient
+                        * amplitudes[incoming_index]
+                    )
+            weight = electron_weight * proton_weight
+            outgoing_components.append({
+                "weight": weight,
+                "label": f"{electron_label}, {proton_label}",
+                "state": outgoing_state,
+            })
+            outgoing_rho += weight * np.outer(outgoing_state, outgoing_state.conj())
+
+    norm = float(np.trace(outgoing_rho).real)
     if norm <= 0.0:
         raise ZeroDivisionError("The selected outgoing state has zero norm.")
-    normalized_state = outgoing_state / np.sqrt(norm)
+    normalized_rho = outgoing_rho / norm
+    is_pure_input = len(outgoing_components) == 1
+    outgoing_state = outgoing_components[0]["state"] if is_pure_input else None
+    normalized_state = outgoing_state / np.sqrt(norm) if is_pure_input else None
+    entanglement = (
+        entanglement_measures_from_state(normalized_state)
+        if is_pure_input
+        else entanglement_measures_from_density_matrix(normalized_rho)
+    )
 
     return {
         "kinematics": kin,
@@ -102,18 +139,13 @@ def evaluate_prepared_spin_configuration(
         "proton_state": proton_state,
         "amplitudes": outgoing_state,
         "normalized_state": normalized_state,
+        "outgoing_components": outgoing_components,
+        "density_matrix": normalized_rho,
+        "purity": float(np.trace(normalized_rho @ normalized_rho).real),
+        "probabilities": np.real(np.diag(normalized_rho)),
         "squared_amplitude": norm,
-        "entanglement": entanglement_measures_from_state(normalized_state),
+        "entanglement": entanglement,
     }
-
-
-def evaluate_fixed_helicity_configuration(
-    s, theta_in, phi_in, qOut, phiOut, h_in, s_in
-):
-    """Backward-compatible wrapper for fixed incoming helicities."""
-    return evaluate_prepared_spin_configuration(
-        s, theta_in, phi_in, qOut, phiOut, h_in, s_in
-    )
 
 
 def write_test_outputs(result, output_dir=OUTPUT_DIR):
@@ -134,13 +166,19 @@ def write_test_outputs(result, output_dir=OUTPUT_DIR):
     with amplitude_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow((
-            "hOut", "sOut", "lambda", "amplitude_real", "amplitude_imag",
-            "normalized_probability",
+            "initial_component", "ensemble_weight", "hOut", "sOut", "lambda",
+            "amplitude_real", "amplitude_imag", "amplitude_abs",
+            "amplitude_phase_rad", "normalized_weighted_probability",
         ))
-        for labels, amplitude, coefficient in zip(
-            outgoing_spin_states(), result["amplitudes"], result["normalized_state"]
-        ):
-            writer.writerow((*labels, amplitude.real, amplitude.imag, abs(coefficient) ** 2))
+        for component in result["outgoing_components"]:
+            for labels, amplitude in zip(outgoing_spin_states(), component["state"]):
+                writer.writerow((
+                    component["label"], component["weight"], *labels,
+                    amplitude.real, amplitude.imag, abs(amplitude),
+                    np.angle(amplitude),
+                    component["weight"] * abs(amplitude) ** 2
+                    / result["squared_amplitude"],
+                ))
 
     entanglement_path = output_dir / "entanglement_measurements.csv"
     with entanglement_path.open("w", newline="", encoding="utf-8") as handle:
@@ -148,6 +186,7 @@ def write_test_outputs(result, output_dir=OUTPUT_DIR):
         writer.writerow(("measurement", "value"))
         writer.writerow(("electron_state", result["electron_state"]))
         writer.writerow(("proton_state", result["proton_state"]))
+        writer.writerow(("outgoing_density_purity", result["purity"]))
         writer.writerow(("squared_amplitude", result["squared_amplitude"]))
         writer.writerow(("F1", result["F1"]))
         writer.writerow(("F2", result["F2"]))
@@ -207,7 +246,7 @@ def write_summary_pdf(result, output_dir=OUTPUT_DIR):
         ax_text = fig.add_subplot(grid[0, 1])
         ax_text.axis("off")
         lines = [
-            "Prepared-spin Bethe-Heitler test",
+            "Prepared/unpolarized-spin Bethe-Heitler test",
             (
                 f"electron={result['electron_state']}, "
                 f"proton={result['proton_state']}"
@@ -220,6 +259,7 @@ def write_summary_pdf(result, output_dir=OUTPUT_DIR):
             f"Q2={kin['Q2']:.6g}, xB={kin['xB']:.6g}, t={kin['t']:.6g}",
             f"F1={result['F1']:.6g}, F2={result['F2']:.6g}",
             f"|M|^2={result['squared_amplitude']:.6g}",
+            f"outgoing density purity={result['purity']:.7g}",
             "",
             "Entanglement measurements",
         ]
@@ -231,20 +271,35 @@ def write_summary_pdf(result, output_dir=OUTPUT_DIR):
                      family="monospace", fontsize=9.5)
 
         ax_amp = fig.add_subplot(grid[1, 1])
-        states = outgoing_spin_states()
-        probabilities = np.abs(result["normalized_state"]) ** 2
+        records = []
+        for component in result["outgoing_components"]:
+            for labels, amplitude in zip(outgoing_spin_states(), component["state"]):
+                fraction = (
+                    component["weight"] * abs(amplitude) ** 2
+                    / result["squared_amplitude"]
+                )
+                records.append((fraction, np.angle(amplitude), labels, component["label"]))
+        records.sort(reverse=True, key=lambda record: record[0])
+        records = [record for record in records if record[0] >= 1.0e-8][:8]
+        fractions = np.asarray([record[0] for record in records])
         labels = [
-            rf"$h_e={h:+d}$" + "\n" + rf"$h_p={s:+d}$" + "\n"
-            + rf"$h_\gamma={lam:+d}$"
-            for h, s, lam in states
+            rf"$h_e={h:+d}, h_p={s:+d}, h_\gamma={lam:+d}$" + "\n" + initial
+            for _, _, (h, s, lam), initial in records
         ]
-        ax_amp.bar(np.arange(len(states)), probabilities, color="tab:blue")
-        ax_amp.set_xticks(np.arange(len(states)), labels, rotation=45, ha="right")
-        ax_amp.set_ylabel("Normalized probability")
-        ax_amp.set_xlabel("Outgoing helicity state")
-        ax_amp.set_ylim(0.0, max(1.0e-3, 1.12 * probabilities.max()))
-        ax_amp.set_title("Outgoing helicity decomposition")
-        ax_amp.grid(axis="y", alpha=0.25)
+        y_positions = np.arange(len(records))
+        bars = ax_amp.barh(y_positions, fractions, color="tab:blue", alpha=0.75)
+        ax_amp.set_yticks(y_positions, labels)
+        ax_amp.invert_yaxis()
+        ax_amp.set_xlabel(r"Ensemble-weighted $|A|^2$ fraction")
+        ax_amp.set_xlim(0.0, max(0.08, 1.30 * fractions.max()))
+        ax_amp.set_title("Leading outgoing components and amplitude phases")
+        for bar, (_, phase, _, _) in zip(bars, records):
+            ax_amp.text(
+                bar.get_width(), bar.get_y() + 0.5 * bar.get_height(),
+                rf"  phase={phase:.3f} rad", va="center", fontsize=8,
+            )
+        ax_amp.tick_params(axis="y", labelsize=7)
+        ax_amp.grid(axis="x", alpha=0.25)
 
         fig.suptitle("FixedHelicityTest configuration summary", fontsize=14)
         pdf.savefig(fig)

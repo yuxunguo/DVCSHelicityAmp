@@ -25,7 +25,7 @@ python3 AlignmentScan.py     # angular alignment and entanglement scan
 python3 ConfigGen.py         # selected configurations from AlignmentScan
 python3 WScan.py             # W-state concurrence-distance scan
 python3 WConfigGen.py        # configurations around WScan minima
-python3 BroadWScan.py        # expanded adaptive W-state search
+python3 PhaseSpaceScan.py    # adaptive all-observable/all-lepton phase-space scan
 ```
 
 Generated data, plots, and logs are written under `Output/`.
@@ -42,7 +42,7 @@ AlignmentScan.py      Fine angular scan at characteristic kinematics
 ConfigGen.py          Ranked-region configuration and plot generator
 WScan.py              W-state distance scan over AlignmentScan phase space
 WConfigGen.py         Configuration packages around low-D_W regions
-BroadWScan.py          Broad five-dimensional W search with local refinement
+PhaseSpaceScan.py      Adaptive five-dimensional entanglement phase-space scan
 FixedHelicityTest.py  Small editable fixed-helicity example
 Mathematica/          Wolfram Language implementation and benchmarks
 ```
@@ -223,6 +223,14 @@ and ranked CSVs plus one heatmap PDF per polarization under `Output/WScan/`.
 polarization. It reconstructs their momenta and helicity amplitudes, evaluates
 the direct W-state fidelity, and writes CSV/PDF packages under
 `Output/WConfigGen/`.
+
+`PhaseSpaceScan.py` performs a stratified five-dimensional scan followed by local
+refinement around the best candidate for every AlignmentScan observable and
+polarization. It runs electron, muon, auxiliary-lepton, and massless-lepton
+species by default, and writes independent AlignmentScan-compatible full,
+aligned, ranked, and plotted results under `Output/PhaseSpaceScan/<lepton>/`.
+Point evaluations run in parallel. Edit `LEPTONS_TO_SCAN`, `PARALLEL_WORKERS`,
+sample counts, ranges, and output settings at the top of `PhaseSpaceScan.py`.
 
 ## Prepared-spin example
 

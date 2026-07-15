@@ -3,9 +3,8 @@
 This module evaluates the Bethe-Heitler contribution to exclusive
 electroproduction in the conventions provided by :mod:`Algebra` and
 :mod:`Kinematics`. It exposes low-level routines that operate directly on
-four-momenta, user-frame convenience wrappers, and a script entry point that
-writes a comparison against analytic benchmark formulae to
-``Output/BHHelicityAmp.log``.
+four-momenta and a script entry point that compares against analytic benchmark
+formulae in ``Output/BHHelicityAmp.log``.
 
 Helicity labels are doubled helicities ``+1`` and ``-1``. The final photon
 polarization vector is generated from its four-momentum and contracted as
@@ -13,6 +12,7 @@ polarization vector is generated from its four-momentum and contracted as
 """
 
 from itertools import product
+from pathlib import Path
 from textwrap import dedent
 
 import numpy as np
@@ -37,10 +37,9 @@ from Algebra import (
     slash,
     spinor_bar,
 )
-from Kinematics import (
-    kinematics_user_from_independent,
-    momenta_user,
-)
+from Kinematics import kinematics_user_from_independent
+
+OUTPUT_LOG_PATH = Path("Output") / "BHHelicityAmp.log"
 
 
 # ============================================================
@@ -275,70 +274,6 @@ def bh_amplitude_table(
     return amplitudes
 
 
-def bh_amplitude_user(
-    pIn, pOut, qOut, theta_in, phi_in, phiOut,
-    hIn, hOut,
-    sIn, sOut,
-    lam,
-    m, F1, F2,
-    electron_mass=0.0,
-):
-    """Evaluate a fixed-helicity amplitude from user-frame variables.
-
-    The variables ``pIn``, ``pOut``, ``qOut``, ``theta_in``, ``phi_in``, and
-    ``phiOut`` are converted with :func:`Kinematics.momenta_user`; photon
-    polarization is then built from the resulting ``qout`` momentum.
-    """
-    mom = momenta_user(
-        pIn, pOut, qOut, theta_in, phi_in, phiOut, m,
-        electron_mass=electron_mass,
-    )
-    return bh_amplitude_core(
-        mom["k"], mom["kp"], mom["qout"],
-        mom["p"], mom["pp"],
-        photon_pol(mom["qout"], lam),
-        hIn, hOut,
-        sIn, sOut,
-        m, F1, F2,
-        electron_mass=electron_mass,
-    )
-
-
-def bh_unpolarized_squared_amplitude_user(
-    pIn, pOut, qOut, theta_in, phi_in, phiOut,
-    m, F1, F2,
-    average_initial=True,
-    electron_mass=0.0,
-):
-    """Return the unpolarized squared amplitude from user-frame variables."""
-    mom = momenta_user(
-        pIn, pOut, qOut, theta_in, phi_in, phiOut, m,
-        electron_mass=electron_mass,
-    )
-    return bh_unpolarized_squared_amplitude_core(
-        mom["k"], mom["kp"], mom["qout"],
-        mom["p"], mom["pp"],
-        m, F1, F2,
-        average_initial=average_initial,
-        electron_mass=electron_mass,
-    )
-
-
-def bh_amplitude_same_electron_helicity(
-    pIn, pOut, qOut, theta_in, phi_in, phiOut,
-    h, sIn, sOut, lam,
-    m, F1, F2,
-    electron_mass=0.0,
-):
-    """Evaluate a user-frame amplitude with ``hIn == hOut == h``."""
-    return bh_amplitude_user(
-        pIn, pOut, qOut, theta_in, phi_in, phiOut,
-        h, h, sIn, sOut, lam,
-        m, F1, F2,
-        electron_mass=electron_mass,
-    )
-
-
 def main():
     """Run the analytic benchmark sweep and write ``Output/BHHelicityAmp.log``.
 
@@ -346,8 +281,6 @@ def main():
     and compares numerical spinor sums with analytic Bethe-Heitler expressions
     for multiple ``(F1, F2)`` form-factor choices.
     """
-    from pathlib import Path
-
     def ascii_table(headers, rows, group_by=None):
         table_rows = [[str(item) for item in row] for row in rows]
         widths = [
@@ -509,7 +442,7 @@ def main():
     ]
     form_factors = [(0.5, 0.0), (0.8, 0.0), (1.0, 0.2)]
     form_factors += [(1.0, -0.2), (0.7, 0.5), (0.0, 1.0)]
-    log_path = Path("Output") / "BHHelicityAmp.log"
+    log_path = OUTPUT_LOG_PATH
 
     ref_F1, ref_F2 = 1.0, 0.0
     pol_h_in, pol_s = +1, +1
