@@ -12,4 +12,4 @@ MASSLESS_LEPTON_MASS_GEV = 0.0
 
 # Shared numerical scan behavior.
 NORMALIZE_TRACE = True
-SCAN_WORKERS = max(1, min(os.cpu_count() or 1, 12))
+SCAN_WORKERS = max(1, min(os.cpu_count() or 1, 24))

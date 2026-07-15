@@ -40,7 +40,8 @@ from SpinDensityMat import (
 
 
 CONFIG_LEPTONS = ("electron", "muon", "heavy", "massless")
-CONFIGGEN_POLARIZATION_WORKERS = SCAN_WORKERS
+CONFIGGEN_KINEMATIC_WORKERS = SCAN_WORKERS
+CONFIGGEN_PLOT_WORKERS = max(1, min(SCAN_WORKERS, 24))
 LEPTON_NAME = "electron"
 LEPTON_MASS_GEV = LEPTON_SPECS[LEPTON_NAME]["mass"]
 
@@ -726,8 +727,11 @@ def amplitude_decomposition(row):
     contracted_rho = contract_initial_state(process_rho, row["selected_spin_case"])
     ensemble = final_state_ensemble(amplitudes, row["selected_spin_case"])
     total = float(np.real_if_close(np.trace(contracted_rho), tol=1000).real)
-    if total <= 1.0e-14:
-        raise ZeroDivisionError(f"Zero selected amplitude norm for {row['detail_id']}.")
+    if not np.isfinite(total) or total <= 0.0:
+        raise ZeroDivisionError(
+            f"Non-positive selected amplitude norm {total!r} for "
+            f"{row['detail_id']}."
+        )
     meta = _row_meta(row)
     meta["incoming_state"] = selected_initial_state_label(row["selected_spin_case"])
     records = []
@@ -761,38 +765,44 @@ def amplitude_decomposition(row):
     return selected
 
 
-def _polarization_amplitude_worker(task):
-    """Return amplitude records for one species/polarization detail group."""
-    lepton_name, detail_rows = task
-    configure_lepton(lepton_name)
-    return [
-        record
-        for row in detail_rows
-        for record in amplitude_decomposition(row)
-    ]
+def _parallel_chunksize(task_count, worker_count):
+    """Aim for four work batches per process to balance IPC and tail latency."""
+    target_chunks = max(1, worker_count * 4)
+    return max(1, math.ceil(task_count / target_chunks))
+
+
+def _amplitude_row_worker(row):
+    """Return amplitude records for one independent configuration row."""
+    return amplitude_decomposition(row)
 
 
 def parallel_amplitude_decomposition(detail_rows):
-    """Evaluate detail amplitudes in independent polarization processes."""
-    grouped_rows = [
-        [row for row in detail_rows if row["selected_spin_case"] == spin_case]
-        for spin_case in CONFIG_SPIN_CASES
-    ]
-    grouped_rows = [rows for rows in grouped_rows if rows]
-    if not grouped_rows:
+    """Distribute configuration kinematics, not polarizations, across workers."""
+    tasks = list(detail_rows)
+    if not tasks:
         return []
 
-    worker_count = min(CONFIGGEN_POLARIZATION_WORKERS, len(grouped_rows))
-    tasks = [(LEPTON_NAME, rows) for rows in grouped_rows]
+    worker_count = min(CONFIGGEN_KINEMATIC_WORKERS, len(tasks))
     if worker_count > 1:
         try:
-            with ProcessPoolExecutor(max_workers=worker_count) as executor:
-                results = list(executor.map(_polarization_amplitude_worker, tasks))
+            chunksize = _parallel_chunksize(len(tasks), worker_count)
+            with ProcessPoolExecutor(
+                max_workers=worker_count,
+                initializer=configure_lepton,
+                initargs=(LEPTON_NAME,),
+            ) as executor:
+                results = list(
+                    executor.map(
+                        _amplitude_row_worker,
+                        tasks,
+                        chunksize=chunksize,
+                    )
+                )
         except (OSError, PermissionError):
-            results = [_polarization_amplitude_worker(task) for task in tasks]
+            results = [_amplitude_row_worker(row) for row in tasks]
     else:
-        results = [_polarization_amplitude_worker(task) for task in tasks]
-    return [record for spin_records in results for record in spin_records]
+        results = [_amplitude_row_worker(row) for row in tasks]
+    return [record for row_records in results for record in row_records]
 
 
 def _bin_edges_from_values(values, max_bins=SCAN_HEATMAP_MAX_BINS):
@@ -867,6 +877,7 @@ def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, spin_case, k
             cmap="viridis",
             vmin=0.0,
             vmax=1.0,
+            rasterized=True,
         )
     else:
         image = ax.scatter(
@@ -878,6 +889,7 @@ def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, spin_case, k
             alpha=0.78,
             vmin=0.0,
             vmax=1.0,
+            rasterized=True,
         )
     for cluster in clusters:
         best = cluster["best"]
@@ -1128,75 +1140,97 @@ def save_egamma_target_region_pdf(target, group_name, rows, key):
     return path, detail_rows
 
 
-def _save_polarization_egamma_pdfs(rows, spin_case):
-    """Write every E_gamma/target PDF for one polarization configuration."""
-    outputs = []
-    detail_rows = []
+def _build_egamma_pdf_tasks(rows):
+    """Build one independent task per E_gamma/target/polarization PDF."""
+    tasks = []
     for group_name, _qout in qout_groups(rows):
         group_rows = rows_for_qout_group(rows, group_name)
         for target in CONFIG_TARGETS:
             observable, _file_tag = target
-            matching_keys = [
-                key for key in target_columns(group_rows, observable)
-                if spin_label_from_key(key, observable) == spin_case
-            ]
-            for key in matching_keys:
-                path, details = save_egamma_target_region_pdf(
-                    target, group_name, group_rows, key,
-                )
-                if path is not None and details:
-                    outputs.append((group_name, observable, spin_case, path, len(details)))
-                    detail_rows.extend(details)
-    return outputs, detail_rows
+            tasks.extend(
+                (target, group_name, key)
+                for key in target_columns(group_rows, observable)
+            )
+    return tasks
 
 
-_POLARIZATION_WORKER_ROWS = None
+_PDF_WORKER_ROWS_BY_GROUP = None
 
 
-def _initialize_polarization_worker(lepton_name, input_path):
-    """Load one species' scan once in each polarization worker process."""
-    global _POLARIZATION_WORKER_ROWS
+def _initialize_pdf_worker(lepton_name, input_path, output_dir):
+    """Load and group one species scan once in each PDF worker process."""
+    global _PDF_WORKER_ROWS_BY_GROUP, EGAMMA_CONFIG_DIR
     configure_lepton(lepton_name)
-    _POLARIZATION_WORKER_ROWS = read_csv_rows(Path(input_path))
+    EGAMMA_CONFIG_DIR = Path(output_dir)
+    rows = read_csv_rows(Path(input_path))
+    _PDF_WORKER_ROWS_BY_GROUP = {
+        group_name: rows_for_qout_group(rows, group_name)
+        for group_name, _qout in qout_groups(rows)
+    }
 
 
-def _polarization_pdf_worker(spin_case):
-    """Process-pool entry point for one polarization configuration."""
-    if _POLARIZATION_WORKER_ROWS is None:
-        raise RuntimeError("Polarization worker was not initialized with scan rows.")
-    return _save_polarization_egamma_pdfs(_POLARIZATION_WORKER_ROWS, spin_case)
+def _save_egamma_pdf_task(task, rows_by_group):
+    """Write one E_gamma/target/polarization PDF task."""
+    target, group_name, key = task
+    observable, _file_tag = target
+    spin_case = spin_label_from_key(key, observable)
+    path, details = save_egamma_target_region_pdf(
+        target,
+        group_name,
+        rows_by_group[group_name],
+        key,
+    )
+    output = None
+    if path is not None and details:
+        output = (group_name, observable, spin_case, path, len(details))
+    return output, details
+
+
+def _egamma_pdf_worker(task):
+    """Process-pool entry point for one independent configuration PDF."""
+    if _PDF_WORKER_ROWS_BY_GROUP is None:
+        raise RuntimeError("PDF worker was not initialized with grouped scan rows.")
+    return _save_egamma_pdf_task(task, _PDF_WORKER_ROWS_BY_GROUP)
 
 
 def save_all_egamma_target_region_pdfs(rows, input_path=None):
-    """Write PDFs in parallel across polarization configurations."""
-    worker_count = min(CONFIGGEN_POLARIZATION_WORKERS, len(CONFIG_SPIN_CASES))
+    """Write independent E_gamma/target/polarization PDFs in parallel."""
+    tasks = _build_egamma_pdf_tasks(rows)
+    if not tasks:
+        return [], []
+    worker_count = min(CONFIGGEN_PLOT_WORKERS, len(tasks))
     if worker_count < 1:
-        raise ValueError("CONFIGGEN_POLARIZATION_WORKERS must be positive.")
+        raise ValueError("CONFIGGEN_PLOT_WORKERS must be positive.")
 
     if worker_count > 1 and input_path is not None:
         try:
             with ProcessPoolExecutor(
                 max_workers=worker_count,
-                initializer=_initialize_polarization_worker,
-                initargs=(LEPTON_NAME, str(input_path)),
+                initializer=_initialize_pdf_worker,
+                initargs=(LEPTON_NAME, str(input_path), str(EGAMMA_CONFIG_DIR)),
             ) as executor:
-                results = list(executor.map(_polarization_pdf_worker, CONFIG_SPIN_CASES))
+                results = list(
+                    executor.map(_egamma_pdf_worker, tasks, chunksize=1)
+                )
         except (OSError, PermissionError):
-            results = [
-                _save_polarization_egamma_pdfs(rows, spin_case)
-                for spin_case in CONFIG_SPIN_CASES
-            ]
+            rows_by_group = {
+                group_name: rows_for_qout_group(rows, group_name)
+                for group_name, _qout in qout_groups(rows)
+            }
+            results = [_save_egamma_pdf_task(task, rows_by_group) for task in tasks]
     else:
-        results = [
-            _save_polarization_egamma_pdfs(rows, spin_case)
-            for spin_case in CONFIG_SPIN_CASES
-        ]
+        rows_by_group = {
+            group_name: rows_for_qout_group(rows, group_name)
+            for group_name, _qout in qout_groups(rows)
+        }
+        results = [_save_egamma_pdf_task(task, rows_by_group) for task in tasks]
 
     outputs = []
     detail_rows = []
-    for spin_outputs, spin_details in results:
-        outputs.extend(spin_outputs)
-        detail_rows.extend(spin_details)
+    for output, details in results:
+        if output is not None:
+            outputs.append(output)
+        detail_rows.extend(details)
     return outputs, detail_rows
 
 
@@ -1331,7 +1365,8 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
         f"  config PDFs (one per E_gamma × target × polarization): {len(egamma_outputs)}",
         f"  targets: {', '.join(observable_label(observable) for observable, _ in CONFIG_TARGETS)}",
         f"  max spin cases per target: {MAX_SPIN_CASES_PER_TARGET}",
-        f"  parallel polarization workers: {CONFIGGEN_POLARIZATION_WORKERS}",
+        f"  parallel configuration workers: {CONFIGGEN_KINEMATIC_WORKERS}",
+        f"  parallel PDF workers: {CONFIGGEN_PLOT_WORKERS}",
         f"  top rows per target/spin case: {TOP_ROWS_PER_TARGET_SPIN}",
         f"  cluster radius: {CLUSTER_RADIUS}",
         f"  max clusters per target/spin case: {MAX_CLUSTERS_PER_TARGET_SPIN}",
@@ -1455,11 +1490,13 @@ def main():
         )
     if not CONFIG_LEPTONS:
         raise ValueError("CONFIG_LEPTONS must contain at least one species.")
-    if CONFIGGEN_POLARIZATION_WORKERS < 1:
-        raise ValueError("CONFIGGEN_POLARIZATION_WORKERS must be positive.")
+    if CONFIGGEN_KINEMATIC_WORKERS < 1:
+        raise ValueError("CONFIGGEN_KINEMATIC_WORKERS must be positive.")
+    if CONFIGGEN_PLOT_WORKERS < 1:
+        raise ValueError("CONFIGGEN_PLOT_WORKERS must be positive.")
 
-    # Species are intentionally sequential. Each species creates its own pool
-    # whose tasks are the independent initial-polarization configurations.
+    # Species are intentionally sequential. Each species creates bounded pools
+    # for independent configuration rows and independent PDF files.
     reports = [_run_species(name) for name in CONFIG_LEPTONS]
     report_text = "\n\n".join(report.rstrip() for report in reports) + "\n"
     print(report_text, end="")

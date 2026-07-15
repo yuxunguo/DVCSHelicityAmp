@@ -60,8 +60,8 @@ from SpinDensityMat import (
 
 
 CHARACTERISTIC_S_POINTS = (
-    #("mid_s", 1.00 * USER_S_CENTER),
-    ("high_s", 1.00 * USER_S_CENTER),
+    ("mid_s", 25. ),
+    ("high_s", 10000.),
 )
 CHARACTERISTIC_THETA_IN_POINTS = (
     ("high_theta_in", 3.14159/2),
@@ -92,6 +92,8 @@ SCAN_LEPTONS = ("electron", "muon", "heavy", "massless")
 PHI_IN_POINT_COUNT = len(PHASE_SPACE_PHI_IN_VALUES)
 PHI_OUT_POINT_COUNT = len(PHASE_SPACE_PHIOUT_VALUES)
 ALIGNMENT_SCAN_WORKERS = SCAN_WORKERS
+# The executor also caps this at the number of independent polarization PDFs.
+ALIGNMENT_PLOT_WORKERS = max(1, min(SCAN_WORKERS, 24))
 
 LEPTON_SPECS = {
     "electron": {
@@ -381,8 +383,14 @@ def final_lepton_photon_spin_correlations(rho, out_states):
     }
 
 
-def _scan_alignment_point_task(task):
-    """Evaluate one final lepton-photon alignment point."""
+def _evaluate_kinematic_sample(task):
+    """Evaluate every polarization for one lepton/kinematic sample.
+
+    This is the process-pool boundary.  A task contains one lepton species and
+    one complete kinematic coordinate ``(anchor, phi_in_lepton, phiOut)``.  The
+    worker builds the amplitude table once, then derives every requested
+    polarization observable from that shared table.
+    """
     anchor, phi_in_lepton, phiOut, settings = task
     s = anchor["s"]
     theta_in = anchor["theta_in"]
@@ -528,11 +536,11 @@ def _scan_alignment_point_task(task):
     return {"ok": True, "row": row}
 
 
-def _safe_scan_alignment_point_task(task):
-    """Evaluate one point and preserve expected unphysical points as failures."""
+def _safe_evaluate_kinematic_sample(task):
+    """Evaluate one kinematic sample and retain unphysical points as failures."""
     anchor, phi_in_lepton, phi_out, _settings = task
     try:
-        return _scan_alignment_point_task(task)
+        return _evaluate_kinematic_sample(task)
     except (ValueError, ZeroDivisionError, FloatingPointError, np.linalg.LinAlgError) as exc:
         phi_in_proton = proton_phi_from_lepton(phi_in_lepton)
         return {
@@ -566,6 +574,69 @@ def _optimal_chunksize(num_tasks, num_workers):
     return max(1, math.ceil(num_tasks / ideal_chunks))
 
 
+def _build_kinematic_tasks(
+    kinematic_points,
+    phi_in_lepton_values,
+    phiOut_values,
+    settings,
+):
+    """Build one process task per independent kinematic sample.
+
+    Polarization is deliberately absent from the task product: all
+    ``ALIGNMENT_SPIN_CASES`` are evaluated inside each worker.  Lepton species
+    is fixed by ``settings`` because this helper is called once per species.
+    """
+    return [
+        (anchor, float(phi_in_lepton), float(phiOut), settings)
+        for anchor, phi_in_lepton, phiOut in product(
+            kinematic_points,
+            phi_in_lepton_values,
+            phiOut_values,
+        )
+    ]
+
+
+def _run_kinematic_tasks(tasks, max_workers):
+    """Distribute kinematic samples across workers, preserving input order."""
+    if not tasks:
+        return []
+    if not max_workers or max_workers <= 1 or len(tasks) == 1:
+        return [
+            _safe_evaluate_kinematic_sample(task)
+            for task in _progress_bar(
+                tasks,
+                total=len(tasks),
+                desc="Alignment kinematics",
+            )
+        ]
+
+    worker_count = min(int(max_workers), len(tasks))
+    chunksize = _optimal_chunksize(len(tasks), worker_count)
+    try:
+        with ProcessPoolExecutor(max_workers=worker_count) as executor:
+            result_iter = executor.map(
+                _safe_evaluate_kinematic_sample,
+                tasks,
+                chunksize=chunksize,
+            )
+            return list(
+                _progress_bar(
+                    result_iter,
+                    total=len(tasks),
+                    desc="Alignment kinematics",
+                )
+            )
+    except (OSError, PermissionError):
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            return list(
+                _progress_bar(
+                    executor.map(_safe_evaluate_kinematic_sample, tasks),
+                    total=len(tasks),
+                    desc="Alignment kinematics (thread fallback)",
+                )
+            )
+
+
 def _scan_final_lepton_photon_alignment(
     kinematic_points=None,
     phi_in_lepton_values=PHASE_SPACE_PHI_IN_VALUES,
@@ -577,7 +648,12 @@ def _scan_final_lepton_photon_alignment(
     normalize_trace=NORMALIZE_TRACE,
     max_workers=SCAN_WORKERS,
 ):
-    """Scan two angular variables around characteristic user-frame kinematics."""
+    """Scan kinematics in parallel for one lepton and all polarizations.
+
+    Each process receives a distinct kinematic sample.  Polarization cases are
+    evaluated sequentially inside that sample so the expensive amplitude table
+    is calculated only once per lepton/kinematic combination.
+    """
     if lepton_name is None:
         lepton_name = lepton_name_from_mass(lepton_mass)
     rows = []
@@ -591,49 +667,13 @@ def _scan_final_lepton_photon_alignment(
         "normalize_trace": normalize_trace,
         "angle_max_rad": angle_max_rad,
     }
-    tasks = [
-        (
-            anchor,
-            float(phi_in_lepton),
-            float(phiOut),
-            settings,
-        )
-        for anchor, phi_in_lepton, phiOut in product(
-            kinematic_points,
-            phi_in_lepton_values,
-            phiOut_values,
-        )
-    ]
-    if max_workers and max_workers > 1 and len(tasks) > 1:
-        chunksize = _optimal_chunksize(len(tasks), max_workers)
-        try:
-            with ProcessPoolExecutor(max_workers=max_workers) as executor:
-                _map = executor.map(
-                    _safe_scan_alignment_point_task,
-                    tasks,
-                    chunksize=chunksize,
-                )
-                results = list(
-                    _progress_bar(
-                        _map,
-                        total=len(tasks),
-                        desc="Alignment scan",
-                    )
-                )
-        except (OSError, PermissionError):
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                results = list(
-                    _progress_bar(
-                        executor.map(_safe_scan_alignment_point_task, tasks),
-                        total=len(tasks),
-                        desc="Alignment scan (thread fallback)",
-                    )
-                )
-    else:
-        results = [
-            _safe_scan_alignment_point_task(task)
-            for task in _progress_bar(tasks, total=len(tasks), desc="Alignment scan")
-        ]
+    tasks = _build_kinematic_tasks(
+        kinematic_points,
+        phi_in_lepton_values,
+        phiOut_values,
+        settings,
+    )
+    results = _run_kinematic_tasks(tasks, max_workers)
 
     for result in results:
         if result["ok"]:
@@ -894,6 +934,7 @@ def _draw_heatmap(ax, x_edges, y_edges, values, cmap, vmin, vmax, style):
             cmap=cmap,
             vmin=vmin,
             vmax=vmax,
+            rasterized=True,
         )
 
     x_centers = 0.5 * (x_edges[:-1] + x_edges[1:])
@@ -908,9 +949,19 @@ def _draw_heatmap(ax, x_edges, y_edges, values, cmap, vmin, vmax, style):
             cmap=cmap,
             vmin=vmin,
             vmax=vmax,
+            rasterized=True,
         )
     levels = np.linspace(vmin, vmax, HEATMAP_CONTOUR_LEVELS + 1)
-    return ax.contourf(x_grid, y_grid, values, levels=levels, cmap=cmap, extend="neither")
+    contours = ax.contourf(
+        x_grid,
+        y_grid,
+        values,
+        levels=levels,
+        cmap=cmap,
+        extend="neither",
+    )
+    ax.set_rasterization_zorder(contours.get_zorder() + 0.5)
+    return contours
 
 
 def _scan_x_phi(row):
@@ -919,6 +970,41 @@ def _scan_x_phi(row):
     if np.isfinite(value):
         return value
     return proton_phi_from_lepton(row.get("phi_in_lepton", np.nan))
+
+
+def _cache_anchor_plot_grids(rows, anchors):
+    """Cache row groups, coordinates, and bin edges for every anchor."""
+    rows_by_anchor = {
+        anchor["kinematic_point"]: []
+        for anchor in anchors
+    }
+    for row in rows:
+        point_rows = rows_by_anchor.get(row.get("kinematic_point"))
+        if point_rows is not None:
+            point_rows.append(row)
+
+    grids = []
+    for anchor in anchors:
+        point_rows = rows_by_anchor[anchor["kinematic_point"]]
+        x_values = np.asarray([_scan_x_phi(row) for row in point_rows], dtype=float)
+        y_values = np.asarray([row["phiOut"] for row in point_rows], dtype=float)
+        finite = np.isfinite(x_values) & np.isfinite(y_values)
+        if not np.all(finite):
+            point_rows = [
+                row for row, keep in zip(point_rows, finite)
+                if keep
+            ]
+            x_values = x_values[finite]
+            y_values = y_values[finite]
+        grids.append({
+            "anchor": anchor,
+            "rows": point_rows,
+            "x_values": x_values,
+            "y_values": y_values,
+            "x_edges": _bin_edges_from_values(x_values),
+            "y_edges": _bin_edges_from_values(y_values),
+        })
+    return grids
 
 
 def _add_pi_over_two_reference_lines(ax):
@@ -1238,14 +1324,16 @@ def save_concurrence_scan_plot(
             plt.close(fig)
         return output_path
 
+    anchors = alignment_scan.get("kinematic_points", [])
+    anchor_grids = _cache_anchor_plot_grids(rows, anchors)
+    ncols = min(3, len(anchors)) if anchors else 0
+    nrows = int(np.ceil(len(anchors) / ncols)) if ncols else 0
+
     with PdfPages(output_path) as pdf:
         for name in COARSE_CONCURRENCE_NAMES:
             vmin, vmax, cmap = _heatmap_color_scale(prefix, name)
 
-            anchors = alignment_scan.get("kinematic_points", [])
             if anchors:
-                ncols = min(3, len(anchors))
-                nrows = int(np.ceil(len(anchors) / ncols))
                 fig, axes = plt.subplots(
                     nrows,
                     ncols,
@@ -1258,32 +1346,29 @@ def save_concurrence_scan_plot(
                 label = observable_latex_label(
                     name, alignment_scan.get("lepton_name", "electron")
                 )
-                for index, anchor in enumerate(anchors):
+                for index, grid in enumerate(anchor_grids):
                     ax = axes_flat[index]
-                    point_rows = [
-                        row for row in rows
-                        if row.get("kinematic_point") == anchor["kinematic_point"]
-                        and np.isfinite(row[f"{prefix}_{name}"])
-                    ]
-                    if not point_rows:
+                    anchor = grid["anchor"]
+                    point_rows = grid["rows"]
+                    point_values = np.asarray(
+                        [row[f"{prefix}_{name}"] for row in point_rows],
+                        dtype=float,
+                    )
+                    finite_values = np.isfinite(point_values)
+                    if not np.any(finite_values):
                         ax.set_axis_off()
                         continue
-                    x_values = np.asarray([_scan_x_phi(row) for row in point_rows], dtype=float)
-                    y_values = np.asarray([row["phiOut"] for row in point_rows], dtype=float)
-                    point_values = np.asarray([row[f"{prefix}_{name}"] for row in point_rows], dtype=float)
-                    x_edges = _bin_edges_from_values(x_values)
-                    y_edges = _bin_edges_from_values(y_values)
                     mean_grid, _count_grid = _binned_mean_2d(
-                        x_values,
-                        y_values,
+                        grid["x_values"],
+                        grid["y_values"],
                         point_values,
-                        x_edges,
-                        y_edges,
+                        grid["x_edges"],
+                        grid["y_edges"],
                     )
                     mesh = _draw_heatmap(
                         ax,
-                        x_edges,
-                        y_edges,
+                        grid["x_edges"],
+                        grid["y_edges"],
                         mean_grid,
                         cmap,
                         vmin,
@@ -1293,7 +1378,7 @@ def save_concurrence_scan_plot(
                     ax.set_box_aspect(1)
                     _add_pi_over_two_reference_lines(ax)
                     anchor_meshes.append(mesh)
-                    best = max(point_rows, key=lambda row: row[f"{prefix}_{name}"])
+                    best = point_rows[int(np.nanargmax(point_values))]
                     ax.set_title(
                         f"$s={anchor['s']:.3g}\\,{{\\rm GeV}}^2$, "
                         f"$\\theta_{{\\rm in}}={anchor['theta_in']:.3g}\\,{{\\rm rad}}$\n"
@@ -1332,22 +1417,68 @@ def save_concurrence_scan_plot(
     return output_path
 
 
+_PLOT_WORKER_SCAN = None
+_PLOT_WORKER_OUTPUT_DIR = None
+_PLOT_WORKER_STYLE = None
+
+
+def _initialize_plot_worker(alignment_scan, output_dir, plot_style):
+    """Load one scan payload into a plotting worker once."""
+    global _PLOT_WORKER_SCAN, _PLOT_WORKER_OUTPUT_DIR, _PLOT_WORKER_STYLE
+    _PLOT_WORKER_SCAN = alignment_scan
+    _PLOT_WORKER_OUTPUT_DIR = output_dir
+    _PLOT_WORKER_STYLE = plot_style
+
+
+def _save_concurrence_plot_task(case):
+    """Write one polarization PDF from the worker-local scan payload."""
+    prefix, title_prefix = case
+    output_path = save_concurrence_scan_plot(
+        _PLOT_WORKER_SCAN,
+        prefix,
+        title_prefix,
+        output_dir=_PLOT_WORKER_OUTPUT_DIR,
+        plot_style=_PLOT_WORKER_STYLE,
+    )
+    return prefix, output_path
+
+
 def save_concurrence_scan_plots(
     alignment_scan,
     plot_style=HEATMAP_PLOT_STYLE,
     output_dir=None,
+    max_workers=ALIGNMENT_PLOT_WORKERS,
 ):
-    """Save selected concurrence scan PDFs for all alignment spin cases."""
-    return {
-        prefix: save_concurrence_scan_plot(
-            alignment_scan,
-            prefix,
-            species_spin_label(label, alignment_scan.get("lepton_name", "electron")),
-            output_dir=output_dir,
-            plot_style=plot_style,
-        )
+    """Save polarization PDFs concurrently in independent processes."""
+    lepton_name = alignment_scan.get("lepton_name", "electron")
+    cases = [
+        (prefix, species_spin_label(label, lepton_name))
         for prefix, label, _spin_case in ALIGNMENT_SPIN_CASES
-    }
+    ]
+    if not max_workers or max_workers <= 1 or len(cases) == 1:
+        return {
+            prefix: save_concurrence_scan_plot(
+                alignment_scan,
+                prefix,
+                title_prefix,
+                output_dir=output_dir,
+                plot_style=plot_style,
+            )
+            for prefix, title_prefix in cases
+        }
+
+    worker_count = min(int(max_workers), len(cases))
+    with ProcessPoolExecutor(
+        max_workers=worker_count,
+        initializer=_initialize_plot_worker,
+        initargs=(alignment_scan, output_dir, plot_style),
+    ) as executor:
+        results = executor.map(
+            _save_concurrence_plot_task,
+            cases,
+            chunksize=1,
+        )
+        return dict(results)
 
 
 def concurrence_summary_line(row, key, display_key=None):
@@ -1443,6 +1574,7 @@ def build_alignment_report(alignment_scan, alignment_paths):
             "configured angle cut"
         )
     lines.extend([
+        f"  parallel PDF workers: {ALIGNMENT_PLOT_WORKERS}",
         f"  saved full csv: {alignment_paths['all_csv']}",
         f"  saved aligned csv: {alignment_paths['aligned_csv']}",
         "  saved concurrence full csv: "
@@ -1500,6 +1632,8 @@ def _validate_script_settings():
         raise ValueError("Angular point counts must be positive.")
     if ALIGNMENT_SCAN_WORKERS < 1:
         raise ValueError("ALIGNMENT_SCAN_WORKERS must be positive.")
+    if ALIGNMENT_PLOT_WORKERS < 1:
+        raise ValueError("ALIGNMENT_PLOT_WORKERS must be positive.")
 
 
 def _run_species(lepton_name):
@@ -1514,6 +1648,7 @@ def _run_species(lepton_name):
             "Regenerated concurrence plots from saved CSV without recalculating amplitudes.",
             f"  source csv: {alignment_scan['source_csv']}",
             f"  heatmap plot style: {_heatmap_style(HEATMAP_PLOT_STYLE)}",
+            f"  parallel PDF workers: {ALIGNMENT_PLOT_WORKERS}",
             "  heatmap x coordinate: phi_p_in",
             "  heatmap guide lines: phi_p_in=pi/2 and phi_gamma=pi/2",
             "  heatmap color scales: 0..1 for nonnegative observables, -1..1 for signed observables",

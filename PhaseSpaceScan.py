@@ -20,7 +20,7 @@ from AlignmentScan import (
     SIGNED_CONCURRENCE_OBSERVABLES,
     _concurrence_csv_headers,
     _concurrence_csv_row,
-    _scan_alignment_point_task,
+    _evaluate_kinematic_sample,
     explicit_polarization_name,
     observable_latex_label,
     observable_text_label,
@@ -41,7 +41,8 @@ from PlotUtils import require_matplotlib
 
 # Explicit script settings. Edit these values before running PhaseSpaceScan.py.
 LEPTONS_TO_SCAN = ("electron", "muon", "heavy", "massless")
-PARALLEL_WORKERS = SCAN_WORKERS
+PHASE_SPACE_SCAN_WORKERS = SCAN_WORKERS
+PHASE_SPACE_PLOT_WORKERS = max(1, min(SCAN_WORKERS, 24))
 RANDOM_SEED = 271828
 PHASE_SPACE_SAMPLES = 8192
 REFINEMENT_SAMPLES = 4096
@@ -300,7 +301,7 @@ def _evaluate_sample(
         "angle_max_rad": ALIGNMENT_ANGLE_MAX_RAD,
     }
     try:
-        result = _scan_alignment_point_task((anchor, phi_e, phi_gamma, settings))
+        result = _evaluate_kinematic_sample((anchor, phi_e, phi_gamma, settings))
     except (ValueError, ZeroDivisionError, FloatingPointError, np.linalg.LinAlgError):
         return None
     if not result["ok"]:
@@ -323,24 +324,38 @@ def _parallel_chunksize(task_count, worker_count):
     return max(1, (task_count + target_chunks - 1) // target_chunks)
 
 
-def _evaluate_samples(samples, stage, start_id, max_workers):
-    """Evaluate samples in deterministic order, using processes when available."""
-    tasks = [
+def _build_kinematic_sample_tasks(samples, stage, start_id):
+    """Build one task per kinematic sample for the configured lepton type."""
+    return [
         (point, start_id + offset, stage, LEPTON_NAME, LEPTON_MASS_GEV)
         for offset, point in enumerate(samples)
     ]
+
+
+def _run_kinematic_sample_tasks(tasks, max_workers):
+    """Distribute kinematics across workers while preserving sample order."""
+    if not tasks:
+        return []
     if max_workers and max_workers > 1 and len(tasks) > 1:
-        chunksize = _parallel_chunksize(len(tasks), max_workers)
+        worker_count = min(int(max_workers), len(tasks))
+        chunksize = _parallel_chunksize(len(tasks), worker_count)
         try:
-            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            with ProcessPoolExecutor(max_workers=worker_count) as executor:
                 results = list(
                     executor.map(_evaluate_sample_task, tasks, chunksize=chunksize)
                 )
         except (OSError, PermissionError):
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            with ThreadPoolExecutor(max_workers=worker_count) as executor:
                 results = list(executor.map(_evaluate_sample_task, tasks))
     else:
         results = [_evaluate_sample_task(task) for task in tasks]
+    return results
+
+
+def _evaluate_samples(samples, stage, start_id, max_workers):
+    """Evaluate all polarizations for each parallelized kinematic sample."""
+    tasks = _build_kinematic_sample_tasks(samples, stage, start_id)
+    results = _run_kinematic_sample_tasks(tasks, max_workers)
     return [row for row in results if row is not None]
 
 
@@ -350,14 +365,14 @@ def run_phase_space_scan():
         _uniform_samples(rng, PHASE_SPACE_SAMPLES),
         "phase_space",
         start_id=0,
-        max_workers=PARALLEL_WORKERS,
+        max_workers=PHASE_SPACE_SCAN_WORKERS,
     )
     seed_points = _alignment_seed_points()
     seed_rows = _evaluate_samples(
         seed_points,
         "alignment_seed",
         start_id=PHASE_SPACE_SAMPLES,
-        max_workers=PARALLEL_WORKERS,
+        max_workers=PHASE_SPACE_SCAN_WORKERS,
     )
     centers = _select_refinement_centers(phase_space_rows + seed_rows)
     refined = _refinement_samples(rng, centers, REFINEMENT_SAMPLES)
@@ -365,7 +380,7 @@ def run_phase_space_scan():
         refined,
         "refined",
         start_id=PHASE_SPACE_SAMPLES + len(seed_points),
-        max_workers=PARALLEL_WORKERS,
+        max_workers=PHASE_SPACE_SCAN_WORKERS,
     )
     return (
         phase_space_rows + seed_rows + refinement_rows,
@@ -403,58 +418,121 @@ def write_outputs(rows):
     }
 
 
-def write_plot(rows):
-    """Write one multi-page observable PDF for every polarization case."""
+def _write_polarization_plot(rows, prefix, spin_label, lepton_name, plot_dir):
+    """Write one rasterized multi-page PDF for a polarization case."""
     plt, PdfPages = require_matplotlib()
-    PLOT_DIR.mkdir(parents=True, exist_ok=True)
-    paths = {}
+    plot_dir.mkdir(parents=True, exist_ok=True)
     panels = (
         ("theta_in", "qOut", r"$\theta_{in}$", r"$E_\gamma$ [GeV]"),
         ("sqrt_s", "qOut", r"$\sqrt{s}$ [GeV]", r"$E_\gamma$ [GeV]"),
         ("phi_in", "phiOut", r"$\phi_{P,in}$", r"$\phi_\gamma$"),
     )
-    for prefix, spin_label, _spin_case in ALIGNMENT_SPIN_CASES:
-        output_prefix = explicit_polarization_name(prefix, LEPTON_NAME)
-        path = PLOT_DIR / f"phase_space_scan_{output_prefix}.pdf"
-        paths[prefix] = path
-        with PdfPages(path) as pdf:
-            for observable in COARSE_CONCURRENCE_NAMES:
-                key = f"{prefix}_{observable}"
-                finite_rows = [row for row in rows if np.isfinite(row.get(key, np.nan))]
-                if not finite_rows:
-                    continue
-                values = np.asarray([float(row[key]) for row in finite_rows])
-                signed = observable in SIGNED_CONCURRENCE_OBSERVABLES
-                vmin, vmax = (-1.0, 1.0) if signed else (0.0, 1.0)
-                cmap = "coolwarm" if signed else "viridis"
-                fig, axes = plt.subplots(2, 2, figsize=(10, 8), constrained_layout=True)
-                image = None
-                for ax, (x_name, y_name, x_label, y_label) in zip(
-                    axes.ravel()[:3], panels
-                ):
-                    image = ax.scatter(
-                        [float(row[x_name]) for row in finite_rows],
-                        [float(row[y_name]) for row in finite_rows],
-                        c=values, s=6, cmap=cmap, vmin=vmin, vmax=vmax,
-                        rasterized=True,
-                    )
-                    ax.set_xlabel(x_label)
-                    ax.set_ylabel(y_label)
-                observable_label = observable_latex_label(observable, LEPTON_NAME)
-                axes[1, 1].hist(values, bins=60, color="tab:blue", alpha=0.8)
-                axes[1, 1].set_xlabel(observable_label)
-                axes[1, 1].set_ylabel("samples")
-                fig.colorbar(
-                    image, ax=axes.ravel()[:3].tolist(), label=observable_label
+    coordinates = {
+        name: np.asarray([float(row[name]) for row in rows], dtype=float)
+        for name in {item for panel in panels for item in panel[:2]}
+    }
+    output_prefix = explicit_polarization_name(prefix, lepton_name)
+    path = plot_dir / f"phase_space_scan_{output_prefix}.pdf"
+    with PdfPages(path) as pdf:
+        for observable in COARSE_CONCURRENCE_NAMES:
+            key = f"{prefix}_{observable}"
+            values = np.asarray(
+                [float(row.get(key, np.nan)) for row in rows],
+                dtype=float,
+            )
+            finite = np.isfinite(values)
+            if not np.any(finite):
+                continue
+            finite_values = values[finite]
+            signed = observable in SIGNED_CONCURRENCE_OBSERVABLES
+            vmin, vmax = (-1.0, 1.0) if signed else (0.0, 1.0)
+            cmap = "coolwarm" if signed else "viridis"
+            fig, axes = plt.subplots(2, 2, figsize=(10, 8), constrained_layout=True)
+            image = None
+            for ax, (x_name, y_name, x_label, y_label) in zip(
+                axes.ravel()[:3], panels
+            ):
+                image = ax.scatter(
+                    coordinates[x_name][finite],
+                    coordinates[y_name][finite],
+                    c=finite_values,
+                    s=6,
+                    cmap=cmap,
+                    vmin=vmin,
+                    vmax=vmax,
+                    rasterized=True,
                 )
-                best = max(finite_rows, key=lambda row: float(row[key]))
-                fig.suptitle(
-                    f"Phase-space scan: {species_spin_label(spin_label, LEPTON_NAME)} "
-                    f"[{output_prefix}], max {observable_label}={float(best[key]):.5g}"
-                )
-                pdf.savefig(fig)
-                plt.close(fig)
-    return paths
+                ax.set_xlabel(x_label)
+                ax.set_ylabel(y_label)
+            observable_label = observable_latex_label(observable, lepton_name)
+            axes[1, 1].hist(finite_values, bins=60, color="tab:blue", alpha=0.8)
+            axes[1, 1].set_xlabel(observable_label)
+            axes[1, 1].set_ylabel("samples")
+            fig.colorbar(
+                image, ax=axes.ravel()[:3].tolist(), label=observable_label
+            )
+            best = rows[int(np.nanargmax(values))]
+            fig.suptitle(
+                f"Phase-space scan: {species_spin_label(spin_label, lepton_name)} "
+                f"[{output_prefix}], max {observable_label}={float(best[key]):.5g}"
+            )
+            pdf.savefig(fig)
+            plt.close(fig)
+    return prefix, path
+
+
+_PLOT_WORKER_ROWS = None
+_PLOT_WORKER_LEPTON = None
+_PLOT_WORKER_DIR = None
+
+
+def _initialize_plot_worker(rows, lepton_name, plot_dir):
+    """Load one species scan into a plotting worker once."""
+    global _PLOT_WORKER_ROWS, _PLOT_WORKER_LEPTON, _PLOT_WORKER_DIR
+    _PLOT_WORKER_ROWS = rows
+    _PLOT_WORKER_LEPTON = lepton_name
+    _PLOT_WORKER_DIR = plot_dir
+
+
+def _write_polarization_plot_task(case):
+    """Process-pool adapter for one independent polarization PDF."""
+    prefix, spin_label = case
+    return _write_polarization_plot(
+        _PLOT_WORKER_ROWS,
+        prefix,
+        spin_label,
+        _PLOT_WORKER_LEPTON,
+        _PLOT_WORKER_DIR,
+    )
+
+
+def write_plot(rows, max_workers=PHASE_SPACE_PLOT_WORKERS):
+    """Write polarization PDFs concurrently in independent processes."""
+    cases = [
+        (prefix, spin_label)
+        for prefix, spin_label, _spin_case in ALIGNMENT_SPIN_CASES
+    ]
+    if not max_workers or max_workers <= 1 or len(cases) == 1:
+        return dict(
+            _write_polarization_plot(
+                rows,
+                prefix,
+                spin_label,
+                LEPTON_NAME,
+                PLOT_DIR,
+            )
+            for prefix, spin_label in cases
+        )
+
+    worker_count = min(int(max_workers), len(cases))
+    with ProcessPoolExecutor(
+        max_workers=worker_count,
+        initializer=_initialize_plot_worker,
+        initargs=(rows, LEPTON_NAME, PLOT_DIR),
+    ) as executor:
+        return dict(
+            executor.map(_write_polarization_plot_task, cases, chunksize=1)
+        )
 
 
 def build_report(
@@ -466,7 +544,8 @@ def build_report(
     lines = [
         f"AlignmentScan-style entanglement phase-space scan ({LEPTON_NAME})",
         f"  random seed: {RANDOM_SEED}",
-        f"  parallel workers: {PARALLEL_WORKERS}",
+        f"  parallel kinematic workers: {PHASE_SPACE_SCAN_WORKERS}",
+        f"  parallel PDF workers: {PHASE_SPACE_PLOT_WORKERS}",
         f"  {LEPTON_NAME} mass: {LEPTON_MASS_GEV:.10g} GeV",
         f"  threshold: sqrt(s)={COM_THRESHOLD:.9g} GeV",
         f"  ranges: sqrt(s)={SQRT_S_RANGE} GeV, s={S_RANGE}, "
@@ -514,7 +593,7 @@ def _run_species(lepton):
         shutil.rmtree(OUTPUT_DIR)
     rows, phase_space_valid, seed_valid, refinement_valid = run_phase_space_scan()
     write_outputs(rows)
-    write_plot(rows)
+    write_plot(rows, max_workers=PHASE_SPACE_PLOT_WORKERS)
     report = build_report(
         rows,
         phase_space_valid,
@@ -531,8 +610,10 @@ def main():
         raise ValueError(f"Unknown lepton species: {sorted(unknown)}")
     if not LEPTONS_TO_SCAN:
         raise ValueError("LEPTONS_TO_SCAN must contain at least one species")
-    if PARALLEL_WORKERS < 1:
-        raise ValueError("PARALLEL_WORKERS must be positive")
+    if PHASE_SPACE_SCAN_WORKERS < 1:
+        raise ValueError("PHASE_SPACE_SCAN_WORKERS must be positive")
+    if PHASE_SPACE_PLOT_WORKERS < 1:
+        raise ValueError("PHASE_SPACE_PLOT_WORKERS must be positive")
     reports = [_run_species(lepton) for lepton in LEPTONS_TO_SCAN]
     log_text = "\n\n".join(report.rstrip() for report in reports) + "\n"
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
