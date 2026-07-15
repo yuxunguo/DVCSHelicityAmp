@@ -38,6 +38,7 @@ from Algebra import (
     spinor_bar,
 )
 from Kinematics import kinematics_user_from_independent
+from FormFactors import sachs_from_dirac_pauli
 
 OUTPUT_LOG_PATH = Path("Output") / "BHHelicityAmp.log"
 
@@ -115,6 +116,121 @@ def proton_vertex_lower(nu, p, pp, m, F1, F2):
         (F1 + F2) * gammaL(nu)
         - psum_cov[nu] * F2 / (2.0 * m) * np.eye(4, dtype=complex)
     )
+
+
+def _fermion_current_helicity_decomposition(
+    incoming, outgoing, mass, F1, F2, spinor,
+):
+    """Return Dirac/Pauli and electric/magnetic helicity-current tensors.
+
+    Tensor indices are ``[outgoing_helicity, incoming_helicity, nu]`` in the
+    ordering ``(-1, +1)``. The lower-index current is decomposed as
+    ``J_nu = F1 D_nu + F2 P_nu = GE E_nu + GM M_nu``.
+    """
+    incoming = _as_four_vector(incoming, "incoming", dtype=float)
+    outgoing = _as_four_vector(outgoing, "outgoing", dtype=float)
+    mass = _validate_positive_scalar(mass, "mass")
+    F1 = complex(F1)
+    F2 = complex(F2)
+    if not np.isfinite(F1) or not np.isfinite(F2):
+        raise ValueError("F1 and F2 must be finite.")
+
+    transfer = outgoing - incoming
+    Q2 = -_real_scalar(mdot(transfer, transfer), "momentum transfer squared")
+    if Q2 < -1.0e-10:
+        raise ValueError(
+            f"Helicity form-factor decomposition requires Q2 >= 0, got {Q2}."
+        )
+    Q2 = max(0.0, Q2)
+    tau = Q2 / (4.0 * mass**2)
+    denominator = 1.0 + tau
+    if F1.imag == 0.0 and F2.imag == 0.0:
+        GE, GM = sachs_from_dirac_pauli(Q2, F1.real, F2.real, mass)
+    else:
+        GE = F1 - tau * F2
+        GM = F1 + F2
+
+    shape = (len(HELICITIES), len(HELICITIES), 4)
+    dirac_unit = np.zeros(shape, dtype=complex)
+    pauli_unit = np.zeros(shape, dtype=complex)
+    psum_cov = cov(incoming + outgoing)
+    for out_index, h_out in enumerate(HELICITIES):
+        outgoing_bar = spinor_bar(spinor(outgoing, h_out))
+        for in_index, h_in in enumerate(HELICITIES):
+            incoming_spinor = spinor(incoming, h_in)
+            scalar = outgoing_bar @ incoming_spinor
+            for nu in range(4):
+                vector = outgoing_bar @ gammaL(nu) @ incoming_spinor
+                dirac_unit[out_index, in_index, nu] = vector
+                pauli_unit[out_index, in_index, nu] = (
+                    vector - psum_cov[nu] * scalar / (2.0 * mass)
+                )
+
+    electric_unit = (dirac_unit - pauli_unit) / denominator
+    magnetic_unit = (tau * dirac_unit + pauli_unit) / denominator
+    dirac = F1 * dirac_unit
+    pauli = F2 * pauli_unit
+    electric = GE * electric_unit
+    magnetic = GM * magnetic_unit
+    return {
+        "helicities": HELICITIES,
+        "Q2": float(Q2),
+        "tau": float(tau),
+        "F1": F1,
+        "F2": F2,
+        "GE": GE,
+        "GM": GM,
+        "dirac_unit": dirac_unit,
+        "pauli_unit": pauli_unit,
+        "electric_unit": electric_unit,
+        "magnetic_unit": magnetic_unit,
+        "dirac": dirac,
+        "pauli": pauli,
+        "electric": electric,
+        "magnetic": magnetic,
+        "total": dirac + pauli,
+    }
+
+
+def proton_current_helicity_decomposition(p, pp, m, F1, F2):
+    """Return the proton electromagnetic current in the helicity basis."""
+    return _fermion_current_helicity_decomposition(
+        p, pp, m, F1, F2,
+        lambda momentum, helicity: proton_spinor(momentum, helicity, m),
+    )
+
+
+def electron_current_helicity_decomposition(
+    k, kp, electron_mass, F1=1.0, F2=0.0,
+):
+    """Return a pointlike or form-factor electron current in helicity basis.
+
+    The Bethe-Heitler electron line contains the two-vertex
+    :func:`lepton_kernel`; this helper decomposes one elastic electromagnetic
+    current. The repository default is pointlike, ``F1=1`` and ``F2=0``.
+    """
+    return _fermion_current_helicity_decomposition(
+        k, kp, electron_mass, F1, F2,
+        lambda momentum, helicity: electron_spinor(
+            momentum, helicity, electron_mass=electron_mass,
+        ),
+    )
+
+
+def helicity_current_rows(decomposition):
+    """Flatten a current decomposition into CSV-friendly helicity rows."""
+    rows = []
+    for out_index, h_out in enumerate(decomposition["helicities"]):
+        for in_index, h_in in enumerate(decomposition["helicities"]):
+            for nu in range(4):
+                row = {"hIn": h_in, "hOut": h_out, "nu": nu}
+                for name in ("dirac", "pauli", "electric", "magnetic", "total"):
+                    value = decomposition[name][out_index, in_index, nu]
+                    row[f"{name}_real"] = float(value.real)
+                    row[f"{name}_imag"] = float(value.imag)
+                    row[f"{name}_abs"] = float(abs(value))
+                rows.append(row)
+    return rows
 
 
 # ============================================================

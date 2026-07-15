@@ -74,6 +74,14 @@ def dirac_pauli_from_sachs(Q2, GE, GM, m):
     return float(F1), float(F2)
 
 
+def sachs_from_dirac_pauli(Q2, F1, F2, m):
+    """Convert Dirac/Pauli ``F1``/``F2`` to Sachs ``GE``/``GM``."""
+    tau = float(Q2) / (4.0 * float(m) ** 2)
+    GE = float(F1) - tau * float(F2)
+    GM = float(F1) + float(F2)
+    return float(GE), float(GM)
+
+
 def yahl_dirac_pauli_from_t(t, m):
     """Return proton ``(F1, F2)`` at invariant momentum transfer ``t``."""
     Q2_transfer = -float(t)

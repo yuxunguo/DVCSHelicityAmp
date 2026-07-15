@@ -114,6 +114,8 @@ The main numerical entry points in `BHHelicityAmp.py` are:
 ```text
 bh_amplitude_core                         one fixed-helicity amplitude
 bh_unpolarized_squared_amplitude_core     helicity-summed |M|^2
+proton_current_helicity_decomposition     proton F1/F2 and GE/GM helicity tensors
+electron_current_helicity_decomposition   pointlike electron helicity current
 bh_amplitude_table                        complete 4 x 8 amplitude table
 bh_amplitude_user                         user-frame convenience wrapper
 bh_unpolarized_squared_amplitude_user     user-frame unpolarized wrapper
