@@ -19,9 +19,11 @@ import numpy as np
 
 from AlignmentScan import (
     LEPTON_SPECS,
+    explicit_polarization_name,
     lepton_output_paths,
     observable_latex_label,
     observable_text_label,
+    species_observable_name,
     species_spin_label,
 )
 from config import PROTON_MASS_GEV as M, SCAN_WORKERS
@@ -37,7 +39,7 @@ from SpinDensityMat import (
 )
 
 
-CONFIG_LEPTONS = ("electron", "muon", "aux", "massless")
+CONFIG_LEPTONS = ("electron", "muon", "heavy", "massless")
 CONFIGGEN_POLARIZATION_WORKERS = SCAN_WORKERS
 LEPTON_NAME = "electron"
 LEPTON_MASS_GEV = LEPTON_SPECS[LEPTON_NAME]["mass"]
@@ -47,8 +49,7 @@ FULL_CONCURRENCE_CSV = lepton_output_paths(LEPTON_NAME)["concurrence_csv"]
 OUTPUT_ROOT = Path("Output") / "ConfigGen"
 OUTPUT_DIR = OUTPUT_ROOT / LEPTON_NAME
 DATA_DIR = OUTPUT_DIR / "Data"
-EGAMMA_CONFIG_DIR = OUTPUT_DIR / "Config_Plot_By_Egamma"
-LOG_PATH = OUTPUT_DIR / "ConfigGen.log"
+EGAMMA_CONFIG_DIR = OUTPUT_DIR
 
 CONFIG_TARGETS = (
     ("C_e_p", "c_ep"),
@@ -61,11 +62,11 @@ CONFIG_TARGETS = (
 CONFIG_SPIN_CASES = (
     "unpolarized",
     "L_proton",
-    "L_electron",
+    "L_lepton",
     "Tx_proton",
     "Ty_proton",
-    "Tx_electron",
-    "Ty_electron",
+    "Tx_lepton",
+    "Ty_lepton",
     "LL",
     "LTx",
     "LTy",
@@ -91,7 +92,7 @@ MOMENTUM_COLORS = {
     "pp": "tab:red", "qout": "tab:green",
 }
 MOMENTUM_KIND = {
-    "k": "electron", "kp": "electron",
+    "k": "lepton", "kp": "lepton",
     "p": "proton", "pp": "proton",
     "qout": "photon",
 }
@@ -107,13 +108,12 @@ KINEMATIC_COLUMNS = (
     "s_regime",
     "theta_in_regime",
     "qOut_regime",
-    "electron_mass",
+    "lepton_mass",
     "s",
     "sqrt_s",
     "pIn",
     "pOut",
     "theta_in",
-    "phi_in_electron",
     "phi_in_lepton",
     "phi_in",
     "qOut",
@@ -123,7 +123,7 @@ KINEMATIC_COLUMNS = (
     "t",
     "W2",
     "y",
-    "theta_e_gamma_deg",
+    "theta_lepton_gamma_deg",
     "k_dot_qout",
     "kp_dot_qout",
     "abs_k_dot_qout",
@@ -138,7 +138,7 @@ def configure_lepton(name):
     """Select one AlignmentScan species and its matching ConfigGen output tree."""
     global LEPTON_NAME, LEPTON_MASS_GEV
     global FULL_CONCURRENCE_CSV
-    global OUTPUT_DIR, DATA_DIR, EGAMMA_CONFIG_DIR, LOG_PATH
+    global OUTPUT_DIR, DATA_DIR, EGAMMA_CONFIG_DIR
 
     if name not in LEPTON_SPECS:
         raise ValueError(f"Unknown lepton {name!r}; choose from {tuple(LEPTON_SPECS)}.")
@@ -148,8 +148,7 @@ def configure_lepton(name):
     FULL_CONCURRENCE_CSV = alignment_paths["concurrence_csv"]
     OUTPUT_DIR = OUTPUT_ROOT / name
     DATA_DIR = OUTPUT_DIR / "Data"
-    EGAMMA_CONFIG_DIR = OUTPUT_DIR / "Config_Plot_By_Egamma"
-    LOG_PATH = OUTPUT_DIR / "ConfigGen.log"
+    EGAMMA_CONFIG_DIR = OUTPUT_DIR
 
 
 def observable_label(name):
@@ -186,14 +185,16 @@ def read_csv_rows(path):
 
 
 def clean_egamma_config_outputs():
-    """Remove stale per-E_gamma PDFs."""
+    """Remove generated PDFs from each polarization directory."""
     if not EGAMMA_CONFIG_DIR.exists():
         return
-    for path in EGAMMA_CONFIG_DIR.rglob("*.pdf"):
-        path.unlink()
-    for path in sorted(EGAMMA_CONFIG_DIR.rglob("*"), key=lambda item: len(item.parts), reverse=True):
-        if path.is_dir():
-            path.rmdir()
+    for polarization_dir in EGAMMA_CONFIG_DIR.iterdir():
+        if not polarization_dir.is_dir() or polarization_dir == DATA_DIR:
+            continue
+        for path in polarization_dir.glob("*_regions.pdf"):
+            path.unlink()
+        if not any(polarization_dir.iterdir()):
+            polarization_dir.rmdir()
 
 
 def clean_data_outputs():
@@ -231,12 +232,21 @@ def target_paths(file_tag):
     }
 
 
+def target_file_tag(target):
+    """Return a filesystem tag that names the selected lepton when needed."""
+    observable, default_tag = target
+    output_name = species_observable_name(observable, LEPTON_NAME)
+    return default_tag if output_name == observable else output_name.lower()
+
+
 def spin_label_from_key(key, observable):
     """Return the spin-case prefix from an observable column name."""
-    suffix = f"_{observable}"
-    if key.endswith(suffix):
-        return key[: -len(suffix)]
-    return key
+    output_observable = species_observable_name(observable, LEPTON_NAME)
+    for spin_case in CONFIG_SPIN_CASES:
+        output_prefix = explicit_polarization_name(spin_case, LEPTON_NAME)
+        if key == f"{output_prefix}_{output_observable}":
+            return spin_case
+    raise ValueError(f"Cannot determine spin case from column {key!r}")
 
 
 def format_helicity(value):
@@ -252,7 +262,9 @@ def target_columns(rows, observable):
     names = set(rows[0])
     columns = []
     for spin_case in CONFIG_SPIN_CASES:
-        key = f"{spin_case}_{observable}"
+        output_prefix = explicit_polarization_name(spin_case, LEPTON_NAME)
+        output_observable = species_observable_name(observable, LEPTON_NAME)
+        key = f"{output_prefix}_{output_observable}"
         if key in names:
             columns.append(key)
     return columns
@@ -294,7 +306,7 @@ def vector_phi_xy(vector):
 
 def kinematics_from_config_row(row):
     """Rebuild full user-frame kinematics for a ConfigGen row."""
-    lepton_mass = parse_float(row.get("electron_mass"))
+    lepton_mass = parse_float(row.get("lepton_mass"))
     if not np.isfinite(lepton_mass):
         lepton_mass = LEPTON_MASS_GEV
     return kinematics_user_from_independent(
@@ -331,9 +343,10 @@ def selected_row(row, key, observable, value):
     item["selected_spin_case"] = spin_case
     item["selected_concurrence_key"] = key
     item["selected_concurrence"] = value
-    item["selected_purity"] = parse_float(row.get(f"{spin_case}_purity"))
+    output_prefix = explicit_polarization_name(spin_case, LEPTON_NAME)
+    item["selected_purity"] = parse_float(row.get(f"{output_prefix}_purity"))
     item["pair_delta_xy"] = target_pair_delta(item, observable)
-    item["scan_phi_e_in"] = parse_float(row.get("phi_in_electron"))
+    item["scan_phi_lepton_in"] = parse_float(row.get("phi_in_lepton"))
     item["scan_phi_p_in"] = parse_float(row.get("phi_in"))
     item["scan_phi_gamma"] = parse_float(row.get("phiOut"))
     return item
@@ -344,7 +357,7 @@ def scan_x_phi(row):
     value = parse_float(row.get("phi_in"))
     if np.isfinite(value):
         return value
-    return parse_float(row.get("phi_in_electron"))
+    return parse_float(row.get("phi_in_lepton"))
 
 
 def candidate_rows(rows, key, observable):
@@ -449,7 +462,7 @@ def cluster_summary_rows(target, grouped_clusters):
             for name in (
                 "s",
                 "theta_in",
-                "phi_in_electron",
+                "phi_in_lepton",
                 "qOut",
                 "phiOut",
                 "Q2",
@@ -457,7 +470,7 @@ def cluster_summary_rows(target, grouped_clusters):
                 "t",
                 "W2",
                 "y",
-                "theta_e_gamma_deg",
+                "theta_lepton_gamma_deg",
                 "pair_delta_xy",
                 "abs_k_dot_qout",
                 "abs_kp_dot_qout",
@@ -504,7 +517,8 @@ def example_rows(grouped_clusters):
 def representative_rows(target, grouped_clusters):
     """Return one characteristic row per selected target/spin/cluster."""
     rows = []
-    observable, file_tag = target
+    observable, _default_tag = target
+    file_tag = target_file_tag(target)
     for spin_case, clusters in grouped_clusters:
         for cluster in clusters:
             row = dict(cluster["best"])
@@ -575,7 +589,8 @@ def target_egamma_candidates(rows, target, key):
 
 def egamma_target_region_rows(target, group_name, spin_case, clusters):
     """Return representative detail rows for one E_gamma/target/spin region set."""
-    observable, file_tag = target
+    observable, _default_tag = target
+    file_tag = target_file_tag(target)
     detail_rows = []
     for cluster in clusters:
         row = dict(cluster["best"])
@@ -592,21 +607,34 @@ def egamma_target_region_rows(target, group_name, spin_case, clusters):
 
 
 def write_dict_csv(path, rows):
-    """Write a list of dictionaries to CSV."""
+    """Write dictionaries with species-labelled metadata values."""
     path.parent.mkdir(parents=True, exist_ok=True)
     headers = list(rows[0]) if rows else []
+    output_rows = []
+    for row in rows:
+        output_row = dict(row)
+        if "selected_observable" in output_row:
+            output_row["selected_observable"] = species_observable_name(
+                output_row["selected_observable"], LEPTON_NAME
+            )
+        if "selected_spin_case" in output_row:
+            output_row["selected_spin_case"] = explicit_polarization_name(
+                output_row["selected_spin_case"], LEPTON_NAME
+            )
+        output_rows.append(output_row)
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=headers, lineterminator="\n")
         if headers:
             writer.writeheader()
-            writer.writerows(rows)
+            writer.writerows(output_rows)
     return path
 
 
 def spin_output_path(base_path, spin_case):
     """Return a target/polarization-organized output path."""
     target_dir = base_path.parent.parent
-    return target_dir / file_safe_label(spin_case) / base_path.name
+    folder = explicit_polarization_name(spin_case, LEPTON_NAME)
+    return target_dir / folder / base_path.name
 
 
 def write_spin_csvs(base_path, rows, spin_cases):
@@ -648,11 +676,11 @@ def selected_initial_state_label(spin_case):
     labels = {
         "unpolarized": r"$\frac{1}{4}\sum_{h_e,h_p}\rho(h_e,h_p)$",
         "L_proton": r"$\frac{1}{2}\sum_{h_e}\rho(h_e,L_p)$",
-        "L_electron": r"$\frac{1}{2}\sum_{h_p}\rho(L_e,h_p)$",
+        "L_lepton": r"$\frac{1}{2}\sum_{h_p}\rho(L_e,h_p)$",
         "Tx_proton": r"$\frac{1}{2}\sum_{h_e}\rho(h_e,T_{x,p})$",
         "Ty_proton": r"$\frac{1}{2}\sum_{h_e}\rho(h_e,T_{y,p})$",
-        "Tx_electron": r"$\frac{1}{2}\sum_{h_p}\rho(T_{x,e},h_p)$",
-        "Ty_electron": r"$\frac{1}{2}\sum_{h_p}\rho(T_{y,e},h_p)$",
+        "Tx_lepton": r"$\frac{1}{2}\sum_{h_p}\rho(T_{x,e},h_p)$",
+        "Ty_lepton": r"$\frac{1}{2}\sum_{h_p}\rho(T_{y,e},h_p)$",
         "LL": r"$|L_e\rangle\otimes|L_p\rangle$",
         "LTx": r"$|L_e\rangle\otimes|T_{x,p}\rangle$",
         "LTy": r"$|L_e\rangle\otimes|T_{y,p}\rangle$",
@@ -662,7 +690,7 @@ def selected_initial_state_label(spin_case):
     label = labels.get(spin_case, spin_case)
     if LEPTON_NAME == "electron":
         return label
-    symbol = {"muon": r"\mu", "aux": r"\ell", "massless": r"\ell_0"}[LEPTON_NAME]
+    symbol = {"muon": r"\mu", "heavy": r"\ell_H", "massless": r"\ell_0"}[LEPTON_NAME]
     return (
         label.replace("h_e", f"h_{{{symbol}}}")
         .replace("L_e", f"L_{{{symbol}}}")
@@ -943,7 +971,7 @@ def _plot_vector_2d(ax, vector, label, color, line_scale):
         _plot_wavy_2d(ax, start, end, color, amplitude=0.025 * line_scale)
     else:
         _plot_arrow_2d(ax, start, end, color,
-                       linestyle="--" if kind == "electron" else "-",
+                       linestyle="--" if kind == "lepton" else "-",
                        linewidth=1.75 if kind == "proton" else 1.65)
     ax.text(end[0], end[1], f" {MOMENTUM_DISPLAY_LABELS.get(label, label)}",
             color=color, fontsize=11, va="center")
@@ -981,8 +1009,8 @@ def _plot_vector_3d(ax, vector, label, color, line_scale):
     start = np.zeros(3)
     kind = MOMENTUM_KIND.get(label, "other")
     _plot_line_arrow_3d(ax, start, end, color,
-                        linestyle={ "proton": "-", "photon": ":", "electron": "--" }.get(kind, "-"),
-                        linewidth={ "proton": 1.75, "photon": 1.6, "electron": 1.55 }.get(kind, 1.55))
+                        linestyle={"proton": "-", "photon": ":", "lepton": "--"}.get(kind, "-"),
+                        linewidth={"proton": 1.75, "photon": 1.6, "lepton": 1.55}.get(kind, 1.55))
     ax.text(end[0], end[1], end[2], f" {MOMENTUM_DISPLAY_LABELS.get(label, label)}",
             color=color, fontsize=9)
 
@@ -1053,7 +1081,7 @@ def plot_configuration_text(ax, row, kin):
         ),
         (
             rf"$\theta_{{\rm in}}$={kin['theta_in']:.6g}, "
-            rf"$\phi_\ell$={parse_float(row.get('phi_in_electron')):.6g}, "
+            rf"$\phi_\ell$={parse_float(row.get('phi_in_lepton')):.6g}, "
             rf"$\phi_P$={kin['phi_in']:.6g}"
         ),
         rf"$E_\gamma$={kin['qOut']:.6g}, $\phi_\gamma$={kin['phiOut']:.6g}",
@@ -1061,7 +1089,7 @@ def plot_configuration_text(ax, row, kin):
             rf"$Q^2$={kin['Q2']:.6g}, $x_B$={kin['xB']:.6g}, "
             rf"$t$={kin['t']:.6g}, $W^2$={kin['W2']:.6g}, $y$={kin['y']:.6g}"
         ),
-        rf"$\theta(\ell',\gamma)$={parse_float(row.get('theta_e_gamma_deg')):.6g} deg",
+        rf"$\theta(\ell',\gamma)$={parse_float(row.get('theta_lepton_gamma_deg')):.6g} deg",
         "",
         r"four-momenta [$E$, $p_x$, $p_y$, $p_z$] GeV:",
     ]
@@ -1070,12 +1098,13 @@ def plot_configuration_text(ax, row, kin):
 
 
 def egamma_target_pdf_path(group_name, target, spin_case):
-    """Return the PDF path under a polarization subdirectory."""
-    _observable, file_tag = target
-    return (
-        EGAMMA_CONFIG_DIR
-        / file_safe_label(spin_case)
-        / f"{file_safe_label(group_name)}_{file_tag}_regions.pdf"
+    """Return a PDF path grouped by lepton species and polarization."""
+    file_tag = target_file_tag(target)
+    polarization_dir = EGAMMA_CONFIG_DIR / explicit_polarization_name(
+        spin_case, LEPTON_NAME
+    )
+    return polarization_dir / (
+        f"{file_safe_label(group_name)}_{file_tag}_regions.pdf"
     )
 
 
@@ -1232,7 +1261,8 @@ def save_detail_pages(pdf, plt, detail_rows):
 
 def build_target_package(target, rows, egamma_detail_rows=()):
     """Build CSV rows and report metadata for one target observable."""
-    observable, file_tag = target
+    observable, _default_tag = target
+    file_tag = target_file_tag(target)
     grouped_clusters = []
     for key in selected_target_columns(rows, observable):
         candidates = candidate_rows(rows, key, observable)
@@ -1297,8 +1327,8 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
         "  no polarized category is constructed as a helicity asymmetry",
         f"  total input rows: {total_rows}",
         f"  data csv folder: {DATA_DIR}",
-        f"  per-E_gamma config folder: {EGAMMA_CONFIG_DIR}",
-        f"  config PDFs (one per E_gamma × target, all spin cases collected): {len(egamma_outputs)} spin entries",
+        f"  per-E_gamma config PDFs: {EGAMMA_CONFIG_DIR}",
+        f"  config PDFs (one per E_gamma × target × polarization): {len(egamma_outputs)}",
         f"  targets: {', '.join(observable_label(observable) for observable, _ in CONFIG_TARGETS)}",
         f"  max spin cases per target: {MAX_SPIN_CASES_PER_TARGET}",
         f"  parallel polarization workers: {CONFIGGEN_POLARIZATION_WORKERS}",
@@ -1307,15 +1337,18 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
         f"  max clusters per target/spin case: {MAX_CLUSTERS_PER_TARGET_SPIN}",
         f"  amplitude component minimum fraction: {AMPLITUDE_MIN_FRACTION:.0%}",
         f"  amplitude component maximum count: {AMPLITUDE_MAX_COMPONENTS}",
+        "  polarization folder: lepton_<species>_<L|Tx|Ty|unpolarized>_"
+        "proton_<L|Tx|Ty|unpolarized>",
         "  data layout: Data/<target>/<polarization>/... with combined tables under combined/",
-        "  PDF layout: Config_Plot_By_Egamma/<polarization>/<E_gamma>_<target>_regions.pdf",
+        "  PDF layout: <polarization>/<E_gamma>_<target>_regions.pdf",
         "  saved per-polarization config PDFs:",
     ]
     for group_name, observable, spin_case, path, region_count in egamma_outputs:
         label = observable_label(observable)
         lines.append(
             f"    {group_name} {spin_display_label(spin_case)} "
-            f"[{spin_case}] {label}: {path} ({region_count} regions)"
+            f"[{explicit_polarization_name(spin_case, LEPTON_NAME)}] {label}: "
+            f"{path} ({region_count} regions)"
         )
     lines.extend([
         "",
@@ -1329,7 +1362,8 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
             f"Target {label}:",
             "  selected spin cases: "
             + ", ".join(
-                f"{spin_display_label(spin)} [{spin}]"
+                f"{spin_display_label(spin)} "
+                f"[{explicit_polarization_name(spin, LEPTON_NAME)}]"
                 for spin, _clusters in grouped_clusters
             ),
             f"  clusters: {sum(len(clusters) for _spin, clusters in grouped_clusters)}",
@@ -1345,7 +1379,8 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
             lines.append(f"    {output_label}:")
             for spin_case, path in outputs:
                 lines.append(
-                    f"      {spin_display_label(spin_case)} [{spin_case}]: {path}"
+                    f"      {spin_display_label(spin_case)} "
+                    f"[{explicit_polarization_name(spin_case, LEPTON_NAME)}]: {path}"
                 )
         lines.append("  enhanced regions:")
         for spin_case, clusters in grouped_clusters:
@@ -1362,7 +1397,8 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
                 )
                 lines.append(
                     "    "
-                    f"{spin_display_label(spin_case)} [{spin_case}] "
+                    f"{spin_display_label(spin_case)} "
+                    f"[{explicit_polarization_name(spin_case, LEPTON_NAME)}] "
                     f"region {cluster['cluster_id']}: "
                     f"size={len(rows)}, max_{label}={best['selected_concurrence']:.6g}, "
                     f"phi_p_in={format_range(rows, 'phi_in')}, "
@@ -1377,7 +1413,7 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
                     "      best: "
                     f"s={parse_float(best.get('s')):.6g}, "
                     f"theta_in={parse_float(best.get('theta_in')):.6g}, "
-                    f"phi_e_in={parse_float(best.get('phi_in_electron')):.6g}, "
+                    f"phi_lepton_in={parse_float(best.get('phi_in_lepton')):.6g}, "
                     f"phi_p_in={parse_float(best.get('phi_in')):.6g}, "
                     f"qOut={parse_float(best.get('qOut')):.6g}, "
                     f"phi_gamma={parse_float(best.get('phiOut')):.6g}, "
@@ -1388,7 +1424,6 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
                     f"t={parse_float(best.get('t')):.6g}"
                 )
         lines.append("")
-    lines.append(f"Saved log: {LOG_PATH}")
     return "\n".join(lines) + "\n"
 
 
@@ -1407,8 +1442,6 @@ def _run_species(lepton_name):
         for target in CONFIG_TARGETS
     ]
     log_text = build_report(input_path, len(rows), packages, egamma_outputs)
-    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    LOG_PATH.write_text(log_text, encoding="utf-8")
     return log_text
 
 
@@ -1428,7 +1461,8 @@ def main():
     # Species are intentionally sequential. Each species creates its own pool
     # whose tasks are the independent initial-polarization configurations.
     reports = [_run_species(name) for name in CONFIG_LEPTONS]
-    print("\n".join(report.rstrip() for report in reports))
+    report_text = "\n\n".join(report.rstrip() for report in reports) + "\n"
+    print(report_text, end="")
 
 
 if __name__ == "__main__":

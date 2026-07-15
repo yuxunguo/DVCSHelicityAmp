@@ -52,11 +52,11 @@ USER_FIXED_PHI_OUT = np.pi
 TRACE_BENCHMARK_TOL = 1e-10
 SPIN_CASE_UNPOLARIZED = "unpolarized"
 SPIN_CASE_L_PROTON = "L_proton"
-SPIN_CASE_L_ELECTRON = "L_electron"
+SPIN_CASE_L_LEPTON = "L_lepton"
 SPIN_CASE_TX_PROTON = "Tx_proton"
 SPIN_CASE_TY_PROTON = "Ty_proton"
-SPIN_CASE_TX_ELECTRON = "Tx_electron"
-SPIN_CASE_TY_ELECTRON = "Ty_electron"
+SPIN_CASE_TX_LEPTON = "Tx_lepton"
+SPIN_CASE_TY_LEPTON = "Ty_lepton"
 SPIN_CASE_LL = "LL"
 SPIN_CASE_LTX = "LTx"
 SPIN_CASE_LTY = "LTy"
@@ -66,11 +66,11 @@ SPIN_CASE_TXTY = "TxTy"
 SPIN_CASES = (
     SPIN_CASE_UNPOLARIZED,
     SPIN_CASE_L_PROTON,
-    SPIN_CASE_L_ELECTRON,
+    SPIN_CASE_L_LEPTON,
     SPIN_CASE_TX_PROTON,
     SPIN_CASE_TY_PROTON,
-    SPIN_CASE_TX_ELECTRON,
-    SPIN_CASE_TY_ELECTRON,
+    SPIN_CASE_TX_LEPTON,
+    SPIN_CASE_TY_LEPTON,
     SPIN_CASE_LL,
     SPIN_CASE_LTX,
     SPIN_CASE_LTY,
@@ -81,16 +81,16 @@ SPIN_CASES = (
 SPIN_CASE_DISPLAY_LABELS = {
     SPIN_CASE_UNPOLARIZED: "Unpolarized",
     SPIN_CASE_L_PROTON: "L proton",
-    SPIN_CASE_L_ELECTRON: "L electron",
+    SPIN_CASE_L_LEPTON: "L lepton",
     SPIN_CASE_TX_PROTON: "Tx proton",
     SPIN_CASE_TY_PROTON: "Ty proton",
-    SPIN_CASE_TX_ELECTRON: "Tx electron",
-    SPIN_CASE_TY_ELECTRON: "Ty electron",
-    SPIN_CASE_LL: "L electron + L proton",
-    SPIN_CASE_LTX: "L electron + Tx proton",
-    SPIN_CASE_LTY: "L electron + Ty proton",
-    SPIN_CASE_TXTX: "Tx electron + Tx proton",
-    SPIN_CASE_TXTY: "Tx electron + Ty proton",
+    SPIN_CASE_TX_LEPTON: "Tx lepton",
+    SPIN_CASE_TY_LEPTON: "Ty lepton",
+    SPIN_CASE_LL: "L lepton + L proton",
+    SPIN_CASE_LTX: "L lepton + Tx proton",
+    SPIN_CASE_LTY: "L lepton + Ty proton",
+    SPIN_CASE_TXTX: "Tx lepton + Tx proton",
+    SPIN_CASE_TXTY: "Tx lepton + Ty proton",
 }
 ENTANGLEMENT_NAMES = (
     "C_e_p",
@@ -160,11 +160,11 @@ def spin_case_axes(spin_case):
     cases = {
         SPIN_CASE_UNPOLARIZED: (None, None),
         SPIN_CASE_L_PROTON: (None, "L"),
-        SPIN_CASE_L_ELECTRON: ("L", None),
+        SPIN_CASE_L_LEPTON: ("L", None),
         SPIN_CASE_TX_PROTON: (None, "Tx"),
         SPIN_CASE_TY_PROTON: (None, "Ty"),
-        SPIN_CASE_TX_ELECTRON: ("Tx", None),
-        SPIN_CASE_TY_ELECTRON: ("Ty", None),
+        SPIN_CASE_TX_LEPTON: ("Tx", None),
+        SPIN_CASE_TY_LEPTON: ("Ty", None),
         SPIN_CASE_LL: ("L", "L"),
         SPIN_CASE_LTX: ("L", "Tx"),
         SPIN_CASE_LTY: ("L", "Ty"),

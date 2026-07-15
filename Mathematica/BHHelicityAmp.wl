@@ -2,15 +2,15 @@
 
 BeginPackage["BHHelicityAmp`"];
 
-POutAnalytic::usage = "POutAnalytic[s,EGamma,phiGamma,Mp] gives the physical outgoing-proton momentum.";
-UserKinematics::usage = "UserKinematics[s,thetaIn,phiIn,EGamma,phiGamma,Mp] returns external four-momenta and invariants.";
-KinematicChecks::usage = "KinematicChecks[kin,Mp] returns conservation and on-shell residuals.";
-BHAmplitude::usage = "BHAmplitude[kin,hIn,hOut,sIn,sOut,lambda,Mp,F1,F2] gives one Bethe-Heitler helicity amplitude.";
-BHAmplitudeTable::usage = "BHAmplitudeTable[kin,Mp,F1,F2] gives the 4x8 amplitude table in the bases (hIn,sIn) and (hOut,sOut,lambda), ordered with labels {-1,+1}.";
+POutAnalytic::usage = "POutAnalytic[s,EGamma,phiGamma,Mp,Ml] gives the physical outgoing-proton momentum for lepton mass Ml.";
+UserKinematics::usage = "UserKinematics[s,thetaIn,phiIn,EGamma,phiGamma,Mp,Ml] returns massive-lepton external four-momenta and invariants.";
+KinematicChecks::usage = "KinematicChecks[kin,Mp,Ml] returns conservation and on-shell residuals.";
+BHAmplitude::usage = "BHAmplitude[kin,hIn,hOut,sIn,sOut,lambda,Mp,Ml,F1,F2] gives one Bethe-Heitler helicity amplitude.";
+BHAmplitudeTable::usage = "BHAmplitudeTable[kin,Mp,Ml,F1,F2] gives the 4x8 amplitude table in the bases (hIn,sIn) and (hOut,sOut,lambda), ordered with labels {-1,+1}.";
 SingleSpinDensity::usage = "SingleSpinDensity[axis] gives an incoming one-qubit density matrix for Unpolarized, L, Tx, Ty, or an explicit state.";
-InitialSpinDensity::usage = "InitialSpinDensity[eAxis,pAxis] gives the incoming electron-proton 4x4 density matrix.";
+InitialSpinDensity::usage = "InitialSpinDensity[lAxis,pAxis] gives the incoming lepton-proton 4x4 density matrix.";
 OutgoingDensityMatrix::usage = "OutgoingDensityMatrix[amplitudes,rhoIn,normalize] returns the outgoing 8x8 density matrix. normalize defaults to True.";
-ReducedDensityMatrix::usage = "ReducedDensityMatrix[rho,keep] traces unwanted qubits. Qubits {1,2,3} are electron, proton, photon.";
+ReducedDensityMatrix::usage = "ReducedDensityMatrix[rho,keep] traces unwanted qubits. Qubits {1,2,3} are lepton, proton, photon.";
 TwoQubitConcurrence::usage = "TwoQubitConcurrence[rho2] evaluates Wootters concurrence for a numerical 4x4 density matrix.";
 EntanglementObservables::usage = "EntanglementObservables[rho] returns pairwise concurrence and pure-state multipartite observables.";
 
@@ -55,8 +55,10 @@ ChiHelicity[p3_, h_] := Module[{pAbs, useSouth},
   If[useSouth, ChiSouth[p3, h], ChiNorth[p3, h]]
 ];
 
-ElectronSpinor[k_, h_] := Module[{chi = ChiHelicity[k[[2 ;; 4]], h]},
-  Join[Sqrt[k[[1]]] chi, h Sqrt[k[[1]]] chi]
+LeptonSpinor[k_, h_, Ml_] := Module[{pAbs, chi},
+  pAbs = Sqrt[k[[2 ;; 4]] . k[[2 ;; 4]]];
+  chi = ChiHelicity[k[[2 ;; 4]], h];
+  Join[Sqrt[k[[1]] + Ml] chi, h pAbs/Sqrt[k[[1]] + Ml] chi]
 ];
 
 ProtonSpinor[p_, h_, Mp_] := Module[{pAbs, chi},
@@ -76,33 +78,37 @@ PhotonPolarization[q_, lambda_] := Module[
   Join[{0}, (eTheta + I lambda ePhi)/Sqrt[2]]
 ];
 
-POutAnalytic[s_, EGamma_, phiGamma_, Mp_] := Module[
+POutAnalytic[s_, EGamma_, phiGamma_, Mp_, Ml_] := Module[
   {rootS, available, c, denominator, discriminant},
   rootS = Sqrt[s]; available = rootS - EGamma;
-  c = available^2 + Mp^2 - EGamma^2;
+  c = available^2 + Mp^2 - EGamma^2 - Ml^2;
   denominator = available^2 - EGamma^2 Sin[phiGamma]^2;
   discriminant = c^2 - 4 Mp^2 denominator;
   (-c EGamma Sin[phiGamma] + available Sqrt[discriminant])/(2 denominator)
 ];
 
-UserKinematics[s_, thetaIn_, phiIn_, EGamma_, phiGamma_, Mp_] := Module[
-  {pIn, pOut, eInProton, eOutProton, eOutElectron, k, p, kp, pp,
+UserKinematics[s_, thetaIn_, phiIn_, EGamma_, phiGamma_, Mp_, Ml_] := Module[
+  {pIn, pOut, eInLepton, eInProton, eOutProton, eOutLepton, k, p, kp, pp,
    qout, qVirtual, delta, pDotQ, q2, xb, t},
-  pIn = (s - Mp^2)/(2 Sqrt[s]);
-  pOut = POutAnalytic[s, EGamma, phiGamma, Mp];
+  pIn = Sqrt[(s - (Mp + Ml)^2) (s - (Mp - Ml)^2)]/(2 Sqrt[s]);
+  pOut = POutAnalytic[s, EGamma, phiGamma, Mp, Ml];
+  eInLepton = Sqrt[pIn^2 + Ml^2];
   eInProton = Sqrt[pIn^2 + Mp^2]; eOutProton = Sqrt[pOut^2 + Mp^2];
-  eOutElectron = Sqrt[pOut^2 + EGamma^2 + 2 pOut EGamma Sin[phiGamma]];
-  k = pIn {1, -Sin[thetaIn] Cos[phiIn], -Sin[thetaIn] Sin[phiIn], -Cos[thetaIn]};
+  eOutLepton = Sqrt[pOut^2 + EGamma^2 +
+    2 pOut EGamma Sin[phiGamma] + Ml^2];
+  k = {eInLepton, -pIn Sin[thetaIn] Cos[phiIn],
+    -pIn Sin[thetaIn] Sin[phiIn], -pIn Cos[thetaIn]};
   p = {eInProton, pIn Sin[thetaIn] Cos[phiIn],
     pIn Sin[thetaIn] Sin[phiIn], pIn Cos[thetaIn]};
   pp = {eOutProton, 0, pOut, 0};
   qout = EGamma {1, Cos[phiGamma], Sin[phiGamma], 0};
-  kp = {eOutElectron, -EGamma Cos[phiGamma], -pOut - EGamma Sin[phiGamma], 0};
+  kp = {eOutLepton, -EGamma Cos[phiGamma],
+    -pOut - EGamma Sin[phiGamma], 0};
   qVirtual = k - kp; delta = pp - p;
   q2 = -MinkowskiDot[qVirtual, qVirtual]; pDotQ = MinkowskiDot[p, qVirtual];
   xb = q2/(2 pDotQ); t = MinkowskiDot[delta, delta];
   <|"s" -> s, "thetaIn" -> thetaIn, "phiIn" -> phiIn,
-    "EGamma" -> EGamma, "phiGamma" -> phiGamma, "Mp" -> Mp,
+    "EGamma" -> EGamma, "phiGamma" -> phiGamma, "Mp" -> Mp, "Ml" -> Ml,
     "pIn" -> pIn, "pOut" -> pOut, "k" -> k, "p" -> p,
     "kp" -> kp, "pp" -> pp, "qout" -> qout, "q" -> qVirtual,
     "Q2" -> q2, "xB" -> xb, "t" -> t,
@@ -110,44 +116,47 @@ UserKinematics[s_, thetaIn_, phiIn_, EGamma_, phiGamma_, Mp_] := Module[
     "y" -> pDotQ/MinkowskiDot[p, k]|>
 ];
 
-KinematicChecks[kin_Association, Mp_] := Module[
+KinematicChecks[kin_Association, Mp_, Ml_] := Module[
   {k = kin["k"], p = kin["p"], kp = kin["kp"], pp = kin["pp"], qout = kin["qout"]},
   <|"fourMomentumResidual" -> Simplify[k + p - kp - pp - qout],
     "energyResidual" -> Simplify[k[[1]] + p[[1]] - kp[[1]] - pp[[1]] - qout[[1]]],
     "massShell" -> Simplify[{MinkowskiDot[k, k], MinkowskiDot[kp, kp],
       MinkowskiDot[qout, qout], MinkowskiDot[p, p], MinkowskiDot[pp, pp]} -
-      {0, 0, 0, Mp^2, Mp^2}]|>
+      {Ml^2, Ml^2, 0, Mp^2, Mp^2}]|>
 ];
 
-LeptonKernel[mu_, nu_, k_, kp_, qout_] := Module[{denPlus, denMinus, qSlash},
-  denPlus = 2 MinkowskiDot[kp, qout]; denMinus = -2 MinkowskiDot[k, qout];
-  qSlash = Slash[qout];
-  (2 kp[[mu]] $Gamma[[nu]] + $Gamma[[mu]] . qSlash . $Gamma[[nu]])/denPlus +
-  (2 k[[mu]] $Gamma[[nu]] - $Gamma[[nu]] . qSlash . $Gamma[[mu]])/denMinus
+LeptonKernel[mu_, nu_, k_, kp_, qout_, Ml_] := Module[
+  {plusMomentum, minusMomentum, denPlus, denMinus, massMatrix},
+  plusMomentum = kp + qout; minusMomentum = k - qout;
+  denPlus = MinkowskiDot[plusMomentum, plusMomentum] - Ml^2;
+  denMinus = MinkowskiDot[minusMomentum, minusMomentum] - Ml^2;
+  massMatrix = Ml IdentityMatrix[4];
+  $Gamma[[mu]] . (Slash[plusMomentum] + massMatrix) . $Gamma[[nu]]/denPlus +
+  $Gamma[[nu]] . (Slash[minusMomentum] + massMatrix) . $Gamma[[mu]]/denMinus
 ];
 
 ProtonVertexLower[nu_, p_, pp_, Mp_, f1_, f2_] :=
   (f1 + f2) $Eta[[nu]] $Gamma[[nu]] -
   $Eta[[nu]] (p + pp)[[nu]] f2 IdentityMatrix[4]/(2 Mp);
 
-BHAmplitude[kin_Association, hIn_, hOut_, sIn_, sOut_, lambda_, Mp_, f1_, f2_] := Module[
-  {k, p, kp, pp, qout, electronIn, electronOut, protonIn, protonOut,
-   electronBar, protonBar, epsilonCovStar, t, hadronic},
+BHAmplitude[kin_Association, hIn_, hOut_, sIn_, sOut_, lambda_, Mp_, Ml_, f1_, f2_] := Module[
+  {k, p, kp, pp, qout, leptonIn, leptonOut, protonIn, protonOut,
+   leptonBar, protonBar, epsilonCovStar, t, hadronic},
   {k, p, kp, pp, qout} = Lookup[kin, {"k", "p", "kp", "pp", "qout"}];
-  electronIn = ElectronSpinor[k, hIn]; electronOut = ElectronSpinor[kp, hOut];
+  leptonIn = LeptonSpinor[k, hIn, Ml]; leptonOut = LeptonSpinor[kp, hOut, Ml];
   protonIn = ProtonSpinor[p, sIn, Mp]; protonOut = ProtonSpinor[pp, sOut, Mp];
-  electronBar = SpinorBar[electronOut]; protonBar = SpinorBar[protonOut];
+  leptonBar = SpinorBar[leptonOut]; protonBar = SpinorBar[protonOut];
   epsilonCovStar = Covariant[Conjugate[PhotonPolarization[qout, lambda]]];
   t = MinkowskiDot[pp - p, pp - p];
   hadronic = Table[protonBar . ProtonVertexLower[nu, p, pp, Mp, f1, f2] . protonIn,
     {nu, 1, 4}];
   Sum[epsilonCovStar[[mu]]
-    (electronBar . LeptonKernel[mu, nu, k, kp, qout] . electronIn)
+    (leptonBar . LeptonKernel[mu, nu, k, kp, qout, Ml] . leptonIn)
     hadronic[[nu]], {mu, 1, 4}, {nu, 1, 4}]/t
 ];
 
-BHAmplitudeTable[kin_Association, Mp_, f1_, f2_] := ArrayReshape[
-  Table[BHAmplitude[kin, hIn, hOut, sIn, sOut, lambda, Mp, f1, f2],
+BHAmplitudeTable[kin_Association, Mp_, Ml_, f1_, f2_] := ArrayReshape[
+  Table[BHAmplitude[kin, hIn, hOut, sIn, sOut, lambda, Mp, Ml, f1, f2],
     {hIn, $Helicities}, {sIn, $Helicities}, {hOut, $Helicities},
     {sOut, $Helicities}, {lambda, $Helicities}], {4, 8}];
 
@@ -161,8 +170,8 @@ SingleSpinDensity[axis_] := Module[{state}, Which[
   True, Message[SingleSpinDensity::axis, axis]; $Failed]];
 SingleSpinDensity::axis = "Unknown spin preparation `1`.";
 
-InitialSpinDensity[electronAxis_: "Unpolarized", protonAxis_: "Unpolarized"] :=
-  KroneckerProduct[SingleSpinDensity[electronAxis], SingleSpinDensity[protonAxis]];
+InitialSpinDensity[leptonAxis_: "Unpolarized", protonAxis_: "Unpolarized"] :=
+  KroneckerProduct[SingleSpinDensity[leptonAxis], SingleSpinDensity[protonAxis]];
 
 NormalizeDensity[rho_] := Module[{hermitian = (rho + ConjugateTranspose[rho])/2},
   hermitian/Tr[hermitian]];
@@ -201,27 +210,27 @@ OneToRestConcurrence[rho_, subsystem_] := Module[{single, purity},
 ];
 
 EntanglementObservables[rhoInput_] := Module[
-  {rho, cEP, cEG, cPG, purity, cERest, cPRest, cGRest, q, f3},
+  {rho, cLP, cLG, cPG, purity, cLRest, cPRest, cGRest, q, f3},
   rho = N[NormalizeDensity[rhoInput]];
-  cEP = TwoQubitConcurrence[ReducedDensityMatrix[rho, {1, 2}]];
-  cEG = TwoQubitConcurrence[ReducedDensityMatrix[rho, {1, 3}]];
+  cLP = TwoQubitConcurrence[ReducedDensityMatrix[rho, {1, 2}]];
+  cLG = TwoQubitConcurrence[ReducedDensityMatrix[rho, {1, 3}]];
   cPG = TwoQubitConcurrence[ReducedDensityMatrix[rho, {2, 3}]];
   purity = Re[Tr[rho . rho]];
   If[Abs[purity - 1] > 10^-9, Return[<|"purity" -> purity,
-    "C_e_p" -> cEP, "C_e_gamma" -> cEG, "C_p_gamma" -> cPG,
-    "C_e_rest" -> Missing["RequiresPureState"],
+    "C_l_p" -> cLP, "C_l_gamma" -> cLG, "C_p_gamma" -> cPG,
+    "C_l_rest" -> Missing["RequiresPureState"],
     "C_p_rest" -> Missing["RequiresPureState"],
     "C_gamma_rest" -> Missing["RequiresPureState"],
     "F3" -> Missing["RequiresPureState"]|>]];
-  cERest = OneToRestConcurrence[rho, 1]; cPRest = OneToRestConcurrence[rho, 2];
-  cGRest = OneToRestConcurrence[rho, 3]; q = (cERest + cPRest + cGRest)/2;
-  f3 = Sqrt[Max[0., (16/3) q (q - cERest) (q - cPRest) (q - cGRest)]];
-  <|"purity" -> purity, "C_e_p" -> cEP, "C_e_gamma" -> cEG,
-    "C_p_gamma" -> cPG, "C_e_rest" -> cERest, "C_p_rest" -> cPRest,
+  cLRest = OneToRestConcurrence[rho, 1]; cPRest = OneToRestConcurrence[rho, 2];
+  cGRest = OneToRestConcurrence[rho, 3]; q = (cLRest + cPRest + cGRest)/2;
+  f3 = Sqrt[Max[0., (16/3) q (q - cLRest) (q - cPRest) (q - cGRest)]];
+  <|"purity" -> purity, "C_l_p" -> cLP, "C_l_gamma" -> cLG,
+    "C_p_gamma" -> cPG, "C_l_rest" -> cLRest, "C_p_rest" -> cPRest,
     "C_gamma_rest" -> cGRest, "F3" -> f3,
-    "M_e" -> cERest^2 - cEP^2 - cEG^2,
-    "M_p" -> cPRest^2 - cEP^2 - cPG^2,
-    "M_gamma" -> cGRest^2 - cEG^2 - cPG^2|>
+    "M_l" -> cLRest^2 - cLP^2 - cLG^2,
+    "M_p" -> cPRest^2 - cLP^2 - cPG^2,
+    "M_gamma" -> cGRest^2 - cLG^2 - cPG^2|>
 ];
 
 End[];

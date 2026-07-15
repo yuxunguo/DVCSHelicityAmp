@@ -1,8 +1,8 @@
 (* ::Package:: *)
 
-(* Reproduce the numerical kinematics and helicity-amplitude benchmarks in
-   Output/BHHelicityAmp.log.*)
-SetDirectory[NotebookDirectory[]];
+(* Evaluate numerical kinematics and helicity-amplitude benchmarks with an
+   explicit physical electron mass. Change Ml to benchmark another lepton. *)
+SetDirectory[DirectoryName[ExpandFileName[$InputFileName]]];
 <<"BHHelicityAmp.wl";
 
 helicities = {-1, 1};
@@ -11,13 +11,13 @@ helicities = {-1, 1};
 benchmarkInputs = {
   <|"case" -> "K1", "s" -> 10.25844, "thetaIn" -> 1.10,
     "phiIn" -> 0.20, "EGamma" -> 0.45, "phiGamma" -> 2.40,
-    "Mp" -> 0.938|>,
+    "Mp" -> 0.938, "Ml" -> 0.00051099895|>,
   <|"case" -> "K2", "s" -> 14.01544, "thetaIn" -> 1.45,
     "phiIn" -> 0.70, "EGamma" -> 0.70, "phiGamma" -> 3.10,
-    "Mp" -> 0.938|>,
+    "Mp" -> 0.938, "Ml" -> 0.00051099895|>,
   <|"case" -> "K3", "s" -> 19.64894, "thetaIn" -> 1.90,
     "phiIn" -> 1.10, "EGamma" -> 0.95, "phiGamma" -> 3.70,
-    "Mp" -> 0.938|>
+    "Mp" -> 0.938, "Ml" -> 0.00051099895|>
 };
 
 (* Form-factor rows ff=1,...,6 from the log. *)
@@ -26,18 +26,18 @@ formFactors = {
   {1.0, -0.2}, {0.7, 0.5}, {0.0, 1.0}
 };
 
-makeCase[input_] := Module[{kin, Mp, amplitudeF1, amplitudeF2},
-  Mp = input["Mp"];
+makeCase[input_] := Module[{kin, Mp, Ml, amplitudeF1, amplitudeF2},
+  Mp = input["Mp"]; Ml = input["Ml"];
   kin = UserKinematics[
     input["s"], input["thetaIn"], input["phiIn"],
-    input["EGamma"], input["phiGamma"], Mp
+    input["EGamma"], input["phiGamma"], Mp, Ml
   ];
 
   (* The BH amplitude is linear in F1 and F2. These two basis tables allow
      every form-factor row to be reconstructed without repeating the Dirac
      contractions six times. *)
-  amplitudeF1 = BHAmplitudeTable[kin, Mp, 1.0, 0.0];
-  amplitudeF2 = BHAmplitudeTable[kin, Mp, 0.0, 1.0];
+  amplitudeF1 = BHAmplitudeTable[kin, Mp, Ml, 1.0, 0.0];
+  amplitudeF2 = BHAmplitudeTable[kin, Mp, Ml, 0.0, 1.0];
 
   <|"input" -> input, "kin" -> kin,
     "amplitudeF1" -> amplitudeF1, "amplitudeF2" -> amplitudeF2|>
@@ -59,9 +59,9 @@ fixedPositiveM2[amplitudes_] := Total[Abs[amplitudes[[4]]]^2];
 Print["\nIndependent user-frame inputs"];
 Print[TableForm[
   ({#["case"], #["s"], #["thetaIn"], #["phiIn"],
-      #["EGamma"], #["phiGamma"], #["Mp"]} &) /@ benchmarkInputs,
+      #["EGamma"], #["phiGamma"], #["Mp"], #["Ml"]} &) /@ benchmarkInputs,
   TableHeadings -> {None,
-    {"case", "s", "thetaIn", "phiIn", "EGamma", "phiGamma", "Mp"}}
+    {"case", "s", "thetaIn", "phiIn", "EGamma", "phiGamma", "Mp", "Ml"}}
 ]];
 
 Print["\nDerived kinematics and invariant diagnostics"];
@@ -88,7 +88,8 @@ Do[
 Print["\nKinematic checks"];
 Do[
   Print[label, "  ", N[KinematicChecks[
-    cases[label]["kin"], cases[label]["input"]["Mp"]]]],
+    cases[label]["kin"], cases[label]["input"]["Mp"],
+    cases[label]["input"]["Ml"]]]],
   {label, Keys[cases]}
 ];
 
@@ -155,6 +156,4 @@ Print["unpolarized observables = ",
   EntanglementObservables[rhoOutUnpolarized]];
 Print["Tr[rhoOut LL] = ", Chop[Tr[rhoOutLL]]];
 Print["LL observables = ", EntanglementObservables[rhoOutLL]];
-
-
 

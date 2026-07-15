@@ -9,6 +9,7 @@ the best point for every observable/polarization pair.
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import csv
 from pathlib import Path
+import shutil
 
 import numpy as np
 
@@ -20,13 +21,14 @@ from AlignmentScan import (
     _concurrence_csv_headers,
     _concurrence_csv_row,
     _scan_alignment_point_task,
+    explicit_polarization_name,
     observable_latex_label,
     observable_text_label,
     save_concurrence_top_csv,
     species_spin_label,
 )
 from config import (
-    AUX_LEPTON_MASS_GEV,
+    HEAVY_LEPTON_MASS_GEV,
     ELECTRON_MASS_GEV,
     MASSLESS_LEPTON_MASS_GEV,
     MUON_MASS_GEV,
@@ -38,7 +40,7 @@ from PlotUtils import require_matplotlib
 
 
 # Explicit script settings. Edit these values before running PhaseSpaceScan.py.
-LEPTONS_TO_SCAN = ("electron", "muon", "aux", "massless")
+LEPTONS_TO_SCAN = ("electron", "muon", "heavy", "massless")
 PARALLEL_WORKERS = SCAN_WORKERS
 RANDOM_SEED = 271828
 PHASE_SPACE_SAMPLES = 8192
@@ -50,6 +52,7 @@ THETA_IN_RANGE = (0.35, 2.80)
 QOUT_FRACTION_RANGE = (0.05, 0.95)
 AZIMUTH_RANGE = (0.0, 2.0 * np.pi)
 OUTPUT_ROOT = Path("Output") / "PhaseSpaceScan"
+LOG_PATH = OUTPUT_ROOT / "PhaseSpaceScan.log"
 
 LEPTON_SETTINGS = {
     "electron": {
@@ -62,10 +65,10 @@ LEPTON_SETTINGS = {
         "sqrt_s_range": (1.05 * (PROTON_MASS_GEV + MUON_MASS_GEV), 5.00),
         "file_stem": "muon_photon",
     },
-    "aux": {
-        "mass": AUX_LEPTON_MASS_GEV,
-        "sqrt_s_range": (1.001 * (PROTON_MASS_GEV + AUX_LEPTON_MASS_GEV), 100.0),
-        "file_stem": "aux_photon",
+    "heavy": {
+        "mass": HEAVY_LEPTON_MASS_GEV,
+        "sqrt_s_range": (1.001 * (PROTON_MASS_GEV + HEAVY_LEPTON_MASS_GEV), 100.0),
+        "file_stem": "heavy_photon",
     },
     "massless": {
         "mass": MASSLESS_LEPTON_MASS_GEV,
@@ -81,12 +84,11 @@ SQRT_S_RANGE = LEPTON_SETTINGS[LEPTON_NAME]["sqrt_s_range"]
 S_RANGE = tuple(value**2 for value in SQRT_S_RANGE)
 # Sample E_gamma relative to its s-dependent kinematic ceiling.  This keeps
 # near-threshold points physical as the available photon energy approaches zero.
-OUTPUT_DIR = OUTPUT_ROOT / "electron" / "ConcurrenceScan"
+OUTPUT_DIR = OUTPUT_ROOT / "electron"
 FULL_CSV = OUTPUT_DIR / "electron_photon_entanglement_phase_space.csv"
 ALIGNED_CSV = OUTPUT_DIR / "electron_photon_entanglement_aligned.csv"
 TOP_CSV = OUTPUT_DIR / "electron_photon_entanglement_top.csv"
 PLOT_DIR = OUTPUT_DIR
-LOG_PATH = OUTPUT_ROOT / "electron" / "PhaseSpaceScan.log"
 
 
 def _qout_max(s):
@@ -105,7 +107,7 @@ def _configure_lepton(name):
     """Configure masses, threshold, and independent output paths."""
     global LEPTON_NAME, LEPTON_MASS_GEV, COM_THRESHOLD
     global SQRT_S_RANGE, S_RANGE, QOUT_RANGE
-    global OUTPUT_DIR, FULL_CSV, ALIGNED_CSV, TOP_CSV, PLOT_DIR, LOG_PATH
+    global OUTPUT_DIR, FULL_CSV, ALIGNED_CSV, TOP_CSV, PLOT_DIR
 
     if name not in LEPTON_SETTINGS:
         raise ValueError(
@@ -121,12 +123,11 @@ def _configure_lepton(name):
 
     stem = settings["file_stem"]
     species_dir = OUTPUT_ROOT / name
-    OUTPUT_DIR = species_dir / "ConcurrenceScan"
+    OUTPUT_DIR = species_dir
     FULL_CSV = OUTPUT_DIR / f"{stem}_entanglement_phase_space.csv"
     ALIGNED_CSV = OUTPUT_DIR / f"{stem}_entanglement_aligned.csv"
     TOP_CSV = OUTPUT_DIR / f"{stem}_entanglement_top.csv"
     PLOT_DIR = OUTPUT_DIR
-    LOG_PATH = species_dir / "PhaseSpaceScan.log"
 
 
 def _uniform_samples(rng, count):
@@ -177,7 +178,7 @@ def _point_from_row(row):
     """Return the five independent scan coordinates stored in a result row."""
     return np.asarray([
         float(row["s"]), float(row["theta_in"]), float(row["qOut"]),
-        float(row["phi_in_electron"]), float(row["phiOut"]),
+        float(row["phi_in_lepton"]), float(row["phiOut"]),
     ])
 
 
@@ -232,7 +233,7 @@ def _select_refinement_centers(rows, count=REFINEMENT_CENTERS):
 
 def _alignment_seed_path():
     return (
-        Path("Output") / "AlignmentScan" / LEPTON_NAME / "ConcurrenceScan"
+        Path("Output") / "AlignmentScan" / LEPTON_NAME
         / f"{LEPTON_SETTINGS[LEPTON_NAME]['file_stem']}_concurrence_top.csv"
     )
 
@@ -293,7 +294,7 @@ def _evaluate_sample(
     }
     settings = {
         "m": PROTON_MASS_GEV,
-        "electron_mass": lepton_mass,
+        "lepton_mass": lepton_mass,
         "lepton_name": lepton_name,
         "normalize_trace": NORMALIZE_TRACE,
         "angle_max_rad": ALIGNMENT_ANGLE_MAX_RAD,
@@ -379,7 +380,7 @@ def _write_alignment_style_csv(path, rows):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle, lineterminator="\n")
-        writer.writerow(_concurrence_csv_headers())
+        writer.writerow(_concurrence_csv_headers(LEPTON_NAME))
         for row in rows:
             writer.writerow(_concurrence_csv_row(row))
 
@@ -393,6 +394,7 @@ def write_outputs(rows):
         TOP_CSV,
         top_n=TOP_POINTS_PER_POLARIZATION,
         observables=COARSE_CONCURRENCE_NAMES,
+        lepton_name=LEPTON_NAME,
     )
     return {
         "all_csv": FULL_CSV,
@@ -412,7 +414,8 @@ def write_plot(rows):
         ("phi_in", "phiOut", r"$\phi_{P,in}$", r"$\phi_\gamma$"),
     )
     for prefix, spin_label, _spin_case in ALIGNMENT_SPIN_CASES:
-        path = PLOT_DIR / f"phase_space_scan_{prefix}.pdf"
+        output_prefix = explicit_polarization_name(prefix, LEPTON_NAME)
+        path = PLOT_DIR / f"phase_space_scan_{output_prefix}.pdf"
         paths[prefix] = path
         with PdfPages(path) as pdf:
             for observable in COARSE_CONCURRENCE_NAMES:
@@ -447,7 +450,7 @@ def write_plot(rows):
                 best = max(finite_rows, key=lambda row: float(row[key]))
                 fig.suptitle(
                     f"Phase-space scan: {species_spin_label(spin_label, LEPTON_NAME)} "
-                    f"[{prefix}], max {observable_label}={float(best[key]):.5g}"
+                    f"[{output_prefix}], max {observable_label}={float(best[key]):.5g}"
                 )
                 pdf.savefig(fig)
                 plt.close(fig)
@@ -488,11 +491,12 @@ def build_report(
             if not finite_rows:
                 continue
             best = max(finite_rows, key=lambda row: float(row[key]))
+            output_prefix = explicit_polarization_name(prefix, LEPTON_NAME)
             lines.append(
-                f"    {species_spin_label(label, LEPTON_NAME)} [{prefix}]: "
+                f"    {species_spin_label(label, LEPTON_NAME)} [{output_prefix}]: "
                 f"{float(best[key]):.8g}, sqrt(s)={best['sqrt_s']:.7g}, "
                 f"theta={best['theta_in']:.7g}, qOut={best['qOut']:.7g}, "
-                f"phi_lepton={best['phi_in_electron']:.7g}, "
+                f"phi_lepton={best['phi_in_lepton']:.7g}, "
                 f"phi_gamma={best['phiOut']:.7g}"
             )
     lines.extend((
@@ -506,6 +510,8 @@ def build_report(
 
 def _run_species(lepton):
     _configure_lepton(lepton)
+    if OUTPUT_DIR.exists():
+        shutil.rmtree(OUTPUT_DIR)
     rows, phase_space_valid, seed_valid, refinement_valid = run_phase_space_scan()
     write_outputs(rows)
     write_plot(rows)
@@ -515,8 +521,6 @@ def _run_species(lepton):
         seed_valid,
         refinement_valid,
     )
-    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    LOG_PATH.write_text(report, encoding="utf-8")
     return report
 
 
@@ -530,7 +534,10 @@ def main():
     if PARALLEL_WORKERS < 1:
         raise ValueError("PARALLEL_WORKERS must be positive")
     reports = [_run_species(lepton) for lepton in LEPTONS_TO_SCAN]
-    print("\n".join(report.rstrip() for report in reports))
+    log_text = "\n\n".join(report.rstrip() for report in reports) + "\n"
+    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    LOG_PATH.write_text(log_text, encoding="utf-8")
+    print(log_text, end="")
 
 
 if __name__ == "__main__":

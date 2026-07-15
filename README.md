@@ -145,9 +145,9 @@ states are:
 
 ```text
 unpolarized
-L_proton, L_electron
+L_proton, L_lepton
 Tx_proton, Ty_proton
-Tx_electron, Ty_electron
+Tx_lepton, Ty_lepton
 LL    = L electron + L proton
 LTx   = L electron + Tx proton
 LTy   = L electron + Ty proton
@@ -182,28 +182,31 @@ and the fully unpolarized result as `squared_amplitude_M2`.
 
 ## AlignmentScan and ConfigGen
 
-`AlignmentScan.py` scans `phi_in_electron` and `phiOut` at characteristic
+`AlignmentScan.py` scans `phi_in_lepton` and `phiOut` at characteristic
 values of `s`, `theta_in`, and `qOut`. It records the outgoing
-electron–photon opening angle and writes full, aligned-only, and ranked tables
-under:
+lepton–photon opening angle and writes full, aligned-only, and ranked tables
+directly in each species directory:
 
 ```text
-Output/AlignmentScan/
-Output/AlignmentScan/ConcurrenceScan/
+Output/AlignmentScan/<lepton>/
+Output/AlignmentScan/<lepton>/concurrence_scan_lepton_<species>_<polarization>_proton_<polarization>.pdf
 ```
 
-The physical electron mass regulates exactly collinear lepton propagators,
-so the massive scan includes finite collinear points that are singular in the
-massless approximation.
+The physical mass of each configured lepton regulates exactly collinear
+lepton propagators, while the massless species retains the singular limit.
 
 `ConfigGen.py` reads the full concurrence phase-space CSV, locates strong
-regions for `C_e_p`, `C_p_gamma`, `C_e_gamma`, and `F3`, and writes:
+regions for the species-labelled lepton–proton and lepton–photon concurrence,
+proton–photon concurrence, `F3`, GHZ purity, and W purity. It writes:
 
 ```text
-Output/ConfigGen/Data/<target>/...
-Output/ConfigGen/Config_Plot_By_Egamma/<polarization>/...
-Output/ConfigGen.log
+Output/ConfigGen/<lepton>/Data/<target>/lepton_<species>_<polarization>_proton_<polarization>/...
+Output/ConfigGen/<lepton>/lepton_<species>_<polarization>_proton_<polarization>/<E_gamma>_<target>_regions.pdf
 ```
+
+Every polarization folder names both incoming states explicitly, for example
+`lepton_muon_L_proton_unpolarized` or `lepton_muon_L_proton_Tx`. Polarization
+tokens preserve the conventional capitalization `L`, `Tx`, and `Ty`.
 
 Each configuration package includes reconstructed momenta and an outgoing
 helicity-amplitude decomposition. Incoherent incoming ensembles remain
@@ -226,9 +229,11 @@ the direct W-state fidelity, and writes CSV/PDF packages under
 
 `PhaseSpaceScan.py` performs a stratified five-dimensional scan followed by local
 refinement around the best candidate for every AlignmentScan observable and
-polarization. It runs electron, muon, auxiliary-lepton, and massless-lepton
+polarization. It runs electron, muon, heavy-lepton, and massless-lepton
 species by default, and writes independent AlignmentScan-compatible full,
 aligned, ranked, and plotted results under `Output/PhaseSpaceScan/<lepton>/`.
+Its plot filenames use the same explicit convention:
+`phase_space_scan_lepton_<species>_<polarization>_proton_<polarization>.pdf`.
 Point evaluations run in parallel. Edit `LEPTONS_TO_SCAN`, `PARALLEL_WORKERS`,
 sample counts, ranges, and output settings at the top of `PhaseSpaceScan.py`.
 
@@ -258,7 +263,9 @@ helicity basis. Its outgoing state is formed from all eight
 ## Wolfram Language
 
 The `Mathematica/` directory mirrors the Python kinematics, amplitude-table,
-density-matrix, and concurrence conventions. Run the numerical benchmark with:
+density-matrix, and concurrence conventions. Its public kinematic and
+amplitude functions take an explicit charged-lepton mass `Ml`. Run the
+physical-electron-mass numerical benchmark with:
 
 ```sh
 wolframscript -file Mathematica/BenchmarkNumeric.wl
