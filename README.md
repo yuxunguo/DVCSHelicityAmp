@@ -25,6 +25,8 @@ python3 AlignmentScan.py     # angular alignment and entanglement scan
 python3 ConfigGen.py         # selected configurations from AlignmentScan
 python3 PhaseSpaceScan.py    # adaptive all-observable/all-lepton phase-space scan
 python3 PhaseSpaceConfigScan.py  # ConfigGen packages from PhaseSpaceScan results
+python3 EpCMEntanglementScan.py   # focused p=50 GeV, z~0.2 heavy-lepton scan
+python3 EpCMConfigGen.py          # config packages from the focused ep-CM scan
 ```
 
 Generated data, plots, and logs are written under `Output/`.
@@ -41,6 +43,8 @@ AlignmentScan.py      Fine angular scan at characteristic kinematics
 ConfigGen.py          Ranked-region configuration and plot generator
 PhaseSpaceScan.py      Adaptive five-dimensional entanglement phase-space scan
 PhaseSpaceConfigScan.py ConfigGen-style packages from PhaseSpaceScan results
+EpCMEntanglementScan.py Exact ep-CM scan near mu~22 and theta_cm~2.4--2.5
+EpCMConfigGen.py      ConfigGen packages for the focused ep-CM scan
 FixedHelicityTest.py  Small editable fixed-helicity example
 Mathematica/          Wolfram Language implementation and benchmarks
 ```
@@ -244,6 +248,48 @@ a continuous photon energy, its valid rows are divided into balanced low,
 middle, and high `E_gamma` bands before configuration selection. Outputs are
 written under `Output/PhaseSpaceConfigScan/<lepton>/`, with a combined report
 at `Output/PhaseSpaceConfigScan.log`.
+
+## Focused ep-CM quasi-real-photon scan
+
+`EpCMEntanglementScan.py` targets the heavy-lepton region with incoming ep-CM
+momentum `p = 50 GeV`, `z` near `0.2`, and virtual-photon--lepton CM scattering
+angle near `2.4--2.5 rad`. It constructs the final state by an exact two-body
+boost, rather than by using the approximate massless four-vectors. The default
+grid covers `z = 0.14--0.26` and `theta_cm = 2.25--2.65`, corresponding to
+`mu = p_lepton_cm/m_lepton` around 22, and writes a full CSV,
+per-observable rankings, heatmaps, and an
+anchor-momentum report under:
+
+```text
+Output/EpCMEntanglementScan/
+```
+
+The full CSV contains the same 13 entanglement/projection quantities and the
+same explicit heavy-lepton polarization/observable labels as `AlignmentScan`,
+alongside the focused `z`, `theta_cm`, and `mu` coordinates.
+The per-polarization PDFs plot the absolute value of all 13 quantities; purity
+is retained only in the CSV as the mixed-state diagnostic used by
+`AlignmentScan`, not as an entanglement heatmap.
+
+Like `AlignmentScan`, point evaluations use a balanced process pool and each
+polarization PDF is rendered independently in a bounded plot-process pool.
+Edit `SCAN_WORKER_COUNT` and `SCAN_PLOT_WORKER_COUNT` at the top of the script.
+
+After the scan completes, run `python3 EpCMConfigGen.py`. It selects separated
+local absolute maxima (and local minimum-`D_W` regions) for all 13 AlignmentScan
+observables and every incoming polarization. Each polarization/observable PDF
+contains the absolute-value scan map followed by detail pages with exact
+kinematics, momentum vectors, and ensemble-aware outgoing helicity-amplitude
+components. CSV versions of the configuration, momentum, and amplitude records
+are written alongside the marked region PDFs under
+`Output/EpCMConfigGen/`.
+The decomposition labels final helicities explicitly as `h_l`, `h_p`, and
+`h_gamma`. Momentum figures follow the AlignmentScan ConfigGen convention:
+incoming trajectories terminate at the interaction origin, lepton lines are
+dashed, the photon line is wavy, and particles are labelled
+`P`, `P'`, `l`, `l'`, and `q_gamma`.
+Configuration amplitudes and independent target PDFs are also process-parallel;
+their controls are `CONFIGGEN_KINEMATIC_WORKERS` and `CONFIGGEN_PLOT_WORKERS`.
 
 ## Prepared-spin example
 
