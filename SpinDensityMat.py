@@ -58,6 +58,7 @@ SPIN_CASE_TY_PROTON = "Ty_proton"
 SPIN_CASE_TX_LEPTON = "Tx_lepton"
 SPIN_CASE_TY_LEPTON = "Ty_lepton"
 SPIN_CASE_LL = "LL"
+SPIN_CASE_LANTI = "Lanti"
 SPIN_CASE_LTX = "LTx"
 SPIN_CASE_LTY = "LTy"
 SPIN_CASE_TXTX = "TxTx"
@@ -72,6 +73,7 @@ SPIN_CASES = (
     SPIN_CASE_TX_LEPTON,
     SPIN_CASE_TY_LEPTON,
     SPIN_CASE_LL,
+    SPIN_CASE_LANTI,
     SPIN_CASE_LTX,
     SPIN_CASE_LTY,
     SPIN_CASE_TXTX,
@@ -87,6 +89,7 @@ SPIN_CASE_DISPLAY_LABELS = {
     SPIN_CASE_TX_LEPTON: "Tx lepton",
     SPIN_CASE_TY_LEPTON: "Ty lepton",
     SPIN_CASE_LL: "L lepton + L proton",
+    SPIN_CASE_LANTI: "L+ lepton + L- proton",
     SPIN_CASE_LTX: "L lepton + Tx proton",
     SPIN_CASE_LTY: "L lepton + Ty proton",
     SPIN_CASE_TXTX: "Tx lepton + Tx proton",
@@ -99,11 +102,22 @@ ENTANGLEMENT_NAMES = (
     "C_e_rest",
     "C_p_rest",
     "C_gamma_rest",
+    "D_W",
     "F3",
     "M_e",
     "M_p",
     "M_gamma",
 )
+
+
+def w_concurrence_distance(c_e_p, c_e_gamma, c_p_gamma):
+    """Return Euclidean distance from the ideal W pairwise concurrences."""
+    target = 2.0 / 3.0
+    return float(np.sqrt(
+        (c_e_p - target) ** 2
+        + (c_e_gamma - target) ** 2
+        + (c_p_gamma - target) ** 2
+    ))
 
 BENCHMARK_USER_KINEMATIC_INPUTS = (
     ("U1", USER_S_CENTER, 1.30, 0.0, 0.85, np.pi),
@@ -131,6 +145,8 @@ def prepared_spin_coefficients(axis):
     coefficient = 1.0 / np.sqrt(2.0)
     if axis == "L":
         return {+1: 1.0 + 0.0j}
+    if axis == "-L":
+        return {-1: 1.0 + 0.0j}
     if axis == "Tx":
         return {-1: coefficient, +1: coefficient}
     if axis == "-Tx":
@@ -166,6 +182,7 @@ def spin_case_axes(spin_case):
         SPIN_CASE_TX_LEPTON: ("Tx", None),
         SPIN_CASE_TY_LEPTON: ("Ty", None),
         SPIN_CASE_LL: ("L", "L"),
+        SPIN_CASE_LANTI: ("L", "-L"),
         SPIN_CASE_LTX: ("L", "Tx"),
         SPIN_CASE_LTY: ("L", "Ty"),
         SPIN_CASE_TXTX: ("Tx", "Tx"),
@@ -233,7 +250,7 @@ def single_particle_spin_density(axis):
     """Return a normalized incoming one-qubit density matrix.
 
     ``axis=None`` represents an unpolarized particle, ``I_2/2``. Prepared
-    ``L``, ``Tx``, and ``Ty`` states are rank-one projectors in the helicity
+    ``L``, ``-L``, ``Tx``, and ``Ty`` states are rank-one projectors in the helicity
     basis ordered as ``(-1, +1)``.
     """
     if axis is None:
@@ -457,6 +474,7 @@ def entanglement_measures_from_state(state):
         "C_e_rest": c_e_rest,
         "C_p_rest": c_p_rest,
         "C_gamma_rest": c_gamma_rest,
+        "D_W": w_concurrence_distance(c_e_p, c_e_gamma, c_p_gamma),
         "F3": f3_from_one_to_rest(c_e_rest, c_p_rest, c_gamma_rest),
         "M_e": c_e_rest**2 - c_e_p**2 - c_e_gamma**2,
         "M_p": c_p_rest**2 - c_e_p**2 - c_p_gamma**2,
@@ -486,6 +504,7 @@ def entanglement_measures_from_density_matrix(rho):
             "C_e_rest": 0.0,
             "C_p_rest": 0.0,
             "C_gamma_rest": 0.0,
+            "D_W": w_concurrence_distance(c_e_p, c_e_gamma, c_p_gamma),
             "F3": 0.0,
             "M_e": -(c_e_p**2 + c_e_gamma**2),
             "M_p": -(c_e_p**2 + c_p_gamma**2),
@@ -501,6 +520,7 @@ def entanglement_measures_from_density_matrix(rho):
         "C_e_rest": c_e_rest,
         "C_p_rest": c_p_rest,
         "C_gamma_rest": c_gamma_rest,
+        "D_W": w_concurrence_distance(c_e_p, c_e_gamma, c_p_gamma),
         "F3": f3_from_one_to_rest(c_e_rest, c_p_rest, c_gamma_rest),
         "M_e": c_e_rest**2 - c_e_p**2 - c_e_gamma**2,
         "M_p": c_p_rest**2 - c_e_p**2 - c_p_gamma**2,

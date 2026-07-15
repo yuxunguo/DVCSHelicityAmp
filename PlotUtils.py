@@ -4,10 +4,18 @@ Provides a single headless matplotlib loader and shared reference-line drawing.
 """
 
 import os
+import sys
 import tempfile
 from pathlib import Path
 
 import numpy as np
+
+
+def print_console_text(text):
+    """Print text after replacing characters unsupported by the console."""
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    safe_text = str(text).encode(encoding, errors="replace").decode(encoding)
+    print(safe_text, end="")
 
 
 def require_matplotlib():

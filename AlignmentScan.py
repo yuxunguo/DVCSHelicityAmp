@@ -42,6 +42,7 @@ from SpinDensityMat import (
     SPIN_CASE_TX_LEPTON,
     SPIN_CASE_TY_LEPTON,
     SPIN_CASE_LL,
+    SPIN_CASE_LANTI,
     SPIN_CASE_LTX,
     SPIN_CASE_LTY,
     SPIN_CASE_TXTX,
@@ -130,6 +131,7 @@ ALIGNMENT_SPIN_CASES = (
     ("Tx_lepton", spin_case_display_label(SPIN_CASE_TX_LEPTON), SPIN_CASE_TX_LEPTON),
     ("Ty_lepton", spin_case_display_label(SPIN_CASE_TY_LEPTON), SPIN_CASE_TY_LEPTON),
     ("LL", spin_case_display_label(SPIN_CASE_LL), SPIN_CASE_LL),
+    ("Lanti", spin_case_display_label(SPIN_CASE_LANTI), SPIN_CASE_LANTI),
     ("LTx", spin_case_display_label(SPIN_CASE_LTX), SPIN_CASE_LTX),
     ("LTy", spin_case_display_label(SPIN_CASE_LTY), SPIN_CASE_LTY),
     ("TxTx", spin_case_display_label(SPIN_CASE_TXTX), SPIN_CASE_TXTX),
@@ -144,6 +146,7 @@ POLARIZATION_COMPONENTS = {
     "Tx_lepton": ("Tx", "unpolarized"),
     "Ty_lepton": ("Ty", "unpolarized"),
     "LL": ("L", "L"),
+    "Lanti": ("Lplus", "Lminus"),
     "LTx": ("L", "Tx"),
     "LTy": ("L", "Ty"),
     "TxTx": ("Tx", "Tx"),
@@ -170,6 +173,7 @@ ENTANGLEMENT_OBSERVABLE_NAMES = (
     "C_e_rest",
     "C_p_rest",
     "C_gamma_rest",
+    "D_W",
     "M_e",
     "M_p",
     "M_gamma",
@@ -190,6 +194,7 @@ OBSERVABLE_LATEX_LABELS = {
     "C_e_rest": r"$C_{e|p\gamma}$",
     "C_p_rest": r"$C_{p|e\gamma}$",
     "C_gamma_rest": r"$C_{\gamma|ep}$",
+    "D_W": r"$D_W$",
     "M_e": r"$M_e$",
     "M_p": r"$M_p$",
     "M_gamma": r"$M_\gamma$",
@@ -332,7 +337,7 @@ def proton_phi_from_lepton(phi_in_lepton):
     return normalize_azimuth(phi_in_lepton - np.pi)
 
 
-from PlotUtils import require_matplotlib as _require_matplotlib
+from PlotUtils import print_console_text, require_matplotlib as _require_matplotlib
 
 
 def clean_alignment_outputs(lepton_name="electron"):
@@ -1017,7 +1022,23 @@ def _heatmap_color_scale(prefix, observable):
     """Return fixed absolute heatmap scale and colormap for an observable."""
     if observable in SIGNED_CONCURRENCE_OBSERVABLES:
         return -1.0, 1.0, "coolwarm"
+    if observable == "D_W":
+        return 0.0, 2.0 / np.sqrt(3.0), "viridis_r"
     return 0.0, 1.0, "viridis"
+
+
+def observable_is_minimized(observable):
+    """Return whether smaller values are preferred for an observable."""
+    return observable == "D_W"
+
+
+def best_observable_row(rows, key, observable):
+    """Return the finite row closest to the requested observable optimum."""
+    finite_rows = [row for row in rows if np.isfinite(row.get(key, np.nan))]
+    if not finite_rows:
+        return None
+    selector = min if observable_is_minimized(observable) else max
+    return selector(finite_rows, key=lambda row: row[key])
 
 
 def _concurrence_csv_headers(lepton_name):
@@ -1121,7 +1142,11 @@ def save_concurrence_top_csv(
             for observable in observables:
                 key = f"{prefix}_{observable}"
                 finite_rows = [row for row in rows if np.isfinite(row.get(key, np.nan))]
-                ordered = sorted(finite_rows, key=lambda row: row[key], reverse=True)
+                ordered = sorted(
+                    finite_rows,
+                    key=lambda row: row[key],
+                    reverse=not observable_is_minimized(observable),
+                )
                 for rank, row in enumerate(ordered[:top_n], start=1):
                     writer.writerow(
                         _concurrence_top_csv_row(
@@ -1512,8 +1537,8 @@ def build_alignment_report(alignment_scan, alignment_paths):
         "  scanned variables per anchor: phi_in_lepton, phi_gamma",
         "  locator observables: "
         f"{', '.join(observable_text_label(name, lepton_name) for name in COARSE_CONCURRENCE_NAMES)}",
-        "  GHZ purity: <GHZ+|rho|GHZ+>, GHZ+=(|---〉+|+++〉)/sqrt(2)",
-        "  W purity: <W|rho|W>, W=(|+--〉+|-+-〉+|--+〉)/sqrt(3)",
+        "  GHZ purity: <GHZ+|rho|GHZ+>, GHZ+=(|--->+|+++>)/sqrt(2)",
+        "  W purity: <W|rho|W>, W=(|+-->+|-+->+|--+>)/sqrt(3)",
         f"  angle cut: theta({lepton_label}', gamma) <= "
         f"{alignment_scan['angle_max_deg']:.6g} deg",
         f"  characteristic kinematic anchors: {len(alignment_scan['kinematic_points'])}",
@@ -1557,9 +1582,8 @@ def build_alignment_report(alignment_scan, alignment_paths):
                     f"{explicit_polarization_name(prefix, lepton_name)}_"
                     f"{species_observable_name(observable, lepton_name)}"
                 )
-                finite_rows = [row for row in rows if np.isfinite(row.get(key, np.nan))]
-                if finite_rows:
-                    best = max(finite_rows, key=lambda row: row[key])
+                best = best_observable_row(rows, key, observable)
+                if best is not None:
                     lines.append(f"    {label}:")
                     lines.append(concurrence_summary_line(best, key, output_key))
     if aligned_rows:
@@ -1684,7 +1708,7 @@ def main():
     log_text = "\n\n".join(report.rstrip() for report in reports) + "\n"
     ALIGNMENT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     ALIGNMENT_LOG_PATH.write_text(log_text, encoding="utf-8")
-    print(log_text, end="")
+    print_console_text(log_text)
 
 
 if __name__ == "__main__":

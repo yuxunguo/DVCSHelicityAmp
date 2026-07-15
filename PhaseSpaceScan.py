@@ -23,6 +23,7 @@ from AlignmentScan import (
     _evaluate_kinematic_sample,
     explicit_polarization_name,
     observable_latex_label,
+    observable_is_minimized,
     observable_text_label,
     save_concurrence_top_csv,
     species_spin_label,
@@ -36,7 +37,7 @@ from config import (
     PROTON_MASS_GEV,
     SCAN_WORKERS,
 )
-from PlotUtils import require_matplotlib
+from PlotUtils import print_console_text, require_matplotlib
 
 
 # Explicit script settings. Edit these values before running PhaseSpaceScan.py.
@@ -217,7 +218,11 @@ def _select_refinement_centers(rows, count=REFINEMENT_CENTERS):
         for observable in COARSE_CONCURRENCE_NAMES:
             key = f"{prefix}_{observable}"
             finite = [row for row in rows if np.isfinite(float(row.get(key, np.nan)))]
-            rankings.append(sorted(finite, key=lambda row: float(row[key]), reverse=True))
+            rankings.append(sorted(
+                finite,
+                key=lambda row: float(row[key]),
+                reverse=not observable_is_minimized(observable),
+            ))
 
     # Round-robin ranks prevent the first polarization/observable from
     # consuming all centers when several optima coincide.
@@ -445,8 +450,11 @@ def _write_polarization_plot(rows, prefix, spin_label, lepton_name, plot_dir):
                 continue
             finite_values = values[finite]
             signed = observable in SIGNED_CONCURRENCE_OBSERVABLES
-            vmin, vmax = (-1.0, 1.0) if signed else (0.0, 1.0)
-            cmap = "coolwarm" if signed else "viridis"
+            if observable == "D_W":
+                vmin, vmax, cmap = 0.0, 2.0 / np.sqrt(3.0), "viridis_r"
+            else:
+                vmin, vmax = (-1.0, 1.0) if signed else (0.0, 1.0)
+                cmap = "coolwarm" if signed else "viridis"
             fig, axes = plt.subplots(2, 2, figsize=(10, 8), constrained_layout=True)
             image = None
             for ax, (x_name, y_name, x_label, y_label) in zip(
@@ -471,10 +479,12 @@ def _write_polarization_plot(rows, prefix, spin_label, lepton_name, plot_dir):
             fig.colorbar(
                 image, ax=axes.ravel()[:3].tolist(), label=observable_label
             )
-            best = rows[int(np.nanargmax(values))]
+            best_index = np.nanargmin(values) if observable_is_minimized(observable) else np.nanargmax(values)
+            best = rows[int(best_index)]
+            direction = "min" if observable_is_minimized(observable) else "max"
             fig.suptitle(
                 f"Phase-space scan: {species_spin_label(spin_label, lepton_name)} "
-                f"[{output_prefix}], max {observable_label}={float(best[key]):.5g}"
+                f"[{output_prefix}], {direction} {observable_label}={float(best[key]):.5g}"
             )
             pdf.savefig(fig)
             plt.close(fig)
@@ -569,7 +579,8 @@ def build_report(
             finite_rows = [row for row in rows if np.isfinite(row.get(key, np.nan))]
             if not finite_rows:
                 continue
-            best = max(finite_rows, key=lambda row: float(row[key]))
+            selector = min if observable_is_minimized(observable) else max
+            best = selector(finite_rows, key=lambda row: float(row[key]))
             output_prefix = explicit_polarization_name(prefix, LEPTON_NAME)
             lines.append(
                 f"    {species_spin_label(label, LEPTON_NAME)} [{output_prefix}]: "
@@ -618,7 +629,7 @@ def main():
     log_text = "\n\n".join(report.rstrip() for report in reports) + "\n"
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     LOG_PATH.write_text(log_text, encoding="utf-8")
-    print(log_text, end="")
+    print_console_text(log_text)
 
 
 if __name__ == "__main__":

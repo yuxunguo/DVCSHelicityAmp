@@ -23,9 +23,8 @@ python3 BHHelicityAmp.py     # amplitude benchmark
 python3 SpinDensityMat.py    # spin-density scans
 python3 AlignmentScan.py     # angular alignment and entanglement scan
 python3 ConfigGen.py         # selected configurations from AlignmentScan
-python3 WScan.py             # W-state concurrence-distance scan
-python3 WConfigGen.py        # configurations around WScan minima
 python3 PhaseSpaceScan.py    # adaptive all-observable/all-lepton phase-space scan
+python3 PhaseSpaceConfigScan.py  # ConfigGen packages from PhaseSpaceScan results
 ```
 
 Generated data, plots, and logs are written under `Output/`.
@@ -40,9 +39,8 @@ BHHelicityAmp.py      Bethe–Heitler amplitudes and benchmarks
 SpinDensityMat.py     Density matrices and entanglement observables
 AlignmentScan.py      Fine angular scan at characteristic kinematics
 ConfigGen.py          Ranked-region configuration and plot generator
-WScan.py              W-state distance scan over AlignmentScan phase space
-WConfigGen.py         Configuration packages around low-D_W regions
 PhaseSpaceScan.py      Adaptive five-dimensional entanglement phase-space scan
+PhaseSpaceConfigScan.py ConfigGen-style packages from PhaseSpaceScan results
 FixedHelicityTest.py  Small editable fixed-helicity example
 Mathematica/          Wolfram Language implementation and benchmarks
 ```
@@ -149,6 +147,7 @@ L_proton, L_lepton
 Tx_proton, Ty_proton
 Tx_lepton, Ty_lepton
 LL    = L electron + L proton
+Lanti = L+ electron + L- proton (opposite helicities)
 LTx   = L electron + Tx proton
 LTy   = L electron + Ty proton
 TxTx  = Tx electron + Tx proton
@@ -157,15 +156,16 @@ TxTy  = Tx electron + Ty proton
 
 In the compact double-polarization keys, the electron state is listed first.
 Plots, reports, and display-label columns name both particles explicitly.
-`L` denotes the direct
-positive-helicity state, not a helicity asymmetry. Unnamed particles are
-averaged incoherently with `I/2`.
+`L` denotes the direct positive-helicity state, not a helicity asymmetry.
+`Lanti` is the pure incoming state `(h_lepton, h_proton) = (+1, -1)`.
+Unnamed particles are averaged incoherently with `I/2`.
 
 The stored observables are:
 
 ```text
 C_e_p, C_e_gamma, C_p_gamma       pairwise Wootters concurrences
 C_e_rest, C_p_rest, C_gamma_rest one-to-rest concurrences
+D_W                               distance from ideal W pair concurrences
 F3                                concurrence-triangle observable
 M_e, M_p, M_gamma                 CKW monogamy residuals
 purity                            Tr(rho^2)
@@ -212,20 +212,17 @@ Each configuration package includes reconstructed momenta and an outgoing
 helicity-amplitude decomposition. Incoherent incoming ensembles remain
 separate; they are never replaced by a coherent amplitude sum.
 
-`WScan.py` evaluates
+The entanglement scans evaluate the W-concurrence distance
 
 ```text
 D_W = sqrt((C_e_p - 2/3)^2 + (C_p_gamma - 2/3)^2
            + (C_e_gamma - 2/3)^2)
 ```
 
-for every AlignmentScan point and polarization. It writes full, aligned-only,
-and ranked CSVs plus one heatmap PDF per polarization under `Output/WScan/`.
-
-`WConfigGen.py` clusters the low-`D_W` regions separately by photon energy and
-polarization. It reconstructs their momenta and helicity amplitudes, evaluates
-the direct W-state fidelity, and writes CSV/PDF packages under
-`Output/WConfigGen/`.
+for every AlignmentScan and PhaseSpaceScan point and polarization. Smaller
+values are more W-like, so ranked CSVs, refinement seeds, and ConfigGen select
+the minima. The per-polarization PDFs include a reversed-color `D_W` heatmap,
+and ConfigGen writes the low-distance configuration package under `Data/dw/`.
 
 `PhaseSpaceScan.py` performs a stratified five-dimensional scan followed by local
 refinement around the best candidate for every AlignmentScan observable and
@@ -234,8 +231,17 @@ species by default, and writes independent AlignmentScan-compatible full,
 aligned, ranked, and plotted results under `Output/PhaseSpaceScan/<lepton>/`.
 Its plot filenames use the same explicit convention:
 `phase_space_scan_lepton_<species>_<polarization>_proton_<polarization>.pdf`.
-Point evaluations run in parallel. Edit `LEPTONS_TO_SCAN`, `PARALLEL_WORKERS`,
-sample counts, ranges, and output settings at the top of `PhaseSpaceScan.py`.
+Point evaluations run in parallel. Edit `LEPTONS_TO_SCAN`,
+`PHASE_SPACE_SCAN_WORKERS`, sample counts, ranges, and output settings at the
+top of `PhaseSpaceScan.py`.
+
+`PhaseSpaceConfigScan.py` consumes those full phase-space CSVs and applies the
+same clustering, reconstructed-momentum, helicity-amplitude decomposition, and
+per-polarization PDF workflow as `ConfigGen.py`. Because `PhaseSpaceScan` uses
+a continuous photon energy, its valid rows are divided into balanced low,
+middle, and high `E_gamma` bands before configuration selection. Outputs are
+written under `Output/PhaseSpaceConfigScan/<lepton>/`, with a combined report
+at `Output/PhaseSpaceConfigScan.log`.
 
 ## Prepared-spin example
 

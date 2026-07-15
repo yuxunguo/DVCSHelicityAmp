@@ -59,6 +59,7 @@ CONFIG_TARGETS = (
     ("F3", "f3"),
     ("GHZ_purity", "ghz_purity"),
     ("W_purity", "w_purity"),
+    ("D_W", "dw"),
 )
 CONFIG_SPIN_CASES = (
     "unpolarized",
@@ -69,6 +70,7 @@ CONFIG_SPIN_CASES = (
     "Tx_lepton",
     "Ty_lepton",
     "LL",
+    "Lanti",
     "LTx",
     "LTy",
     "TxTx",
@@ -132,11 +134,11 @@ KINEMATIC_COLUMNS = (
 )
 
 
-from PlotUtils import require_matplotlib as _require_matplotlib
+from PlotUtils import print_console_text, require_matplotlib as _require_matplotlib
 
 
-def configure_lepton(name):
-    """Select one AlignmentScan species and its matching ConfigGen output tree."""
+def configure_lepton(name, input_path=None, output_root=None):
+    """Select one species, source CSV, and ConfigGen-style output tree."""
     global LEPTON_NAME, LEPTON_MASS_GEV
     global FULL_CONCURRENCE_CSV
     global OUTPUT_DIR, DATA_DIR, EGAMMA_CONFIG_DIR
@@ -146,8 +148,13 @@ def configure_lepton(name):
     LEPTON_NAME = name
     LEPTON_MASS_GEV = LEPTON_SPECS[name]["mass"]
     alignment_paths = lepton_output_paths(name)
-    FULL_CONCURRENCE_CSV = alignment_paths["concurrence_csv"]
-    OUTPUT_DIR = OUTPUT_ROOT / name
+    FULL_CONCURRENCE_CSV = (
+        alignment_paths["concurrence_csv"]
+        if input_path is None
+        else Path(input_path)
+    )
+    root = OUTPUT_ROOT if output_root is None else Path(output_root)
+    OUTPUT_DIR = root / name
     DATA_DIR = OUTPUT_DIR / "Data"
     EGAMMA_CONFIG_DIR = OUTPUT_DIR
 
@@ -223,7 +230,7 @@ def alignment_input_path():
 
 def target_paths(file_tag):
     """Return output paths for one requested entanglement target."""
-    prefix = f"max_{file_tag}"
+    prefix = f"{'min' if file_tag == 'dw' else 'max'}_{file_tag}"
     combined_dir = DATA_DIR / file_tag / "combined"
     return {
         "examples": combined_dir / f"{prefix}_configuration_examples.csv",
@@ -271,13 +278,29 @@ def target_columns(rows, observable):
     return columns
 
 
-def column_max(rows, key):
-    """Return the finite maximum of a CSV column."""
+def observable_is_minimized(observable):
+    """Return whether configuration selection seeks the smallest value."""
+    return observable == "D_W"
+
+
+def observable_optimum_word(observable):
+    """Return a report label for the target's optimization direction."""
+    return "minimum" if observable_is_minimized(observable) else "maximum"
+
+
+def selected_region_name(observable, index):
+    """Return a direction-aware region identifier."""
+    stem = "low_distance" if observable_is_minimized(observable) else "enhanced"
+    return f"{stem}_region_{index}"
+
+
+def column_optimum(rows, key, observable):
+    """Return the finite optimum of a target-observable CSV column."""
     values = [parse_float(row.get(key)) for row in rows]
     values = np.asarray([value for value in values if np.isfinite(value)], dtype=float)
     if values.size == 0:
-        return -np.inf
-    return float(values.max())
+        return np.inf if observable_is_minimized(observable) else -np.inf
+    return float(values.min() if observable_is_minimized(observable) else values.max())
 
 
 def selected_target_columns(rows, observable):
@@ -285,7 +308,11 @@ def selected_target_columns(rows, observable):
     columns = target_columns(rows, observable)
     if not columns:
         return []
-    ranked = sorted(columns, key=lambda key: column_max(rows, key), reverse=True)
+    ranked = sorted(
+        columns,
+        key=lambda key: column_optimum(rows, key, observable),
+        reverse=not observable_is_minimized(observable),
+    )
     if MAX_SPIN_CASES_PER_TARGET is None:
         return ranked
     return ranked[:MAX_SPIN_CASES_PER_TARGET]
@@ -374,7 +401,10 @@ def candidate_rows(rows, key, observable):
             continue
         seen.add(identity)
         candidates.append(selected_row(row, key, observable, value))
-    candidates.sort(key=lambda item: item["selected_concurrence"], reverse=True)
+    candidates.sort(
+        key=lambda item: item["selected_concurrence"],
+        reverse=not observable_is_minimized(observable),
+    )
     return candidates[:TOP_ROWS_PER_TARGET_SPIN]
 
 
@@ -392,8 +422,8 @@ def row_distance(a, b):
     return float(np.sqrt(np.sum(np.asarray(pieces, dtype=float) ** 2)))
 
 
-def cluster_candidates(candidates):
-    """Greedily cluster high-observable candidate rows by scan coordinates."""
+def cluster_candidates(candidates, observable=None):
+    """Greedily cluster optimum candidate rows by scan coordinates."""
     clusters = []
     for row in candidates:
         best_index = None
@@ -405,7 +435,12 @@ def cluster_candidates(candidates):
                 best_distance = distance
         if best_index is not None and best_distance <= CLUSTER_RADIUS:
             clusters[best_index]["rows"].append(row)
-            if row["selected_concurrence"] > clusters[best_index]["best"]["selected_concurrence"]:
+            row_is_better = (
+                row["selected_concurrence"] < clusters[best_index]["best"]["selected_concurrence"]
+                if observable_is_minimized(observable)
+                else row["selected_concurrence"] > clusters[best_index]["best"]["selected_concurrence"]
+            )
+            if row_is_better:
                 clusters[best_index]["best"] = row
         elif len(clusters) < MAX_CLUSTERS_PER_TARGET_SPIN:
             clusters.append({"best": row, "rows": [row]})
@@ -415,11 +450,14 @@ def cluster_candidates(candidates):
 
     for index, cluster in enumerate(clusters):
         cluster["cluster_id"] = index
-        cluster["rows"].sort(key=lambda item: item["selected_concurrence"], reverse=True)
+        cluster["rows"].sort(
+            key=lambda item: item["selected_concurrence"],
+            reverse=not observable_is_minimized(observable),
+        )
         cluster["best"] = cluster["rows"][0]
         for row in cluster["rows"]:
             row["cluster_id"] = index
-            row["selected_region"] = f"enhanced_region_{index}"
+            row["selected_region"] = selected_region_name(observable, index)
     return clusters
 
 
@@ -452,10 +490,14 @@ def cluster_summary_rows(target, grouped_clusters):
                 "selected_observable": observable,
                 "selected_observable_label": observable_label(observable),
                 "selected_spin_case": spin_case,
-                "selected_region": f"enhanced_region_{cluster['cluster_id']}",
+                "selected_region": selected_region_name(observable, cluster["cluster_id"]),
                 "cluster_id": cluster["cluster_id"],
                 "size": len(rows),
-                "max_concurrence": f"{best['selected_concurrence']:.16e}",
+                (
+                    "min_distance"
+                    if observable_is_minimized(observable)
+                    else "max_concurrence"
+                ): f"{best['selected_concurrence']:.16e}",
                 "best_purity": f"{best['selected_purity']:.16e}",
                 "best_kinematic_point": best.get("kinematic_point", ""),
                 "best_pair_delta_xy": f"{best['pair_delta_xy']:.16e}",
@@ -506,7 +548,7 @@ def example_rows(grouped_clusters):
                     item[name] = row.get(name, "")
                 for key, value in row.items():
                     is_selected_multipartite = (
-                        row["selected_observable"] in {"F3", "GHZ_purity", "W_purity"}
+                        row["selected_observable"] in {"F3", "GHZ_purity", "W_purity", "D_W"}
                         and key.endswith(f"_{row['selected_observable']}")
                     )
                     if "_C_" in key or is_selected_multipartite:
@@ -524,7 +566,7 @@ def representative_rows(target, grouped_clusters):
         for cluster in clusters:
             row = dict(cluster["best"])
             row["selected_spin_case"] = spin_case
-            row["selected_region"] = f"enhanced_region_{cluster['cluster_id']}"
+            row["selected_region"] = selected_region_name(observable, cluster["cluster_id"])
             row["cluster_id"] = cluster["cluster_id"]
             row["detail_id"] = f"{file_tag}_{spin_case}_region_{cluster['cluster_id']}"
             row["selected_observable"] = observable
@@ -565,7 +607,7 @@ def rows_for_qout_group(rows, group_name):
 
 
 def target_egamma_candidates(rows, target, key):
-    """Return high-observable candidates for one target/spin at one E_gamma."""
+    """Return optimum candidates for one target/spin at one E_gamma."""
     observable, _file_tag = target
     candidates = []
     seen = set()
@@ -584,7 +626,10 @@ def target_egamma_candidates(rows, target, key):
         selected["qOut_group"] = qout_group_key(row)[0]
         selected["qOut_group_value"] = qout_group_key(row)[1]
         candidates.append(selected)
-    candidates.sort(key=lambda item: item["selected_concurrence"], reverse=True)
+    candidates.sort(
+        key=lambda item: item["selected_concurrence"],
+        reverse=not observable_is_minimized(observable),
+    )
     return candidates[:TOP_ROWS_PER_TARGET_SPIN]
 
 
@@ -602,7 +647,11 @@ def egamma_target_region_rows(target, group_name, spin_case, clusters):
             f"{file_tag}_{file_safe_label(group_name)}_"
             f"{file_safe_label(spin_case)}_region_{cluster['cluster_id']}"
         )
-        row["detail_source"] = "egamma_region_max"
+        row["detail_source"] = (
+            "egamma_region_min"
+            if observable_is_minimized(observable)
+            else "egamma_region_max"
+        )
         detail_rows.append(row)
     return detail_rows
 
@@ -683,6 +732,7 @@ def selected_initial_state_label(spin_case):
         "Tx_lepton": r"$\frac{1}{2}\sum_{h_p}\rho(T_{x,e},h_p)$",
         "Ty_lepton": r"$\frac{1}{2}\sum_{h_p}\rho(T_{y,e},h_p)$",
         "LL": r"$|L_e\rangle\otimes|L_p\rangle$",
+        "Lanti": r"$|h_e=+1\rangle\otimes|h_p=-1\rangle$",
         "LTx": r"$|L_e\rangle\otimes|T_{x,p}\rangle$",
         "LTy": r"$|L_e\rangle\otimes|T_{y,p}\rangle$",
         "TxTx": r"$|T_{x,e}\rangle\otimes|T_{x,p}\rangle$",
@@ -874,9 +924,9 @@ def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, spin_case, k
             y_edges,
             values,
             shading="auto",
-            cmap="viridis",
+            cmap="viridis_r" if observable_is_minimized(observable) else "viridis",
             vmin=0.0,
-            vmax=1.0,
+            vmax=2.0 / np.sqrt(3.0) if observable_is_minimized(observable) else 1.0,
             rasterized=True,
         )
     else:
@@ -884,11 +934,11 @@ def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, spin_case, k
             x,
             y,
             c=z,
-            cmap="viridis",
+            cmap="viridis_r" if observable_is_minimized(observable) else "viridis",
             s=28,
             alpha=0.78,
             vmin=0.0,
-            vmax=1.0,
+            vmax=2.0 / np.sqrt(3.0) if observable_is_minimized(observable) else 1.0,
             rasterized=True,
         )
     for cluster in clusters:
@@ -1121,13 +1171,13 @@ def egamma_target_pdf_path(group_name, target, spin_case):
 
 
 def save_egamma_target_region_pdf(target, group_name, rows, key):
-    """Save one PDF for one E_gamma/target/spin with clustered maxima."""
+    """Save one PDF for one E_gamma/target/spin with clustered optima."""
     observable, _file_tag = target
     spin_case = spin_label_from_key(key, observable)
     candidates = target_egamma_candidates(rows, target, key)
     if not candidates:
         return None, []
-    clusters = cluster_candidates(candidates)
+    clusters = cluster_candidates(candidates, observable)
     detail_rows = egamma_target_region_rows(target, group_name, spin_case, clusters)
     path = egamma_target_pdf_path(group_name, target, spin_case)
     plt, PdfPages = _require_matplotlib()
@@ -1284,7 +1334,8 @@ def save_detail_pages(pdf, plt, detail_rows):
         plot_amplitude_decomposition(amp_ax, row)
         fig.suptitle(
             (
-                f"{spin_display_label(row['selected_spin_case'])} characteristic max "
+                f"{spin_display_label(row['selected_spin_case'])} characteristic "
+                f"{observable_optimum_word(row['selected_observable'])} "
                 f"{observable_math_label(row['selected_observable'])} configuration"
             ),
             fontsize=16,
@@ -1304,7 +1355,7 @@ def build_target_package(target, rows, egamma_detail_rows=()):
             continue
         grouped_clusters.append((
             spin_label_from_key(key, observable),
-            cluster_candidates(candidates),
+            cluster_candidates(candidates, observable),
         ))
     if not grouped_clusters:
         raise RuntimeError(f"No finite {observable} candidates found.")
@@ -1348,10 +1399,17 @@ def build_target_package(target, rows, egamma_detail_rows=()):
     }
 
 
-def build_report(input_path, total_rows, packages, egamma_outputs):
+def build_report(
+    input_path,
+    total_rows,
+    packages,
+    egamma_outputs,
+    source_label="AlignmentScan",
+):
     """Build the text report for the generated configurations."""
     lines = [
-        "Max entanglement-observable configuration generator from AlignmentScan results",
+        "Max entanglement-observable configuration generator from "
+        f"{source_label} results",
         f"  input csv: {input_path}",
         f"  lepton species: {LEPTON_NAME}",
         f"  lepton mass: {LEPTON_MASS_GEV:.12g} GeV",
@@ -1362,7 +1420,7 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
         f"  total input rows: {total_rows}",
         f"  data csv folder: {DATA_DIR}",
         f"  per-E_gamma config PDFs: {EGAMMA_CONFIG_DIR}",
-        f"  config PDFs (one per E_gamma × target × polarization): {len(egamma_outputs)}",
+        f"  config PDFs (one per E_gamma x target x polarization): {len(egamma_outputs)}",
         f"  targets: {', '.join(observable_label(observable) for observable, _ in CONFIG_TARGETS)}",
         f"  max spin cases per target: {MAX_SPIN_CASES_PER_TARGET}",
         f"  parallel configuration workers: {CONFIGGEN_KINEMATIC_WORKERS}",
@@ -1372,8 +1430,9 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
         f"  max clusters per target/spin case: {MAX_CLUSTERS_PER_TARGET_SPIN}",
         f"  amplitude component minimum fraction: {AMPLITUDE_MIN_FRACTION:.0%}",
         f"  amplitude component maximum count: {AMPLITUDE_MAX_COMPONENTS}",
-        "  polarization folder: lepton_<species>_<L|Tx|Ty|unpolarized>_"
-        "proton_<L|Tx|Ty|unpolarized>",
+        "  polarization folder: lepton_<species>_"
+        "<L|Lplus|Tx|Ty|unpolarized>_"
+        "proton_<L|Lminus|Tx|Ty|unpolarized>",
         "  data layout: Data/<target>/<polarization>/... with combined tables under combined/",
         "  PDF layout: <polarization>/<E_gamma>_<target>_regions.pdf",
         "  saved per-polarization config PDFs:",
@@ -1417,7 +1476,7 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
                     f"      {spin_display_label(spin_case)} "
                     f"[{explicit_polarization_name(spin_case, LEPTON_NAME)}]: {path}"
                 )
-        lines.append("  enhanced regions:")
+        lines.append(f"  {observable_optimum_word(observable)} regions:")
         for spin_case, clusters in grouped_clusters:
             for cluster in clusters:
                 best = cluster["best"]
@@ -1435,7 +1494,8 @@ def build_report(input_path, total_rows, packages, egamma_outputs):
                     f"{spin_display_label(spin_case)} "
                     f"[{explicit_polarization_name(spin_case, LEPTON_NAME)}] "
                     f"region {cluster['cluster_id']}: "
-                    f"size={len(rows)}, max_{label}={best['selected_concurrence']:.6g}, "
+                    f"size={len(rows)}, {observable_optimum_word(observable)}_"
+                    f"{label}={best['selected_concurrence']:.6g}, "
                     f"phi_p_in={format_range(rows, 'phi_in')}, "
                     f"phi_gamma={format_range(rows, 'phiOut')}, "
                     f"purity={format_range(rows, 'selected_purity')}, "
@@ -1499,7 +1559,7 @@ def main():
     # for independent configuration rows and independent PDF files.
     reports = [_run_species(name) for name in CONFIG_LEPTONS]
     report_text = "\n\n".join(report.rstrip() for report in reports) + "\n"
-    print(report_text, end="")
+    print_console_text(report_text)
 
 
 if __name__ == "__main__":
