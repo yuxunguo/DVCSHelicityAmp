@@ -27,6 +27,7 @@ python3 PhaseSpaceScan.py    # adaptive all-observable/all-lepton phase-space sc
 python3 PhaseSpaceConfigScan.py  # ConfigGen packages from PhaseSpaceScan results
 python3 EpCMEntanglementScan.py   # focused p=50 GeV, z~0.2 heavy-lepton scan
 python3 EpCMConfigGen.py          # config packages from the focused ep-CM scan
+python3 QuasiRealComptonHelicity.py  # gamma* lepton CM helicity components
 ```
 
 Generated data, plots, and logs are written under `Output/`.
@@ -45,6 +46,7 @@ PhaseSpaceScan.py      Adaptive five-dimensional entanglement phase-space scan
 PhaseSpaceConfigScan.py ConfigGen-style packages from PhaseSpaceScan results
 EpCMEntanglementScan.py Exact ep-CM scan near mu~22 and theta_cm~2.4--2.5
 EpCMConfigGen.py      ConfigGen packages for the focused ep-CM scan
+QuasiRealComptonHelicity.py Off-shell gamma* lepton Compton helicity analysis
 FixedHelicityTest.py  Small editable fixed-helicity example
 Mathematica/          Wolfram Language implementation and benchmarks
 ```
@@ -290,6 +292,37 @@ dashed, the photon line is wavy, and particles are labelled
 `P`, `P'`, `l`, `l'`, and `q_gamma`.
 Configuration amplitudes and independent target PDFs are also process-parallel;
 their controls are `CONFIGGEN_KINEMATIC_WORKERS` and `CONFIGGEN_PLOT_WORKERS`.
+
+## Quasi-real Compton helicity components
+
+`QuasiRealComptonHelicity.py` evaluates the reduced tree-level amplitude for
+`gamma* + lepton -> gamma + lepton` directly in the incoming
+virtual-photon--lepton CM frame. The incoming spacelike photon is decomposed
+into `-1`, `+1`, the normalized coherent state
+`(|+> + |->)/sqrt(2)`, and longitudinal polarizations, while the
+incoming/outgoing lepton and final real photon retain explicit helicity labels. The editable
+settings at the top control the lepton mass, CM invariant mass, virtuality, and
+angular range. The script writes the complete component table, helicity-summed
+polarization responses, Ward-identity diagnostics, and angular plots under:
+
+```text
+Output/QuasiRealComptonHelicity/
+```
+
+The amplitudes omit the overall QED factor `e^2`. Longitudinal results are
+reported as spacelike polarization-basis responses, not as probabilities for
+an asymptotic photon.
+
+The default Compton setup uses `sqrt(s_gamma_l) = 80 GeV`, corresponding to a
+nominal 40 GeV per incoming particle, and evaluates `Q2 = 1, 10, 100 GeV^2`.
+Exact CM kinematics give slightly unequal photon and massive-lepton energies.
+
+`FIXED_INCOMING_LEPTON_HELICITY` defaults to `+1`. A dedicated filtered CSV
+and PDF compare the four final `(h_l_out, h_gamma_out)` channels separately
+for each incoming virtual-photon polarization across `theta_cm`. This includes
+the coherent transverse sum at amplitude level, so its plots retain the
+interference between the `+1` and `-1` components. The CSV also ranks the four
+final channels and records their fractions within each initial state.
 
 ## Prepared-spin example
 
