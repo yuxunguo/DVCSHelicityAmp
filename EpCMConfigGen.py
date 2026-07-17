@@ -19,6 +19,7 @@ from AlignmentScan import (
     species_observable_name,
 )
 from EpCMEntanglementScan import (
+    EP_CM_SPIN_CASES,
     FULL_CSV as SCAN_CSV,
     LEPTON_MASS_GEV,
     ep_cm_momenta,
@@ -26,7 +27,6 @@ from EpCMEntanglementScan import (
 from FormFactors import yahl_dirac_pauli_from_t
 from PlotUtils import print_console_text, require_matplotlib
 from SpinDensityMat import (
-    SPIN_CASES,
     amplitude_table,
     contract_initial_state,
     final_state_ensemble,
@@ -93,7 +93,7 @@ def read_scan_rows(path=SCAN_CSV):
         raise ValueError(f"Focused scan CSV is empty: {path}")
     required = {
         observable_column(spin_case, observable)
-        for spin_case in SPIN_CASES
+        for spin_case in EP_CM_SPIN_CASES
         for observable, _tag, _minimized in CONFIG_TARGETS
     }
     missing = sorted(required - set(rows[0]))
@@ -129,13 +129,16 @@ def write_rows(path, rows):
     return path
 
 
-def normalized_distance(first, second, z_span, theta_span):
+def normalized_distance(first, second, z_span, theta_span, theta_p_span):
     """Return scan-coordinate distance normalized by the sampled ranges."""
     dz = (first["z"] - second["z"]) / max(z_span, 1.0e-15)
     dt = (
         first["theta_cm_rad"] - second["theta_cm_rad"]
     ) / max(theta_span, 1.0e-15)
-    return float(np.hypot(dz, dt))
+    dtp = (
+        first["theta_p_rad"] - second["theta_p_rad"]
+    ) / max(theta_p_span, 1.0e-15)
+    return float(np.sqrt(dz**2 + dt**2 + dtp**2))
 
 
 def select_regions(rows, key, minimized):
@@ -144,16 +147,25 @@ def select_regions(rows, key, minimized):
     score = lambda row: abs(float(row[key]))
     finite.sort(key=score, reverse=not minimized)
     point_map = {
-        (int(row["z_index"]), int(row["theta_index"])): row
+        (
+            int(row["z_index"]),
+            int(row["theta_index"]),
+            int(row["theta_p_index"]),
+        ): row
         for row in finite
     }
     local_extrema = []
-    for (z_index, theta_index), row in point_map.items():
+    for (z_index, theta_index, theta_p_index), row in point_map.items():
         neighbors = [
-            point_map.get((z_index + dz, theta_index + dt))
+            point_map.get((
+                z_index + dz,
+                theta_index + dt,
+                theta_p_index + dtp,
+            ))
             for dz in (-1, 0, 1)
             for dt in (-1, 0, 1)
-            if dz != 0 or dt != 0
+            for dtp in (-1, 0, 1)
+            if dz != 0 or dt != 0 or dtp != 0
         ]
         neighbor_scores = [score(item) for item in neighbors if item is not None]
         if not neighbor_scores:
@@ -179,12 +191,20 @@ def select_regions(rows, key, minimized):
         return []
     z_values = np.asarray([row["z"] for row in rows], dtype=float)
     theta_values = np.asarray([row["theta_cm_rad"] for row in rows], dtype=float)
+    theta_p_values = np.asarray([row["theta_p_rad"] for row in rows], dtype=float)
     z_span = float(np.ptp(z_values))
     theta_span = float(np.ptp(theta_values))
+    theta_p_span = float(np.ptp(theta_p_values))
     selected = []
     for row in candidates:
         if all(
-            normalized_distance(row, other, z_span, theta_span) >= REGION_SEPARATION
+            normalized_distance(
+                row,
+                other,
+                z_span,
+                theta_span,
+                theta_p_span,
+            ) >= REGION_SEPARATION
             for other in selected
         ):
             selected.append(row)
@@ -206,6 +226,10 @@ def configuration_record(row, spin_case, observable, region_index):
         "selected_abs_value": abs(row[key]),
         "z": row["z"],
         "theta_cm_rad": row["theta_cm_rad"],
+        "theta_p_rad": row["theta_p_rad"],
+        "theta_p_deg": row["theta_p_deg"],
+        "final_proton_momentum_GeV": row["final_proton_momentum_GeV"],
+        "final_proton_energy_GeV": row["final_proton_energy_GeV"],
         "mu": row["mu"],
         "p_cm_GeV": row["p_cm_GeV"],
         "sqrt_s_GeV": row["sqrt_s_GeV"],
@@ -216,7 +240,11 @@ def configuration_record(row, spin_case, observable, region_index):
 
 def momentum_records(config):
     """Reconstruct and serialize all five external four-momenta."""
-    kin = ep_cm_momenta(config["z"], config["theta_cm_rad"])
+    kin = ep_cm_momenta(
+        config["z"],
+        config["theta_cm_rad"],
+        config["theta_p_rad"],
+    )
     records = []
     labels = {"k": "l", "p": "P", "kp": "l'", "pp": "P'", "qout": "q_gamma"}
     for name in ("k", "p", "kp", "pp", "qout"):
@@ -263,7 +291,11 @@ def explicit_initial_component(label):
 
 def amplitude_records(config):
     """Return the leading ensemble-weighted final-helicity components."""
-    kin = ep_cm_momenta(config["z"], config["theta_cm_rad"])
+    kin = ep_cm_momenta(
+        config["z"],
+        config["theta_cm_rad"],
+        config["theta_p_rad"],
+    )
     F1, F2 = yahl_dirac_pauli_from_t(kin["t"], PROTON_MASS_GEV)
     amplitudes = amplitude_table(
         kin["momenta"],
@@ -285,6 +317,7 @@ def amplitude_records(config):
         ):
             weighted_abs2 = float(component["weight"] * abs(amplitude) ** 2)
             h_out, s_out, photon_helicity = labels
+            phase_rad = float(np.angle(amplitude))
             records.append({
                 **config,
                 **explicit_initial_component(component["label"]),
@@ -296,7 +329,10 @@ def amplitude_records(config):
                 "amplitude_real": amplitude.real,
                 "amplitude_imag": amplitude.imag,
                 "amplitude_abs": abs(amplitude),
-                "amplitude_phase": np.angle(amplitude),
+                "amplitude_phase": phase_rad,
+                "amplitude_phase_rad": phase_rad,
+                "amplitude_phase_over_pi": phase_rad / np.pi,
+                "amplitude_phase_deg": np.degrees(phase_rad),
                 "weighted_abs2": weighted_abs2,
                 "fraction": weighted_abs2 / total,
             })
@@ -348,7 +384,7 @@ def build_target(target, rows):
     selected_by_spin = {}
     configs_by_spin = {}
     momenta_by_spin = {}
-    for spin_case in SPIN_CASES:
+    for spin_case in EP_CM_SPIN_CASES:
         key = observable_column(spin_case, observable)
         if key not in rows[0]:
             raise KeyError(f"Missing required scan column {key!r}.")
@@ -367,7 +403,7 @@ def build_target(target, rows):
         momenta.extend(spin_momenta)
 
     amplitudes = parallel_amplitude_records(configurations)
-    for spin_case in SPIN_CASES:
+    for spin_case in EP_CM_SPIN_CASES:
         base = DATA_DIR / tag / polarization_prefix(spin_case)
         spin_amplitudes = [
             record for record in amplitudes
@@ -391,21 +427,26 @@ def build_target(target, rows):
     }
 
 
-def scan_grid(rows, key):
-    """Return sorted scan axes and a rectangular observable grid."""
+def scan_grid(rows, key, minimized):
+    """Return a ``(recoil momentum, theta_cm)`` grid reduced over ``theta_p``."""
     theta_values = np.unique([row["theta_cm_rad"] for row in rows])
     z_values = np.unique([row["z"] for row in rows])
-    mu_for_z = {
-        z: next(row["mu"] for row in rows if row["z"] == z)
+    recoil_for_z = {
+        z: next(row["final_proton_momentum_GeV"] for row in rows if row["z"] == z)
         for z in z_values
     }
-    mu_values = np.asarray([mu_for_z[z] for z in z_values])
+    recoil_values = np.asarray([recoil_for_z[z] for z in z_values])
     theta_index = {value: index for index, value in enumerate(theta_values)}
     z_index = {value: index for index, value in enumerate(z_values)}
     grid = np.full((len(z_values), len(theta_values)), np.nan)
     for row in rows:
-        grid[z_index[row["z"]], theta_index[row["theta_cm_rad"]]] = row[key]
-    return theta_values, mu_values, grid
+        index = (z_index[row["z"]], theta_index[row["theta_cm_rad"]])
+        value = abs(row[key])
+        current = grid[index]
+        if np.isnan(current) or (value < current if minimized else value > current):
+            grid[index] = value
+    order = np.argsort(recoil_values)
+    return theta_values, recoil_values[order], grid[order, :]
 
 
 def target_plot_path(target, spin_case):
@@ -450,7 +491,11 @@ def _draw_wavy_photon(ax, start, end, color, amplitude):
 
 def plot_momentum_configuration(ax, config):
     """Plot styled ep-CM particle trajectories in the x--z plane."""
-    kin = ep_cm_momenta(config["z"], config["theta_cm_rad"])
+    kin = ep_cm_momenta(
+        config["z"],
+        config["theta_cm_rad"],
+        config["theta_p_rad"],
+    )
     styles = {
         "k": (r"$\ell$", "tab:blue", "lepton", True),
         "p": (r"$P$", "tab:orange", "proton", True),
@@ -494,7 +539,11 @@ def plot_momentum_configuration(ax, config):
 
 def plot_kinematic_text(ax, config):
     """Display exact kinematics and selected-extremum metadata."""
-    kin = ep_cm_momenta(config["z"], config["theta_cm_rad"])
+    kin = ep_cm_momenta(
+        config["z"],
+        config["theta_cm_rad"],
+        config["theta_p_rad"],
+    )
     momenta = kin["momenta"]
     lines = [
         f"detail: {config['detail_id']}",
@@ -504,6 +553,7 @@ def plot_kinematic_text(ax, config):
         f"absolute value: {config['selected_abs_value']:.10g}",
         f"z = {config['z']:.10g}",
         f"theta_cm = {config['theta_cm_rad']:.10g} rad",
+        f"theta_p = {config['theta_p_rad']:.10g} rad",
         f"mu = {config['mu']:.10g}",
         f"sqrt(s) = {config['sqrt_s_GeV']:.10g} GeV",
         f"t = {config['t_GeV2']:.10g} GeV^2",
@@ -525,7 +575,7 @@ def plot_kinematic_text(ax, config):
 
 
 def plot_amplitude_components(ax, config, amplitudes):
-    """Plot leading ensemble-weighted outgoing helicity components."""
+    """Plot leading components with explicit complex-amplitude phases."""
     records = [
         record for record in amplitudes
         if record["detail_id"] == config["detail_id"]
@@ -542,14 +592,44 @@ def plot_amplitude_components(ax, config, amplitudes):
         for record in records
     ]
     fractions = np.asarray([record["fraction"] for record in records])
-    phases = np.asarray([record["amplitude_phase"] for record in records])
-    colors = require_matplotlib()[0].cm.twilight((phases + np.pi) / (2.0 * np.pi))
+    phases = np.asarray([record["amplitude_phase_rad"] for record in records])
+    plt = require_matplotlib()[0]
+    phase_normalization = plt.Normalize(vmin=-np.pi, vmax=np.pi)
+    phase_map = plt.cm.ScalarMappable(
+        norm=phase_normalization,
+        cmap="twilight",
+    )
+    colors = phase_map.to_rgba(phases)
     positions = np.arange(len(records))
-    ax.bar(positions, fractions, color=colors)
+    bars = ax.bar(positions, fractions, color=colors)
     ax.set_xticks(positions, labels, rotation=30, ha="right", fontsize=8)
     ax.set_ylabel("ensemble-weighted fraction")
-    ax.set_ylim(0.0, max(1.05 * fractions.max(), 0.05))
-    ax.set_title("Leading final-helicity amplitudes; color encodes phase")
+    label_clearance = max(0.08 * fractions.max(), 0.012)
+    ax.set_ylim(0.0, max(1.20 * fractions.max(), 0.06))
+    for bar, phase in zip(bars, phases):
+        ax.text(
+            bar.get_x() + 0.5 * bar.get_width(),
+            bar.get_height() + label_clearance,
+            rf"$\phi={phase / np.pi:+.3f}\pi$" + "\n"
+            rf"$({np.degrees(phase):+.1f}^\circ)$",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+        )
+    colorbar = ax.figure.colorbar(
+        phase_map,
+        ax=ax,
+        pad=0.015,
+        fraction=0.035,
+    )
+    colorbar.set_ticks((-np.pi, -0.5 * np.pi, 0.0, 0.5 * np.pi, np.pi))
+    colorbar.set_ticklabels(
+        (r"$-\pi$", r"$-\pi/2$", "0", r"$+\pi/2$", r"$+\pi$")
+    )
+    colorbar.set_label(r"complex amplitude phase $\arg A$ [rad]")
+    ax.set_title(
+        "Leading final-helicity amplitudes; labels and color show phase"
+    )
     ax.grid(axis="y", alpha=0.25)
 
 
@@ -561,29 +641,33 @@ def save_polarization_target_plot(package, rows, spin_case):
     plt, PdfPages = require_matplotlib()
     with PdfPages(output) as pdf:
         key = observable_column(spin_case, observable)
-        theta_values, mu_values, grid = scan_grid(rows, key)
-        grid = np.abs(grid)
+        theta_values, recoil_values, grid = scan_grid(rows, key, minimized)
         fig, ax = plt.subplots(figsize=(8.2, 6.0), constrained_layout=True)
         image = ax.pcolormesh(
-            theta_values, mu_values, grid, shading="auto",
+            theta_values, recoil_values, grid, shading="auto",
             cmap="viridis_r" if minimized else "viridis",
             vmin=0.0,
         )
         selected = package["selected_by_spin"][spin_case]
         for region, row in enumerate(selected, start=1):
             ax.scatter(
-                row["theta_cm_rad"], row["mu"], marker="o", s=90,
+                row["theta_cm_rad"], row["final_proton_momentum_GeV"],
+                marker="o", s=90,
                 facecolors="none", edgecolors="red", linewidths=1.5,
             )
-            ax.annotate(str(region), (row["theta_cm_rad"], row["mu"]), color="red")
-        ax.axvspan(2.4, 2.5, color="white", alpha=0.1)
-        ax.axhline(22.0, color="white", linestyle="--", linewidth=0.8)
+            ax.annotate(
+                str(region),
+                (row["theta_cm_rad"], row["final_proton_momentum_GeV"]),
+                color="red",
+            )
+        ax.axhline(1.0, color="white", linestyle="--", linewidth=0.8)
         ax.set_xlabel(r"$\theta_{\gamma\ell}^{(q\ell\,\mathrm{CM})}$ [rad]")
-        ax.set_ylabel(r"$\mu=p_\ell^{\rm CM}/m_\ell$")
+        ax.set_ylabel(r"$|\mathbf{p}'_p|$ [GeV]")
         ax.set_title(
             f"|{species_observable_name(observable, 'heavy')}|: "
             f"{spin_case_display_label(spin_case)}\n"
-            f"red circles = local {'minima' if minimized else 'maxima'}"
+            f"optimized over proton recoil angle; red circles = local "
+            f"{'minima' if minimized else 'maxima'}"
         )
         fig.colorbar(image, ax=ax, label=f"|{observable}|")
         pdf.savefig(fig)
@@ -635,7 +719,7 @@ def save_target_plots(packages, rows):
     tasks = [
         (package["target"][0], spin_case)
         for package in packages
-        for spin_case in SPIN_CASES
+        for spin_case in EP_CM_SPIN_CASES
     ]
     if (
         not CONFIGGEN_PLOT_WORKERS
@@ -687,7 +771,7 @@ def build_report(packages, input_path):
             f"Target |{observable}| "
             f"({'local minimum' if minimized else 'local maximum'}):"
         )
-        for spin_case in SPIN_CASES:
+        for spin_case in EP_CM_SPIN_CASES:
             selected = package["selected_by_spin"][spin_case]
             values = ", ".join(
                 f"{row[observable_column(spin_case, observable)]:.6g} at "
@@ -696,7 +780,7 @@ def build_report(packages, input_path):
             )
             lines.append(f"  {spin_case_display_label(spin_case)}: {values}")
         lines.append("  per-polarization PDFs:")
-        for spin_case in SPIN_CASES:
+        for spin_case in EP_CM_SPIN_CASES:
             lines.append(f"    {spin_case}: {target_plot_path(package['target'], spin_case)}")
         lines.append("")
     return "\n".join(lines) + "\n"

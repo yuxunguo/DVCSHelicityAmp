@@ -5,6 +5,8 @@ same kinematic grid and polarization configurations, but write to independent
 output trees.
 In addition to concurrence and multipartite observables, every polarization
 records projections onto the requested GHZ+ and canonical W target states.
+It also records the second stabilizer Renyi entropy (magic/nonstabilizerness)
+from all 64 outgoing three-qubit Pauli strings.
 """
 
 from itertools import product
@@ -143,12 +145,16 @@ POLARIZATION_COMPONENTS = {
     "L_lepton": ("L", "unpolarized"),
     "Tx_proton": ("unpolarized", "Tx"),
     "Ty_proton": ("unpolarized", "Ty"),
+    "minus_Tx_proton": ("unpolarized", "minus_Tx"),
+    "minus_Ty_proton": ("unpolarized", "minus_Ty"),
     "Tx_lepton": ("Tx", "unpolarized"),
     "Ty_lepton": ("Ty", "unpolarized"),
     "LL": ("L", "L"),
     "Lanti": ("Lplus", "Lminus"),
     "LTx": ("L", "Tx"),
     "LTy": ("L", "Ty"),
+    "L_minus_Tx": ("L", "minus_Tx"),
+    "L_minus_Ty": ("L", "minus_Ty"),
     "TxTx": ("Tx", "Tx"),
     "TxTy": ("Tx", "Ty"),
 }
@@ -184,6 +190,8 @@ PROJECTION_PURITY_NAMES = (
     "W_purity",
 )
 COARSE_CONCURRENCE_NAMES = ENTANGLEMENT_OBSERVABLE_NAMES + PROJECTION_PURITY_NAMES
+MAGIC_OBSERVABLE_NAMES = ("M2_magic",)
+SCAN_OBSERVABLE_NAMES = COARSE_CONCURRENCE_NAMES + MAGIC_OBSERVABLE_NAMES
 SIGNED_CONCURRENCE_OBSERVABLES = {"M_e", "M_p", "M_gamma"}
 COARSE_CONCURRENCE_TOP_N = 60
 COARSE_E_GAMMA_TOP_N = COARSE_CONCURRENCE_TOP_N
@@ -201,6 +209,7 @@ OBSERVABLE_LATEX_LABELS = {
     "F3": r"$F_3$",
     "GHZ_purity": r"$P_{\rm GHZ+}$",
     "W_purity": r"$P_W$",
+    "M2_magic": r"$M_2^{\rm magic}$",
 }
 OBSERVABLE_TEXT_LABELS = {
     name: label.replace("$", "")
@@ -486,7 +495,7 @@ def _evaluate_kinematic_sample(task):
         row[f"{prefix}_lambda_mean"] = np.nan
         row[f"{prefix}_h_lambda"] = np.nan
         row[f"{prefix}_h_lambda_connected"] = np.nan
-        for name in COARSE_CONCURRENCE_NAMES:
+        for name in SCAN_OBSERVABLE_NAMES:
             row[f"{prefix}_{name}"] = np.nan
         for name in (
             "GHZ_plus_fidelity", "GHZ_minus_fidelity", "GHZ_phase_fidelity",
@@ -521,6 +530,7 @@ def _evaluate_kinematic_sample(task):
             f"{prefix}_spin_signal_M2": spin_data["spin_signal"],
             f"{prefix}_cross_section_ratio": spin_data["cross_section_ratio"],
             f"{prefix}_purity": spin_data["purity"],
+            f"{prefix}_M2_magic": spin_data["M2_magic"],
             f"{prefix}_h_out_mean": corr["h_out_mean"],
             f"{prefix}_lambda_mean": corr["lambda_mean"],
             f"{prefix}_h_lambda": corr["h_lambda"],
@@ -744,6 +754,7 @@ def _alignment_csv_headers(lepton_name):
             f"{prefix}_spin_signal_M2",
             f"{prefix}_cross_section_ratio",
             f"{prefix}_purity",
+            f"{prefix}_M2_magic",
             f"{prefix}_GHZ_purity",
             f"{prefix}_W_purity",
             f"{prefix}_h_out_mean",
@@ -834,6 +845,7 @@ def _alignment_csv_row(row):
             f"{row[f'{prefix}_spin_signal_M2']:.16e}",
             f"{row[f'{prefix}_cross_section_ratio']:.16e}",
             f"{row[f'{prefix}_purity']:.16e}",
+            f"{row[f'{prefix}_M2_magic']:.16e}",
             f"{row[f'{prefix}_GHZ_purity']:.16e}",
             f"{row[f'{prefix}_W_purity']:.16e}",
             f"{row[f'{prefix}_h_out_mean']:.16e}",
@@ -1024,6 +1036,8 @@ def _heatmap_color_scale(prefix, observable):
         return -1.0, 1.0, "coolwarm"
     if observable == "D_W":
         return 0.0, 2.0 / np.sqrt(3.0), "viridis_r"
+    if observable == "M2_magic":
+        return -3.0 * np.log(2.0), 3.0 * np.log(2.0), "coolwarm"
     return 0.0, 1.0, "viridis"
 
 
@@ -1032,13 +1046,26 @@ def observable_is_minimized(observable):
     return observable == "D_W"
 
 
+def observable_rank_value(value, observable):
+    """Return the scalar objective used to rank one observable value."""
+    return float(value)
+
+
+def observable_optimum_label(observable):
+    """Return the short optimization label used in reports and plots."""
+    return "min" if observable_is_minimized(observable) else "max"
+
+
 def best_observable_row(rows, key, observable):
     """Return the finite row closest to the requested observable optimum."""
     finite_rows = [row for row in rows if np.isfinite(row.get(key, np.nan))]
     if not finite_rows:
         return None
     selector = min if observable_is_minimized(observable) else max
-    return selector(finite_rows, key=lambda row: row[key])
+    return selector(
+        finite_rows,
+        key=lambda row: observable_rank_value(row[key], observable),
+    )
 
 
 def _concurrence_csv_headers(lepton_name):
@@ -1054,7 +1081,7 @@ def _concurrence_csv_headers(lepton_name):
             f"{output_prefix}_purity",
             *(
                 f"{output_prefix}_{species_observable_name(name, lepton_name)}"
-                for name in COARSE_CONCURRENCE_NAMES
+                for name in SCAN_OBSERVABLE_NAMES
             ),
         ])
     return headers
@@ -1070,7 +1097,7 @@ def _concurrence_csv_row(row):
         values.extend([
             f"{row[f'{prefix}_cross_section_ratio']:.16e}",
             f"{row[f'{prefix}_purity']:.16e}",
-            *(f"{row[f'{prefix}_{name}']:.16e}" for name in COARSE_CONCURRENCE_NAMES),
+            *(f"{row[f'{prefix}_{name}']:.16e}" for name in SCAN_OBSERVABLE_NAMES),
         ])
     return values
 
@@ -1095,7 +1122,7 @@ def _concurrence_top_csv_headers(lepton_name):
                 f"{output_prefix}_purity",
                 *(
                     f"{output_prefix}_{species_observable_name(name, lepton_name)}"
-                    for name in COARSE_CONCURRENCE_NAMES
+                    for name in SCAN_OBSERVABLE_NAMES
                 ),
             )
         ),
@@ -1108,7 +1135,7 @@ def _concurrence_top_csv_row(rank_group, rank, row, prefix, observable, lepton_n
         f"{explicit_polarization_name(prefix, lepton_name)}_"
         f"{species_observable_name(observable, lepton_name)}",
         rank,
-        f"{row[rank_group]:.16e}",
+        f"{observable_rank_value(row[rank_group], observable):.16e}",
         species_observable_name(observable, lepton_name),
         explicit_polarization_name(prefix, lepton_name),
         *_kinematic_csv_row(row),
@@ -1120,7 +1147,7 @@ def _concurrence_top_csv_row(rank_group, rank, row, prefix, observable, lepton_n
             for key in (
                 f"{prefix}_cross_section_ratio",
                 f"{prefix}_purity",
-                *(f"{prefix}_{name}" for name in COARSE_CONCURRENCE_NAMES),
+                *(f"{prefix}_{name}" for name in SCAN_OBSERVABLE_NAMES),
             )
         ),
     ]
@@ -1130,7 +1157,7 @@ def save_concurrence_top_csv(
     rows,
     output_path,
     top_n=COARSE_CONCURRENCE_TOP_N,
-    observables=COARSE_CONCURRENCE_NAMES,
+    observables=SCAN_OBSERVABLE_NAMES,
     lepton_name="electron",
 ):
     """Save top coarse concurrence rows for each observable and spin case."""
@@ -1144,7 +1171,7 @@ def save_concurrence_top_csv(
                 finite_rows = [row for row in rows if np.isfinite(row.get(key, np.nan))]
                 ordered = sorted(
                     finite_rows,
-                    key=lambda row: row[key],
+                    key=lambda row: observable_rank_value(row[key], observable),
                     reverse=not observable_is_minimized(observable),
                 )
                 for rank, row in enumerate(ordered[:top_n], start=1):
@@ -1262,7 +1289,7 @@ def load_concurrence_scan_csv(csv_path=CONCURRENCE_PHASE_SPACE_CSV):
                 row[f"{prefix}_purity"] = _csv_float(
                     raw, f"{output_prefix}_purity"
                 )
-                for name in COARSE_CONCURRENCE_NAMES:
+                for name in SCAN_OBSERVABLE_NAMES:
                     key = f"{prefix}_{name}"
                     output_key = (
                         f"{output_prefix}_{species_observable_name(name, lepton_name)}"
@@ -1355,7 +1382,7 @@ def save_concurrence_scan_plot(
     nrows = int(np.ceil(len(anchors) / ncols)) if ncols else 0
 
     with PdfPages(output_path) as pdf:
-        for name in COARSE_CONCURRENCE_NAMES:
+        for name in SCAN_OBSERVABLE_NAMES:
             vmin, vmax, cmap = _heatmap_color_scale(prefix, name)
 
             if anchors:
@@ -1403,12 +1430,23 @@ def save_concurrence_scan_plot(
                     ax.set_box_aspect(1)
                     _add_pi_over_two_reference_lines(ax)
                     anchor_meshes.append(mesh)
-                    best = point_rows[int(np.nanargmax(point_values))]
+                    finite_indices = np.flatnonzero(finite_values)
+                    objective_values = np.asarray([
+                        observable_rank_value(value, name)
+                        for value in point_values[finite_values]
+                    ])
+                    local_best = (
+                        np.argmin(objective_values)
+                        if observable_is_minimized(name)
+                        else np.argmax(objective_values)
+                    )
+                    best = point_rows[int(finite_indices[local_best])]
                     ax.set_title(
                         f"$s={anchor['s']:.3g}\\,{{\\rm GeV}}^2$, "
                         f"$\\theta_{{\\rm in}}={anchor['theta_in']:.3g}\\,{{\\rm rad}}$\n"
                         f"$E_\\gamma={anchor['qOut']:.3g}\\,{{\\rm GeV}}$, "
-                        f"max {label}={best[f'{prefix}_{name}']:.3f}",
+                        f"{observable_optimum_label(name)} "
+                        f"{label}={best[f'{prefix}_{name}']:.3f}",
                         fontsize=ANCHOR_TITLE_FONTSIZE,
                     )
                     if index // ncols == nrows - 1:
@@ -1529,16 +1567,20 @@ def build_alignment_report(alignment_scan, alignment_paths):
     aligned_rows = [row for row in rows if row["aligned"]]
     locator_label = "/".join(
         observable_text_label(name, lepton_name)
-        for name in COARSE_CONCURRENCE_NAMES
+        for name in SCAN_OBSERVABLE_NAMES
     )
     lines = [
         f"{lepton_label}-photon {locator_label}-focused user-frame phase-space scan",
         "  anchor variables: s, theta_in, qOut",
         "  scanned variables per anchor: phi_in_lepton, phi_gamma",
         "  locator observables: "
-        f"{', '.join(observable_text_label(name, lepton_name) for name in COARSE_CONCURRENCE_NAMES)}",
+        f"{', '.join(observable_text_label(name, lepton_name) for name in SCAN_OBSERVABLE_NAMES)}",
         "  GHZ purity: <GHZ+|rho|GHZ+>, GHZ+=(|--->+|+++>)/sqrt(2)",
         "  W purity: <W|rho|W>, W=(|+-->+|-+->+|--+>)/sqrt(3)",
+        "  magic: M2=-ln[(1/8) sum_P Tr(P rho)^4 / Tr(rho^2)^2], "
+        "using all 64 three-qubit Pauli strings",
+        "  magic convention: pure states have the standard nonnegative M2; "
+        "purity-normalized mixed ensembles can yield negative values",
         f"  angle cut: theta({lepton_label}', gamma) <= "
         f"{alignment_scan['angle_max_deg']:.6g} deg",
         f"  characteristic kinematic anchors: {len(alignment_scan['kinematic_points'])}",
@@ -1553,7 +1595,8 @@ def build_alignment_report(alignment_scan, alignment_paths):
         f"{alignment_scan['phiOut_values'][0]:.6g} to {alignment_scan['phiOut_values'][-1]:.6g}",
         "  heatmap x coordinate: phi_p_in",
         "  heatmap guide lines: phi_p_in=pi/2 and phi_gamma=pi/2",
-        "  heatmap color scales: 0..1 for nonnegative observables, -1..1 for signed observables",
+        "  heatmap color scales: 0..1 for nonnegative observables, -1..1 for "
+        "signed observables, and +/-3 ln(2) for M2 magic",
         f"  valid points: {len(rows)}",
         f"  aligned points: {len(aligned_rows)}",
     ]
@@ -1572,7 +1615,7 @@ def build_alignment_report(alignment_scan, alignment_paths):
         lines.append(f"  theta range: {min_angle:.6g} to {max_angle:.6g} deg")
         lines.append("")
         lines.append(f"Top {locator_label} locator points:")
-        for observable in COARSE_CONCURRENCE_NAMES:
+        for observable in SCAN_OBSERVABLE_NAMES:
             observable_label = observable_text_label(observable, lepton_name)
             lines.append(f"  {observable_label}:")
             for prefix, label, _spin_case in ALIGNMENT_SPIN_CASES:

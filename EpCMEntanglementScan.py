@@ -1,14 +1,13 @@
-"""Focused Bethe--Heitler entanglement scan near the quasi-real-photon region.
+"""Focused Bethe--Heitler entanglement scan with a slow recoil proton.
 
 The construction starts in the exact lepton--proton CM frame with the proton
-moving along +z and the lepton along -z.  A collinear recoil proton carrying
-``(1-z)`` of the incoming proton three-momentum fixes the exchanged photon
-``q = p - p'``.  The resulting ``q + lepton`` subsystem is scattered into an
-on-shell photon and lepton at ``theta_cm``, then boosted back to the ep CM
-frame.  This directly scans the region discussed around
-
-    p = 50 GeV, z = 0.2, m_lepton = 1 GeV,
-    mu = |p_lepton_cm| / m_lepton ~= 22, theta_cm = 2.4--2.5 rad.
+moving along +z and the lepton along -z.  A recoil proton carrying ``(1-z)``
+of the incoming proton three-momentum fixes the exchanged photon
+``q = p - p'``.  The default grid gives the virtual photon most of the incoming
+proton energy while retaining a slow final proton.  Its recoil polar angle is
+scanned over the complete physical range.  The
+resulting ``q + lepton`` subsystem is scattered into an on-shell photon and
+lepton at ``theta_cm``, then boosted back to the ep CM frame.
 
 All external masses and four-momentum conservation are retained exactly.
 Outputs are written below ``Output/EpCMEntanglementScan``.
@@ -34,6 +33,10 @@ from Kinematics import invariant_q2_xb_t
 from PlotUtils import print_console_text, require_matplotlib
 from SpinDensityMat import (
     SPIN_CASES,
+    SPIN_CASE_MINUS_TX_PROTON,
+    SPIN_CASE_MINUS_TY_PROTON,
+    SPIN_CASE_L_MINUS_TX,
+    SPIN_CASE_L_MINUS_TY,
     amplitude_table,
     ghz_observables_from_density_matrix,
     process_density_matrix_from_amplitudes,
@@ -49,14 +52,26 @@ from config import (
 )
 
 
-# Editable scan controls.  The central point reproduces the quoted region.
+# Editable scan controls.  Sample the final-proton momentum directly
+# from 5 GeV down to 0.05 GeV, corresponding to z=0.90--0.999 at p=50 GeV.
 BEAM_MOMENTUM_GEV = 50.0
 LEPTON_MASS_GEV = HEAVY_LEPTON_MASS_GEV
-Z_VALUES = np.linspace(0.14, 0.26, 49)
-THETA_CM_VALUES = np.linspace(2.25, 2.65, 81)
+FINAL_PROTON_MOMENTUM_VALUES_GEV = np.geomspace(5.0, 0.05, 13)
+Z_VALUES = 1.0 - FINAL_PROTON_MOMENTUM_VALUES_GEV / BEAM_MOMENTUM_GEV
+# Three-degree coverage of the complete final-state polar-angle range.
+THETA_CM_VALUES = np.linspace(2.4, 2.5, 20)
+# Ten-degree coverage of the complete final-proton recoil polar-angle range.
+THETA_P_VALUES = np.linspace(0.0, np.pi, 19)
 PHI_CM_RAD = 0.0
+PHI_P_RAD = 0.0
 SCAN_WORKER_COUNT = SCAN_WORKERS
-SCAN_PLOT_WORKER_COUNT = max(1, min(SCAN_WORKERS, len(SPIN_CASES)))
+EP_CM_SPIN_CASES = SPIN_CASES + (
+    SPIN_CASE_MINUS_TX_PROTON,
+    SPIN_CASE_MINUS_TY_PROTON,
+    SPIN_CASE_L_MINUS_TX,
+    SPIN_CASE_L_MINUS_TY,
+)
+SCAN_PLOT_WORKER_COUNT = max(1, min(SCAN_WORKERS, len(EP_CM_SPIN_CASES)))
 TOP_POINTS = 10
 
 OUTPUT_DIR = Path("Output") / "EpCMEntanglementScan"
@@ -109,16 +124,25 @@ def boost_from_rest(four_vector, beta):
     return np.concatenate(([energy], spatial))
 
 
-def ep_cm_momenta(z, theta_cm, phi_cm=PHI_CM_RAD):
-    """Return exact ep-CM momenta for one ``(z, theta_cm)`` point.
+def ep_cm_momenta(
+    z,
+    theta_cm,
+    theta_p=0.0,
+    phi_cm=PHI_CM_RAD,
+    phi_p=PHI_P_RAD,
+):
+    """Return exact ep-CM momenta for one ``(z, theta_cm, theta_p)`` point.
 
-    ``theta_cm`` is measured from the incoming virtual-photon (+z) direction
-    in the rest frame of the virtual-photon--lepton subsystem.
+    ``theta_p`` and ``phi_p`` specify the final proton in the ep-CM frame.
+    ``theta_cm`` and ``phi_cm`` specify the final real photon relative to the
+    incoming virtual-photon direction in the virtual-photon--lepton CM frame.
     """
     if not 0.0 < z < 1.0:
         raise ValueError("z must lie strictly between zero and one.")
     if not 0.0 <= theta_cm <= np.pi:
         raise ValueError("theta_cm must lie in [0, pi].")
+    if not 0.0 <= theta_p <= np.pi:
+        raise ValueError("theta_p must lie in [0, pi].")
 
     momentum = BEAM_MOMENTUM_GEV
     proton_energy = np.sqrt(momentum**2 + PROTON_MASS_GEV**2)
@@ -128,7 +152,12 @@ def ep_cm_momenta(z, theta_cm, phi_cm=PHI_CM_RAD):
 
     p = np.array((proton_energy, 0.0, 0.0, momentum))
     k = np.array((lepton_energy, 0.0, 0.0, -momentum))
-    pp = np.array((recoil_energy, 0.0, 0.0, recoil_momentum))
+    pp_direction = np.array((
+        np.sin(theta_p) * np.cos(phi_p),
+        np.sin(theta_p) * np.sin(phi_p),
+        np.cos(theta_p),
+    ))
+    pp = np.concatenate(([recoil_energy], recoil_momentum * pp_direction))
     virtual_photon = p - pp
     subsystem = k + virtual_photon
     subsystem_mass2 = real_mdot(subsystem, subsystem)
@@ -139,17 +168,29 @@ def ep_cm_momenta(z, theta_cm, phi_cm=PHI_CM_RAD):
         subsystem_mass2 - LEPTON_MASS_GEV**2
     ) / (2.0 * subsystem_mass)
 
-    direction = np.array((
-        np.sin(theta_cm) * np.cos(phi_cm),
-        np.sin(theta_cm) * np.sin(phi_cm),
-        np.cos(theta_cm),
-    ))
+    beta = subsystem[1:] / subsystem[0]
+    virtual_photon_cm = boost_from_rest(virtual_photon, -beta)
+    photon_axis = virtual_photon_cm[1:]
+    photon_axis /= np.linalg.norm(photon_axis)
+    transverse_axis = np.array((1.0, 0.0, 0.0))
+    transverse_axis -= np.dot(transverse_axis, photon_axis) * photon_axis
+    if np.linalg.norm(transverse_axis) < 1.0e-12:
+        transverse_axis = np.array((0.0, 1.0, 0.0))
+        transverse_axis -= np.dot(transverse_axis, photon_axis) * photon_axis
+    transverse_axis /= np.linalg.norm(transverse_axis)
+    second_transverse_axis = np.cross(photon_axis, transverse_axis)
+    direction = (
+        np.cos(theta_cm) * photon_axis
+        + np.sin(theta_cm) * (
+            np.cos(phi_cm) * transverse_axis
+            + np.sin(phi_cm) * second_transverse_axis
+        )
+    )
     qout_cm = np.concatenate(([cm_momentum], cm_momentum * direction))
     kp_cm = np.concatenate((
         [np.sqrt(cm_momentum**2 + LEPTON_MASS_GEV**2)],
         -cm_momentum * direction,
     ))
-    beta = subsystem[1:] / subsystem[0]
     qout = boost_from_rest(qout_cm, beta)
     kp = boost_from_rest(kp_cm, beta)
     momenta = {"k": k, "p": p, "kp": kp, "pp": pp, "qout": qout}
@@ -176,6 +217,14 @@ def ep_cm_momenta(z, theta_cm, phi_cm=PHI_CM_RAD):
         "subsystem_mass": subsystem_mass,
         "cm_momentum": cm_momentum,
         "mu": cm_momentum / LEPTON_MASS_GEV,
+        "recoil_momentum": recoil_momentum,
+        "recoil_energy": recoil_energy,
+        "proton_energy_loss": proton_energy - recoil_energy,
+        "proton_energy_loss_fraction": (
+            (proton_energy - recoil_energy) / proton_energy
+        ),
+        "theta_p": float(theta_p),
+        "phi_p": float(phi_p),
         "conservation_error": float(np.max(np.abs(residual))),
         "mass_shell_error": float(max(mass_shell_errors.values())),
     }
@@ -183,8 +232,8 @@ def ep_cm_momenta(z, theta_cm, phi_cm=PHI_CM_RAD):
 
 def evaluate_point(task):
     """Evaluate every incoming polarization at one scan point."""
-    z_index, theta_index, z, theta_cm = task
-    kin = ep_cm_momenta(z, theta_cm)
+    z_index, theta_index, theta_p_index, z, theta_cm, theta_p = task
+    kin = ep_cm_momenta(z, theta_cm, theta_p)
     if kin["t"] >= 0.0:
         raise ValueError(f"Expected spacelike proton transfer, obtained t={kin['t']}")
     F1, F2 = yahl_dirac_pauli_from_t(kin["t"], PROTON_MASS_GEV)
@@ -203,22 +252,32 @@ def evaluate_point(task):
     kp_dot_qout = real_mdot(mom["kp"], mom["qout"])
     row = {
         "lepton": "heavy",
-        "kinematic_point": f"ep_cm_z_{z:.8g}_theta_cm_{theta_cm:.8g}",
+        "kinematic_point": (
+            f"ep_cm_z_{z:.8g}_theta_cm_{theta_cm:.8g}_theta_p_{theta_p:.8g}"
+        ),
         "s_regime": "sqrt_s_100_GeV",
         "theta_in_regime": "collinear",
-        "qOut_regime": "quasi_real_photon",
+        "qOut_regime": "high_energy_transfer_slow_recoil_proton",
         "lepton_mass": LEPTON_MASS_GEV,
         "z_index": z_index,
         "theta_index": theta_index,
+        "theta_p_index": theta_p_index,
         "z": float(z),
         "theta_cm_rad": float(theta_cm),
+        "theta_p_rad": float(theta_p),
+        "theta_p_deg": float(np.degrees(theta_p)),
+        "phi_p_rad": float(PHI_P_RAD),
         "mu": kin["mu"],
         "p_cm_GeV": kin["cm_momentum"],
         "s": kin["sqrt_s"] ** 2,
         "sqrt_s_GeV": kin["sqrt_s"],
         "sqrt_s": kin["sqrt_s"],
         "pIn": BEAM_MOMENTUM_GEV,
-        "pOut": mom["pp"][3],
+        "pOut": kin["recoil_momentum"],
+        "final_proton_momentum_GeV": kin["recoil_momentum"],
+        "final_proton_energy_GeV": kin["recoil_energy"],
+        "proton_energy_loss_GeV": kin["proton_energy_loss"],
+        "proton_energy_loss_fraction": kin["proton_energy_loss_fraction"],
         "qOut": mom["qout"][0],
         "theta_in": 0.0,
         "phi_in": 0.0,
@@ -256,7 +315,7 @@ def evaluate_point(task):
         "mass_shell_error": kin["mass_shell_error"],
         "squared_amplitude_M2": np.nan,
     }
-    for spin_case in SPIN_CASES:
+    for spin_case in EP_CM_SPIN_CASES:
         result = spin_density_observables_from_amplitudes(
             amplitudes,
             spin_case=spin_case,
@@ -307,11 +366,14 @@ def write_ranked_csv(rows):
     """Rank each entanglement observable for every incoming spin case."""
     ranked = []
     base_fields = (
-        "z", "theta_cm_rad", "mu", "p_cm_GeV", "t_GeV2",
+        "z", "theta_cm_rad", "theta_p_rad", "theta_p_deg",
+        "mu", "p_cm_GeV", "t_GeV2",
+        "final_proton_momentum_GeV", "final_proton_energy_GeV",
+        "proton_energy_loss_GeV", "proton_energy_loss_fraction",
         "qout_E", "qout_px", "qout_pz", "kp_E", "kp_px", "kp_pz",
         "pp_E", "pp_pz",
     )
-    for spin_case in SPIN_CASES:
+    for spin_case in EP_CM_SPIN_CASES:
         for observable in RANKED_OBSERVABLES:
             key = observable_column(spin_case, observable)
             reverse = observable != "D_W"
@@ -329,10 +391,22 @@ def write_ranked_csv(rows):
 
 
 def grid_from_rows(rows, key):
-    """Return a rectangular array in ``(z, theta_cm)`` index order."""
+    """Return a rectangular grid for a quantity independent of ``theta_p``."""
     grid = np.full((len(Z_VALUES), len(THETA_CM_VALUES)), np.nan)
     for row in rows:
-        grid[row["z_index"], row["theta_index"]] = row[key]
+        grid[int(row["z_index"]), int(row["theta_index"])] = row[key]
+    return grid
+
+
+def reduced_observable_grid(rows, key, minimize=False):
+    """Reduce the proton-angle axis into a ``(z, theta_cm)`` heatmap."""
+    grid = np.full((len(Z_VALUES), len(THETA_CM_VALUES)), np.nan)
+    for row in rows:
+        index = (int(row["z_index"]), int(row["theta_index"]))
+        value = abs(row[key])
+        current = grid[index]
+        if np.isnan(current) or (value < current if minimize else value > current):
+            grid[index] = value
     return grid
 
 
@@ -346,36 +420,46 @@ def save_spin_plot(rows, spin_case, output_dir=PLOT_DIR):
     plt, PdfPages = require_matplotlib()
     output_path = plot_output_path(spin_case, output_dir)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    mu_values = grid_from_rows(rows, "mu")[:, 0]
+    recoil_values = grid_from_rows(rows, "final_proton_momentum_GeV")[:, 0]
     with PdfPages(output_path) as pdf:
         fig, axes = plt.subplots(4, 4, figsize=(15.5, 12.5), constrained_layout=True)
         for ax, observable in zip(axes.flat, PLOT_OBSERVABLES):
             key = observable_column(spin_case, observable)
-            values = np.abs(grid_from_rows(rows, key))
+            values = reduced_observable_grid(
+                rows,
+                key,
+                minimize=observable == "D_W",
+            )[::-1, :]
             if observable == "D_W":
                 image = ax.pcolormesh(
-                    THETA_CM_VALUES, mu_values, values,
+                    THETA_CM_VALUES, recoil_values[::-1], values,
                     shading="auto", cmap="viridis_r",
                     vmin=0.0, vmax=2.0 / np.sqrt(3.0),
                 )
             else:
                 image = ax.pcolormesh(
-                    THETA_CM_VALUES, mu_values, values,
+                    THETA_CM_VALUES, recoil_values[::-1], values,
                     shading="auto", cmap="viridis", vmin=0.0, vmax=1.0,
                 )
-            ax.axvspan(2.4, 2.5, color="white", alpha=0.12)
-            ax.axhline(22.0, color="white", linestyle="--", linewidth=0.8, alpha=0.8)
+            ax.axhline(
+                1.0,
+                color="white",
+                linestyle="--",
+                linewidth=0.8,
+                alpha=0.8,
+            )
             ax.set_xlabel(r"$\theta_{\gamma\ell}^{(q\ell\,\mathrm{CM})}$ [rad]")
-            ax.set_ylabel(r"$\mu=p_{\ell}^{\rm CM}/m_{\ell}$")
+            ax.set_ylabel(r"$|\mathbf{p}'_p|$ [GeV]")
             display_name = species_observable_name(observable, "heavy")
             ax.set_title(f"|{display_name}|")
             fig.colorbar(image, ax=ax)
         for ax in axes.flat[len(PLOT_OBSERVABLES):]:
             ax.set_visible(False)
         fig.suptitle(
-            f"ep-CM quasi-real-photon scan: {spin_case_display_label(spin_case)}\n"
+            f"ep-CM slow-recoil-proton scan: {spin_case_display_label(spin_case)}\n"
             f"p={BEAM_MOMENTUM_GEV:g} GeV, m_lepton={LEPTON_MASS_GEV:g} GeV, "
-            f"z={Z_VALUES[0]:.2f}--{Z_VALUES[-1]:.2f}"
+            f"z={Z_VALUES[0]:.3f}--{Z_VALUES[-1]:.3f}; "
+            r"optimized over $0\leq\theta_p\leq\pi$"
         )
         pdf.savefig(fig)
         plt.close(fig)
@@ -401,28 +485,41 @@ def _save_spin_plot_worker(spin_case):
 
 def save_plots(rows, max_workers=SCAN_PLOT_WORKER_COUNT):
     """Save independent polarization PDFs concurrently, as AlignmentScan does."""
-    if not max_workers or max_workers <= 1 or len(SPIN_CASES) == 1:
+    if not max_workers or max_workers <= 1 or len(EP_CM_SPIN_CASES) == 1:
         return {
             spin_case: save_spin_plot(rows, spin_case, PLOT_DIR)
-            for spin_case in SPIN_CASES
+            for spin_case in EP_CM_SPIN_CASES
         }
-    worker_count = min(int(max_workers), len(SPIN_CASES))
+    worker_count = min(int(max_workers), len(EP_CM_SPIN_CASES))
     try:
         with ProcessPoolExecutor(
             max_workers=worker_count,
             initializer=_initialize_plot_worker,
             initargs=(rows, PLOT_DIR),
         ) as executor:
-            return dict(executor.map(_save_spin_plot_worker, SPIN_CASES, chunksize=1))
+            return dict(
+                executor.map(
+                    _save_spin_plot_worker,
+                    EP_CM_SPIN_CASES,
+                    chunksize=1,
+                )
+            )
     except (OSError, PermissionError):
         return {
             spin_case: save_spin_plot(rows, spin_case, PLOT_DIR)
-            for spin_case in SPIN_CASES
+            for spin_case in EP_CM_SPIN_CASES
         }
 
 
-def nearest_row(rows, z, theta_cm):
-    return min(rows, key=lambda row: abs(row["z"] - z) + abs(row["theta_cm_rad"] - theta_cm))
+def nearest_row(rows, z, theta_cm, theta_p=0.0):
+    return min(
+        rows,
+        key=lambda row: (
+            abs(row["z"] - z)
+            + abs(row["theta_cm_rad"] - theta_cm)
+            + abs(row["theta_p_rad"] - theta_p)
+        ),
+    )
 
 
 def format_momentum(label, row, prefix):
@@ -433,32 +530,49 @@ def format_momentum(label, row, prefix):
 
 
 def build_report(rows, plot_paths):
-    """Summarize the anchor kinematics and strongest lepton-photon point."""
-    anchor_24 = nearest_row(rows, 0.2, 2.4)
-    anchor_25 = nearest_row(rows, 0.2, 2.5)
+    """Summarize slow-proton anchors and the strongest lepton-photon points."""
+    anchors = (
+        nearest_row(rows, 0.90, 2.45),
+        nearest_row(rows, 0.98, 2.45),
+        nearest_row(rows, 0.999, 2.45),
+    )
     lines = [
-        "Focused ep-CM entanglement scan",
-        f"  points: {len(rows)} ({len(Z_VALUES)} z x {len(THETA_CM_VALUES)} theta_cm)",
-        f"  sqrt(s): {anchor_24['sqrt_s_GeV']:.8g} GeV",
+        "Focused ep-CM slow-recoil-proton entanglement scan",
+        f"  points: {len(rows)} "
+        f"({len(Z_VALUES)} z x {len(THETA_CM_VALUES)} theta_cm "
+        f"x {len(THETA_P_VALUES)} theta_p)",
+        f"  sqrt(s): {anchors[0]['sqrt_s_GeV']:.8g} GeV",
         f"  lepton mass: {LEPTON_MASS_GEV:.8g} GeV",
+        f"  z range: {Z_VALUES[0]:.8g}--{Z_VALUES[-1]:.8g}",
+        f"  theta_cm range: {THETA_CM_VALUES[0]:.8g}--"
+        f"{THETA_CM_VALUES[-1]:.8g} rad",
+        f"  theta_p range: {THETA_P_VALUES[0]:.8g}--"
+        f"{THETA_P_VALUES[-1]:.8g} rad",
         "",
     ]
-    for row in (anchor_24, anchor_25):
+    for row in anchors:
         lines.extend([
-            f"Anchor z={row['z']:.6g}, theta_cm={row['theta_cm_rad']:.6g} rad:",
-            f"  t={row['t_GeV2']:.8g} GeV^2, p_cm={row['p_cm_GeV']:.8g} GeV, mu={row['mu']:.8g}",
+            f"Anchor z={row['z']:.6g}, theta_cm={row['theta_cm_rad']:.6g} rad, "
+            f"theta_p={row['theta_p_rad']:.6g} rad:",
+            f"  p'_p={row['final_proton_momentum_GeV']:.8g} GeV, "
+            f"E'_p={row['final_proton_energy_GeV']:.8g} GeV",
+            f"  proton energy loss={row['proton_energy_loss_GeV']:.8g} GeV "
+            f"({row['proton_energy_loss_fraction']:.6%})",
+            f"  t={row['t_GeV2']:.8g} GeV^2, "
+            f"p_cm={row['p_cm_GeV']:.8g} GeV, mu={row['mu']:.8g}",
             format_momentum("p'_gamma", row, "qout"),
             format_momentum("p'_lepton", row, "kp"),
             format_momentum("p'_proton", row, "pp"),
         ])
     lines.append("")
-    for spin_case in SPIN_CASES:
+    for spin_case in EP_CM_SPIN_CASES:
         key = observable_column(spin_case, "C_e_gamma")
         best = max(rows, key=lambda row: row[key])
         lines.append(
             f"  max C_lepton_gamma ({spin_case_display_label(spin_case)}): "
             f"{best[key]:.8g} at z={best['z']:.6g}, "
-            f"theta_cm={best['theta_cm_rad']:.6g}, mu={best['mu']:.6g}"
+            f"theta_cm={best['theta_cm_rad']:.6g}, "
+            f"theta_p={best['theta_p_rad']:.6g}, mu={best['mu']:.6g}"
         )
     lines.extend((
         "",
@@ -476,10 +590,23 @@ def build_report(rows, plot_paths):
 def validate_settings():
     if BEAM_MOMENTUM_GEV <= 0.0 or LEPTON_MASS_GEV <= 0.0:
         raise ValueError("Beam momentum and lepton mass must be positive.")
-    if len(Z_VALUES) < 2 or len(THETA_CM_VALUES) < 2:
-        raise ValueError("Both scan axes must contain at least two points.")
-    if np.any(np.diff(Z_VALUES) <= 0.0) or np.any(np.diff(THETA_CM_VALUES) <= 0.0):
+    if len(Z_VALUES) < 2 or len(THETA_CM_VALUES) < 2 or len(THETA_P_VALUES) < 2:
+        raise ValueError("All scan axes must contain at least two points.")
+    if (
+        np.any(np.diff(Z_VALUES) <= 0.0)
+        or np.any(np.diff(THETA_CM_VALUES) <= 0.0)
+        or np.any(np.diff(THETA_P_VALUES) <= 0.0)
+    ):
         raise ValueError("Scan axes must be strictly increasing.")
+    if (
+        np.any(FINAL_PROTON_MOMENTUM_VALUES_GEV <= 0.0)
+        or np.any(FINAL_PROTON_MOMENTUM_VALUES_GEV >= BEAM_MOMENTUM_GEV)
+        or np.any(np.diff(FINAL_PROTON_MOMENTUM_VALUES_GEV) >= 0.0)
+    ):
+        raise ValueError(
+            "Final-proton momenta must be positive, below the beam momentum, "
+            "and strictly decreasing."
+        )
     if SCAN_WORKER_COUNT < 1 or SCAN_PLOT_WORKER_COUNT < 1:
         raise ValueError("Scan and plot worker counts must be positive.")
 
@@ -488,9 +615,17 @@ def main():
     validate_settings()
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     tasks = [
-        (z_index, theta_index, float(z), float(theta_cm))
+        (
+            z_index,
+            theta_index,
+            theta_p_index,
+            float(z),
+            float(theta_cm),
+            float(theta_p),
+        )
         for z_index, z in enumerate(Z_VALUES)
         for theta_index, theta_cm in enumerate(THETA_CM_VALUES)
+        for theta_p_index, theta_p in enumerate(THETA_P_VALUES)
     ]
     rows = run_tasks(tasks)
     write_csv(FULL_CSV, rows)

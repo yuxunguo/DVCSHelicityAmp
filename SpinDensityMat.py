@@ -55,12 +55,16 @@ SPIN_CASE_L_PROTON = "L_proton"
 SPIN_CASE_L_LEPTON = "L_lepton"
 SPIN_CASE_TX_PROTON = "Tx_proton"
 SPIN_CASE_TY_PROTON = "Ty_proton"
+SPIN_CASE_MINUS_TX_PROTON = "minus_Tx_proton"
+SPIN_CASE_MINUS_TY_PROTON = "minus_Ty_proton"
 SPIN_CASE_TX_LEPTON = "Tx_lepton"
 SPIN_CASE_TY_LEPTON = "Ty_lepton"
 SPIN_CASE_LL = "LL"
 SPIN_CASE_LANTI = "Lanti"
 SPIN_CASE_LTX = "LTx"
 SPIN_CASE_LTY = "LTy"
+SPIN_CASE_L_MINUS_TX = "L_minus_Tx"
+SPIN_CASE_L_MINUS_TY = "L_minus_Ty"
 SPIN_CASE_TXTX = "TxTx"
 SPIN_CASE_TXTY = "TxTy"
 
@@ -86,12 +90,16 @@ SPIN_CASE_DISPLAY_LABELS = {
     SPIN_CASE_L_LEPTON: "L lepton",
     SPIN_CASE_TX_PROTON: "Tx proton",
     SPIN_CASE_TY_PROTON: "Ty proton",
+    SPIN_CASE_MINUS_TX_PROTON: "-Tx proton",
+    SPIN_CASE_MINUS_TY_PROTON: "-Ty proton",
     SPIN_CASE_TX_LEPTON: "Tx lepton",
     SPIN_CASE_TY_LEPTON: "Ty lepton",
     SPIN_CASE_LL: "L lepton + L proton",
     SPIN_CASE_LANTI: "L+ lepton + L- proton",
     SPIN_CASE_LTX: "L lepton + Tx proton",
     SPIN_CASE_LTY: "L lepton + Ty proton",
+    SPIN_CASE_L_MINUS_TX: "L lepton + -Tx proton",
+    SPIN_CASE_L_MINUS_TY: "L lepton + -Ty proton",
     SPIN_CASE_TXTX: "Tx lepton + Tx proton",
     SPIN_CASE_TXTY: "Tx lepton + Ty proton",
 }
@@ -107,6 +115,19 @@ ENTANGLEMENT_NAMES = (
     "M_e",
     "M_p",
     "M_gamma",
+)
+
+PAULI_SINGLE_QUBIT = (
+    np.eye(2, dtype=complex),
+    np.array([[0.0, 1.0], [1.0, 0.0]], dtype=complex),
+    np.array([[0.0, -1.0j], [1.0j, 0.0]], dtype=complex),
+    np.array([[1.0, 0.0], [0.0, -1.0]], dtype=complex),
+)
+THREE_QUBIT_PAULI_STRINGS = np.stack(
+    [
+        np.kron(np.kron(first, second), third)
+        for first, second, third in product(PAULI_SINGLE_QUBIT, repeat=3)
+    ]
 )
 
 
@@ -179,12 +200,16 @@ def spin_case_axes(spin_case):
         SPIN_CASE_L_LEPTON: ("L", None),
         SPIN_CASE_TX_PROTON: (None, "Tx"),
         SPIN_CASE_TY_PROTON: (None, "Ty"),
+        SPIN_CASE_MINUS_TX_PROTON: (None, "-Tx"),
+        SPIN_CASE_MINUS_TY_PROTON: (None, "-Ty"),
         SPIN_CASE_TX_LEPTON: ("Tx", None),
         SPIN_CASE_TY_LEPTON: ("Ty", None),
         SPIN_CASE_LL: ("L", "L"),
         SPIN_CASE_LANTI: ("L", "-L"),
         SPIN_CASE_LTX: ("L", "Tx"),
         SPIN_CASE_LTY: ("L", "Ty"),
+        SPIN_CASE_L_MINUS_TX: ("L", "-Tx"),
+        SPIN_CASE_L_MINUS_TY: ("L", "-Ty"),
         SPIN_CASE_TXTX: ("Tx", "Tx"),
         SPIN_CASE_TXTY: ("Tx", "Ty"),
     }
@@ -250,8 +275,8 @@ def single_particle_spin_density(axis):
     """Return a normalized incoming one-qubit density matrix.
 
     ``axis=None`` represents an unpolarized particle, ``I_2/2``. Prepared
-    ``L``, ``-L``, ``Tx``, and ``Ty`` states are rank-one projectors in the helicity
-    basis ordered as ``(-1, +1)``.
+    ``L``, ``-L``, ``Tx``, ``-Tx``, ``Ty``, and ``-Ty`` states are rank-one
+    projectors in the helicity basis ordered as ``(-1, +1)``.
     """
     if axis is None:
         return 0.5 * np.eye(2, dtype=complex)
@@ -437,6 +462,29 @@ def one_to_rest_concurrence(rho, traced_subsystem):
     rho_rest = reduced_density_matrix(rho, rest)
     purity = float(np.real_if_close(np.trace(rho_rest @ rho_rest), tol=1000).real)
     return float(np.sqrt(max(0.0, 2.0 * (1.0 - purity))))
+
+
+def second_stabilizer_renyi_entropy(rho):
+    """Return the three-qubit second stabilizer Renyi entropy ``M2``.
+
+    The purity-normalized definition is
+    ``M2 = -ln[(1/8) sum_P Tr(P rho)^4 / Tr(rho^2)^2]``, where ``P`` runs over
+    all 64 three-qubit Pauli strings. For a pure state the purity denominator
+    is one.
+    """
+    rho = normalized_density_matrix(rho)
+    purity = float(np.real_if_close(np.trace(rho @ rho), tol=1000).real)
+    if purity <= 0.0:
+        raise ValueError("Density-matrix purity must be positive.")
+    expectations = np.real_if_close(
+        np.einsum("pij,ji->p", THREE_QUBIT_PAULI_STRINGS, rho),
+        tol=1000,
+    ).real
+    stabilizer_moment = np.sum(expectations**4) / (8.0 * purity**2)
+    if stabilizer_moment <= 0.0:
+        raise ValueError("The Pauli fourth moment must be positive.")
+    entropy = float(-np.log(stabilizer_moment))
+    return 0.0 if np.isclose(entropy, 0.0, atol=1e-14) else entropy
 
 
 def f3_from_one_to_rest(c_e_rest, c_p_rest, c_gamma_rest):
@@ -632,6 +680,7 @@ def spin_density_observables_from_amplitudes(
         "trace": trace_value(rho),
         "cross_section_ratio": spin_signal / squared_amplitude,
         "purity": purity,
+        "M2_magic": second_stabilizer_renyi_entropy(state_rho),
         "entanglement": entanglement_measures_from_density_matrix(state_rho),
     }
 

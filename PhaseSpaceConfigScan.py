@@ -3,7 +3,8 @@
 The continuous PhaseSpaceScan photon-energy coordinate is divided into three
 balanced low/mid/high ``E_gamma`` bands before reusing ConfigGen's clustering,
 amplitude decomposition, per-polarization CSV, and parallel PDF machinery.
-The inherited targets include minimum-distance ``D_W`` configuration regions.
+The inherited targets include minimum-distance ``D_W`` and maximum-magic
+``M2_magic`` configuration regions.
 """
 
 from pathlib import Path
@@ -134,6 +135,7 @@ def run_species(lepton_name):
     config.CONFIGGEN_PLOT_WORKERS = PHASE_SPACE_CONFIG_PLOT_WORKERS
 
     rows = config.read_csv_rows(input_path)
+    config.validate_config_target_columns(rows)
     bands = assign_energy_bands(rows)
     prepared_path = prepared_input_path(lepton_name)
     config.write_dict_csv(prepared_path, rows)
@@ -177,6 +179,12 @@ def validate_settings():
         raise ValueError("ENERGY_BAND_QUANTILES must be ordered inside (0, 1).")
     if "D_W" not in {observable for observable, _tag in PHASE_SPACE_CONFIG_TARGETS}:
         raise ValueError("PhaseSpaceConfigScan requires the D_W ConfigGen target.")
+    if "M2_magic" not in {
+        observable for observable, _tag in PHASE_SPACE_CONFIG_TARGETS
+    }:
+        raise ValueError(
+            "PhaseSpaceConfigScan requires the M2_magic ConfigGen target."
+        )
 
 
 def main():

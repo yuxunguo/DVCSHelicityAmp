@@ -25,8 +25,9 @@ python3 AlignmentScan.py     # angular alignment and entanglement scan
 python3 ConfigGen.py         # selected configurations from AlignmentScan
 python3 PhaseSpaceScan.py    # adaptive all-observable/all-lepton phase-space scan
 python3 PhaseSpaceConfigScan.py  # ConfigGen packages from PhaseSpaceScan results
-python3 EpCMEntanglementScan.py   # focused p=50 GeV, z~0.2 heavy-lepton scan
+python3 EpCMEntanglementScan.py   # slow-recoil-proton heavy-lepton scan
 python3 EpCMConfigGen.py          # config packages from the focused ep-CM scan
+python3 ProtonVirtualPhotonAmp.py # proton-current virtual-photon decomposition
 ```
 
 Generated data, plots, and logs are written under `Output/`.
@@ -43,8 +44,20 @@ AlignmentScan.py      Fine angular scan at characteristic kinematics
 ConfigGen.py          Ranked-region configuration and plot generator
 PhaseSpaceScan.py      Adaptive five-dimensional entanglement phase-space scan
 PhaseSpaceConfigScan.py ConfigGen-style packages from PhaseSpaceScan results
-EpCMEntanglementScan.py Exact ep-CM scan near mu~22 and theta_cm~2.4--2.5
+EpCMEntanglementScan.py Exact ep-CM scan with a slow final proton
 EpCMConfigGen.py      ConfigGen packages for the focused ep-CM scan
+ProtonVirtualPhotonAmp.py Proton helicity/current decomposition into T-/T+/L virtual photons
+
+`ProtonVirtualPhotonAmp.py` normalizes each projected helicity amplitude by
+`A_unpol = sqrt((1/2) sum_{sIn,sOut,lambda=T-/T+/L} |A|^2)`, where the factor
+`1/2` averages the incoming proton helicity. Its CSV retains both raw and
+normalized complex amplitudes. The editable `theta_p` and `phi_p` values in
+`main()` tilt the final proton away from the incoming `+z` direction while
+keeping both proton momenta on shell; `theta_p=0` recovers collinear recoil.
+The editable `theta_p_values` and `z_values` grids generate
+normalized-magnitude and phase curves as functions of `theta_p` and `z`,
+together with separate scan CSVs. Both scans also store and plot
+`R_L/T = |A_L|^2 / (|A_T-|^2 + |A_T+|^2)` for each proton-helicity transition.
 FixedHelicityTest.py  Small editable fixed-helicity example
 Mathematica/          Wolfram Language implementation and benchmarks
 ```
@@ -174,6 +187,7 @@ C_e_rest, C_p_rest, C_gamma_rest one-to-rest concurrences
 D_W                               distance from ideal W pair concurrences
 F3                                concurrence-triangle observable
 M_e, M_p, M_gamma                 CKW monogamy residuals
+M2_magic                          second stabilizer Renyi entropy (magic)
 purity                            Tr(rho^2)
 ```
 
@@ -181,6 +195,22 @@ Pairwise concurrence is evaluated for pure and mixed outgoing states. The
 implemented one-to-rest, `F3`, and CKW formulas are pure-state formulas; those
 columns are set to zero for mixed states and should be interpreted together
 with `purity`.
+
+For the outgoing three-qubit density matrix, magic/nonstabilizerness is
+computed from all 64 Pauli strings:
+
+```text
+M2_magic = -ln[(1/8) sum_P Tr(P rho)^4 / Tr(rho^2)^2]
+P = (I, X, Y, Z) tensor (I, X, Y, Z) tensor (I, X, Y, Z)
+```
+
+For a pure state, `Tr(rho^2)=1` and the purity denominator drops out.
+The purity-normalized expression is also stored for incoherently averaged
+mixed outgoing states; for those mixed ensembles it can be negative and should
+not be interpreted as the pure-state nonstabilizerness monotone.
+AlignmentScan and PhaseSpaceScan rank and refine magic by maximizing the signed
+`M2_magic` value. The selected points therefore have the largest measured
+second stabilizer Renyi entropy in each polarization.
 
 When `NORMALIZE_TRACE` is enabled, stored density matrices have unit trace.
 The unnormalized prepared-state signal remains available as `spin_signal_M2`,
@@ -204,6 +234,10 @@ lepton propagators, while the massless species retains the singular limit.
 `ConfigGen.py` reads the full concurrence phase-space CSV, locates strong
 regions for the species-labelled lepton–proton and lepton–photon concurrence,
 proton–photon concurrence, `F3`, GHZ purity, and W purity. It writes:
+
+ConfigGen also selects the maximum signed `M2_magic` configuration for every
+polarization. Magic heatmaps use the pure-state theoretical maximum `ln(9/2)`
+as their upper color limit, and outputs are written under `Data/m2_magic/`.
 
 ```text
 Output/ConfigGen/<lepton>/Data/<target>/lepton_<species>_<polarization>_proton_<polarization>/...
@@ -248,17 +282,33 @@ a continuous photon energy, its valid rows are divided into balanced low,
 middle, and high `E_gamma` bands before configuration selection. Outputs are
 written under `Output/PhaseSpaceConfigScan/<lepton>/`, with a combined report
 at `Output/PhaseSpaceConfigScan.log`.
+Because it inherits the same ConfigGen targets, it also writes maximum-magic
+packages under `Data/m2_magic/`.
 
-## Focused ep-CM quasi-real-photon scan
+## Focused ep-CM slow-recoil-proton scan
 
 `EpCMEntanglementScan.py` targets the heavy-lepton region with incoming ep-CM
-momentum `p = 50 GeV`, `z` near `0.2`, and virtual-photon--lepton CM scattering
-angle near `2.4--2.5 rad`. It constructs the final state by an exact two-body
-boost, rather than by using the approximate massless four-vectors. The default
-grid covers `z = 0.14--0.26` and `theta_cm = 2.25--2.65`, corresponding to
-`mu = p_lepton_cm/m_lepton` around 22, and writes a full CSV,
-per-observable rankings, heatmaps, and an
-anchor-momentum report under:
+momentum `p = 50 GeV` and a slow final proton after transferring most of its
+energy to the virtual photon. It constructs the final
+state by an exact two-body boost, rather than by using approximate massless
+four-vectors. The default
+focused polarization set additionally includes direct proton preparations
+along `-Tx` and `-Ty`, with the incoming lepton averaged incoherently.
+It also includes the direct product preparations `L lepton + -Tx proton` and
+`L lepton + -Ty proton`.
+`EpCMConfigGen.py` generates the corresponding configuration CSVs and PDFs.
+The default grid samples the final-proton momentum logarithmically from
+`5 GeV` down to `0.05 GeV` at 13 points, equivalent to
+`z = 0.90--0.999`, and covers the complete final-state polar-angle range
+`theta_cm = 0--pi` in three-degree steps. The proton azimuth is fixed to zero
+to define the reference scattering plane, while its recoil polar angle spans
+`theta_p = 0--pi` in ten-degree steps. This
+high-transfer region is not labelled
+quasi-real: the CSV records the virtuality, final-proton energy, absolute
+energy loss, and energy-loss fraction. It writes a full CSV, per-observable
+rankings, heatmaps versus final-proton momentum reduced over `theta_p`, and an
+anchor-momentum report
+under:
 
 ```text
 Output/EpCMEntanglementScan/
@@ -266,7 +316,7 @@ Output/EpCMEntanglementScan/
 
 The full CSV contains the same 13 entanglement/projection quantities and the
 same explicit heavy-lepton polarization/observable labels as `AlignmentScan`,
-alongside the focused `z`, `theta_cm`, and `mu` coordinates.
+alongside `z`, `theta_cm`, `mu`, and slow-proton diagnostics.
 The per-polarization PDFs plot the absolute value of all 13 quantities; purity
 is retained only in the CSV as the mixed-state diagnostic used by
 `AlignmentScan`, not as an entanglement heatmap.
@@ -290,6 +340,9 @@ dashed, the photon line is wavy, and particles are labelled
 `P`, `P'`, `l`, `l'`, and `q_gamma`.
 Configuration amplitudes and independent target PDFs are also process-parallel;
 their controls are `CONFIGGEN_KINEMATIC_WORKERS` and `CONFIGGEN_PLOT_WORKERS`.
+EpCMConfigGen amplitude-decomposition CSVs store the complex phase in radians,
+degrees, and units of pi. Each detailed PDF labels every retained amplitude
+bar with its phase and includes a phase colorbar from `-pi` to `+pi`.
 
 ## Prepared-spin example
 

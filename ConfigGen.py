@@ -2,7 +2,8 @@
 
 The generator reads the entanglement scan written by ``AlignmentScan.py`` and
 builds one configuration package for each requested maximum: ``C_e_p``,
-``C_p_gamma``, ``C_e_gamma``, ``F3``, GHZ purity, and W purity. Each package contains a scan plot,
+``C_p_gamma``, ``C_e_gamma``, ``F3``, GHZ purity, W purity, and ``M2_magic``.
+Each package contains a scan plot,
 representative enhanced regions, reconstructed momenta/kinematics, and a
 final-state amplitude decomposition that preserves the AlignmentScan
 initial-spin ensemble weights.  ``F3`` is scanned for every configured
@@ -60,6 +61,7 @@ CONFIG_TARGETS = (
     ("GHZ_purity", "ghz_purity"),
     ("W_purity", "w_purity"),
     ("D_W", "dw"),
+    ("M2_magic", "m2_magic"),
 )
 CONFIG_SPIN_CASES = (
     "unpolarized",
@@ -278,6 +280,22 @@ def target_columns(rows, observable):
     return columns
 
 
+def validate_config_target_columns(rows):
+    """Require at least one scan column for every configured target."""
+    if not rows:
+        raise ValueError("The configuration input CSV contains no data rows.")
+    missing = [
+        observable
+        for observable, _file_tag in CONFIG_TARGETS
+        if not target_columns(rows, observable)
+    ]
+    if missing:
+        raise ValueError(
+            "The scan CSV is missing configured observable columns for "
+            f"{', '.join(missing)}. Rerun the matching scan before ConfigGen."
+        )
+
+
 def observable_is_minimized(observable):
     """Return whether configuration selection seeks the smallest value."""
     return observable == "D_W"
@@ -286,6 +304,15 @@ def observable_is_minimized(observable):
 def observable_optimum_word(observable):
     """Return a report label for the target's optimization direction."""
     return "minimum" if observable_is_minimized(observable) else "maximum"
+
+
+def observable_plot_style(observable):
+    """Return colormap and fixed limits for one configuration target."""
+    if observable == "D_W":
+        return "viridis_r", 0.0, 2.0 / np.sqrt(3.0)
+    if observable == "M2_magic":
+        return "viridis", 0.0, np.log(9.0 / 2.0)
+    return "viridis", 0.0, 1.0
 
 
 def selected_region_name(observable, index):
@@ -548,7 +575,8 @@ def example_rows(grouped_clusters):
                     item[name] = row.get(name, "")
                 for key, value in row.items():
                     is_selected_multipartite = (
-                        row["selected_observable"] in {"F3", "GHZ_purity", "W_purity", "D_W"}
+                        row["selected_observable"]
+                        in {"F3", "GHZ_purity", "W_purity", "D_W", "M2_magic"}
                         and key.endswith(f"_{row['selected_observable']}")
                     )
                     if "_C_" in key or is_selected_multipartite:
@@ -914,6 +942,7 @@ def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, spin_case, k
     x = np.asarray(x_values, dtype=float)
     y = np.asarray(y_values, dtype=float)
     z = np.asarray(z_values, dtype=float)
+    cmap, vmin, vmax = observable_plot_style(observable)
     fig, ax = plt.subplots(figsize=(7.4, 5.6), constrained_layout=True)
     if np.isfinite(z).sum() >= 4:
         x_edges = _bin_edges_from_values(x)
@@ -924,9 +953,9 @@ def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, spin_case, k
             y_edges,
             values,
             shading="auto",
-            cmap="viridis_r" if observable_is_minimized(observable) else "viridis",
-            vmin=0.0,
-            vmax=2.0 / np.sqrt(3.0) if observable_is_minimized(observable) else 1.0,
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
             rasterized=True,
         )
     else:
@@ -934,11 +963,11 @@ def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, spin_case, k
             x,
             y,
             c=z,
-            cmap="viridis_r" if observable_is_minimized(observable) else "viridis",
+            cmap=cmap,
             s=28,
             alpha=0.78,
-            vmin=0.0,
-            vmax=2.0 / np.sqrt(3.0) if observable_is_minimized(observable) else 1.0,
+            vmin=vmin,
+            vmax=vmax,
             rasterized=True,
         )
     for cluster in clusters:
@@ -961,7 +990,8 @@ def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, spin_case, k
         )
     ax.set_title(
         f"{group_name} {spin_display_label(spin_case)}: "
-        f"max {observable_math_label(observable)} regions",
+        f"{observable_optimum_word(observable)} "
+        f"{observable_math_label(observable)} regions",
         fontsize=14,
     )
     add_pi_over_two_reference_lines(ax)
@@ -1527,6 +1557,7 @@ def _run_species(lepton_name):
     configure_lepton(lepton_name)
     input_path = alignment_input_path()
     rows = read_csv_rows(input_path)
+    validate_config_target_columns(rows)
     clean_egamma_config_outputs()
     clean_data_outputs()
     egamma_outputs, egamma_detail_rows = save_all_egamma_target_region_pdfs(

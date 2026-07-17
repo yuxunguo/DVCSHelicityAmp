@@ -16,7 +16,7 @@ import numpy as np
 from AlignmentScan import (
     ALIGNMENT_ANGLE_MAX_RAD,
     ALIGNMENT_SPIN_CASES,
-    COARSE_CONCURRENCE_NAMES,
+    SCAN_OBSERVABLE_NAMES,
     SIGNED_CONCURRENCE_OBSERVABLES,
     _concurrence_csv_headers,
     _concurrence_csv_row,
@@ -24,6 +24,8 @@ from AlignmentScan import (
     explicit_polarization_name,
     observable_latex_label,
     observable_is_minimized,
+    observable_optimum_label,
+    observable_rank_value,
     observable_text_label,
     save_concurrence_top_csv,
     species_spin_label,
@@ -47,7 +49,7 @@ PHASE_SPACE_PLOT_WORKERS = max(1, min(SCAN_WORKERS, 24))
 RANDOM_SEED = 271828
 PHASE_SPACE_SAMPLES = 8192
 REFINEMENT_SAMPLES = 4096
-REFINEMENT_CENTERS = len(ALIGNMENT_SPIN_CASES) * len(COARSE_CONCURRENCE_NAMES)
+REFINEMENT_CENTERS = len(ALIGNMENT_SPIN_CASES) * len(SCAN_OBSERVABLE_NAMES)
 ALIGNMENT_SEED_CENTERS = REFINEMENT_CENTERS
 TOP_POINTS_PER_POLARIZATION = 100
 THETA_IN_RANGE = (0.35, 2.80)
@@ -215,12 +217,12 @@ def _select_refinement_centers(rows, count=REFINEMENT_CENTERS):
     centers = []
     rankings = []
     for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES:
-        for observable in COARSE_CONCURRENCE_NAMES:
+        for observable in SCAN_OBSERVABLE_NAMES:
             key = f"{prefix}_{observable}"
             finite = [row for row in rows if np.isfinite(float(row.get(key, np.nan)))]
             rankings.append(sorted(
                 finite,
-                key=lambda row: float(row[key]),
+                key=lambda row: observable_rank_value(row[key], observable),
                 reverse=not observable_is_minimized(observable),
             ))
 
@@ -413,7 +415,7 @@ def write_outputs(rows):
         rows,
         TOP_CSV,
         top_n=TOP_POINTS_PER_POLARIZATION,
-        observables=COARSE_CONCURRENCE_NAMES,
+        observables=SCAN_OBSERVABLE_NAMES,
         lepton_name=LEPTON_NAME,
     )
     return {
@@ -439,7 +441,7 @@ def _write_polarization_plot(rows, prefix, spin_label, lepton_name, plot_dir):
     output_prefix = explicit_polarization_name(prefix, lepton_name)
     path = plot_dir / f"phase_space_scan_{output_prefix}.pdf"
     with PdfPages(path) as pdf:
-        for observable in COARSE_CONCURRENCE_NAMES:
+        for observable in SCAN_OBSERVABLE_NAMES:
             key = f"{prefix}_{observable}"
             values = np.asarray(
                 [float(row.get(key, np.nan)) for row in rows],
@@ -452,6 +454,12 @@ def _write_polarization_plot(rows, prefix, spin_label, lepton_name, plot_dir):
             signed = observable in SIGNED_CONCURRENCE_OBSERVABLES
             if observable == "D_W":
                 vmin, vmax, cmap = 0.0, 2.0 / np.sqrt(3.0), "viridis_r"
+            elif observable == "M2_magic":
+                vmin, vmax, cmap = (
+                    -3.0 * np.log(2.0),
+                    3.0 * np.log(2.0),
+                    "coolwarm",
+                )
             else:
                 vmin, vmax = (-1.0, 1.0) if signed else (0.0, 1.0)
                 cmap = "coolwarm" if signed else "viridis"
@@ -479,9 +487,19 @@ def _write_polarization_plot(rows, prefix, spin_label, lepton_name, plot_dir):
             fig.colorbar(
                 image, ax=axes.ravel()[:3].tolist(), label=observable_label
             )
-            best_index = np.nanargmin(values) if observable_is_minimized(observable) else np.nanargmax(values)
+            finite_indices = np.flatnonzero(finite)
+            objective_values = np.asarray([
+                observable_rank_value(value, observable)
+                for value in finite_values
+            ])
+            local_best = (
+                np.argmin(objective_values)
+                if observable_is_minimized(observable)
+                else np.argmax(objective_values)
+            )
+            best_index = int(finite_indices[local_best])
             best = rows[int(best_index)]
-            direction = "min" if observable_is_minimized(observable) else "max"
+            direction = observable_optimum_label(observable)
             fig.suptitle(
                 f"Phase-space scan: {species_spin_label(spin_label, lepton_name)} "
                 f"[{output_prefix}], {direction} {observable_label}={float(best[key]):.5g}"
@@ -564,7 +582,7 @@ def build_report(
         f"  phase-space valid samples: {phase_space_valid}/{PHASE_SPACE_SAMPLES}",
         "  observables: " + ", ".join(
             observable_text_label(name, LEPTON_NAME)
-            for name in COARSE_CONCURRENCE_NAMES
+            for name in SCAN_OBSERVABLE_NAMES
         ),
         f"  polarization cases: {len(ALIGNMENT_SPIN_CASES)}",
         f"  AlignmentScan seed samples: {seed_valid}/{ALIGNMENT_SEED_CENTERS}",
@@ -572,7 +590,7 @@ def build_report(
         f"  total valid samples: {len(rows)}",
         "  best points by observable and polarization:",
     ]
-    for observable in COARSE_CONCURRENCE_NAMES:
+    for observable in SCAN_OBSERVABLE_NAMES:
         lines.append(f"  {observable_text_label(observable, LEPTON_NAME)}:")
         for prefix, label, _spin_case in ALIGNMENT_SPIN_CASES:
             key = f"{prefix}_{observable}"
@@ -580,7 +598,10 @@ def build_report(
             if not finite_rows:
                 continue
             selector = min if observable_is_minimized(observable) else max
-            best = selector(finite_rows, key=lambda row: float(row[key]))
+            best = selector(
+                finite_rows,
+                key=lambda row: observable_rank_value(row[key], observable),
+            )
             output_prefix = explicit_polarization_name(prefix, LEPTON_NAME)
             lines.append(
                 f"    {species_spin_label(label, LEPTON_NAME)} [{output_prefix}]: "
