@@ -1,9 +1,11 @@
 """Generate configuration packages from :mod:`EpCMEntanglementScan` results.
 
 For each selected observable and incoming polarization, the generator finds
-separated optimum regions in the ``(z, theta_cm)`` scan.  It reconstructs the
-exact ep-CM momenta and writes representative configurations, momentum tables,
-ensemble-aware final-helicity amplitude decompositions, and region heatmaps.
+separated optimum regions in the kinematic scan.  For the coherent
+polarization case the selection additionally spans ``theta_e`` and ``theta_p``.
+It reconstructs the exact ep-CM momenta and writes representative
+configurations, momentum tables, ensemble-aware final-helicity amplitude
+decompositions, and region heatmaps.
 """
 
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
@@ -19,10 +21,17 @@ from AlignmentScan import (
     species_observable_name,
 )
 from EpCMEntanglementScan import (
-    EP_CM_SPIN_CASES,
+    EP_CM_FIXED_SPIN_CASES,
     FULL_CSV as SCAN_CSV,
+    LEPTON_NAME,
     LEPTON_MASS_GEV,
+    MIXING_SCAN_CSV,
+    SPIN_CASE_MIXING_ANGLES,
+    THETA_E_MIX_VALUES_RAD,
+    THETA_P_MIX_VALUES_RAD,
     ep_cm_momenta,
+    ep_cm_spin_case_display_label,
+    mixed_angle_final_state,
 )
 from FormFactors import yahl_dirac_pauli_from_t
 from PlotUtils import print_console_text, require_matplotlib
@@ -32,9 +41,12 @@ from SpinDensityMat import (
     final_state_ensemble,
     outgoing_spin_states,
     process_density_matrix_from_amplitudes,
-    spin_case_display_label,
 )
-from config import PROTON_MASS_GEV, SCAN_WORKERS
+from config import (
+    PROTON_MASS_GEV,
+    SCAN_INITIAL_MIXING_ANGLES,
+    SCAN_WORKERS,
+)
 
 
 # Editable configuration-selection controls.
@@ -65,22 +77,29 @@ OUTPUT_DIR = Path("Output") / "EpCMConfigGen"
 DATA_DIR = OUTPUT_DIR / "Data"
 PLOT_DIR = OUTPUT_DIR / "Plots"
 LOG_PATH = OUTPUT_DIR / "EpCMConfigGen.log"
+ACTIVE_SPIN_CASES = (
+    (SPIN_CASE_MIXING_ANGLES,)
+    if SCAN_INITIAL_MIXING_ANGLES
+    else EP_CM_FIXED_SPIN_CASES
+)
 
 
 def polarization_prefix(spin_case):
-    """Return the exact heavy-lepton polarization label used by AlignmentScan."""
-    return explicit_polarization_name(spin_case, "heavy")
+    """Return the exact species-aware polarization label."""
+    if spin_case == SPIN_CASE_MIXING_ANGLES:
+        return f"lepton_{LEPTON_NAME}_theta_mix_proton_theta_p_mix"
+    return explicit_polarization_name(spin_case, LEPTON_NAME)
 
 
 def observable_column(spin_case, observable):
     """Return the focused scan's AlignmentScan-compatible observable column."""
     return (
         f"{polarization_prefix(spin_case)}_"
-        f"{species_observable_name(observable, 'heavy')}"
+        f"{species_observable_name(observable, LEPTON_NAME)}"
     )
 
 
-def read_scan_rows(path=SCAN_CSV):
+def read_scan_rows(path=SCAN_CSV, spin_cases=EP_CM_FIXED_SPIN_CASES):
     """Read and numerically parse the focused ep-CM scan."""
     path = Path(path)
     if not path.exists():
@@ -93,9 +112,13 @@ def read_scan_rows(path=SCAN_CSV):
         raise ValueError(f"Focused scan CSV is empty: {path}")
     required = {
         observable_column(spin_case, observable)
-        for spin_case in EP_CM_SPIN_CASES
+        for spin_case in spin_cases
         for observable, _tag, _minimized in CONFIG_TARGETS
     }
+    required.update({
+        "initial_theta_rad",
+        "initial_theta_p_rad",
+    })
     missing = sorted(required - set(rows[0]))
     if missing:
         preview = ", ".join(missing[:3])
@@ -117,6 +140,19 @@ def read_scan_rows(path=SCAN_CSV):
     return numeric_rows
 
 
+def read_mixing_scan_rows(path=MIXING_SCAN_CSV):
+    """Read the coherent theta_e x theta_p polarization scan."""
+    rows = read_scan_rows(path, spin_cases=(SPIN_CASE_MIXING_ANGLES,))
+    required = {"theta_e_mix_index", "theta_p_mix_index"}
+    missing = sorted(required - set(rows[0]))
+    if missing:
+        raise ValueError(
+            "The mixing-angle scan CSV is missing angle-axis indices "
+            f"{missing}; rerun python3 EpCMEntanglementScan.py."
+        )
+    return rows
+
+
 def write_rows(path, rows):
     """Write a dictionary CSV, including an empty file for no records."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -129,7 +165,15 @@ def write_rows(path, rows):
     return path
 
 
-def normalized_distance(first, second, z_span, theta_span, theta_p_span):
+def normalized_distance(
+    first,
+    second,
+    z_span,
+    theta_span,
+    theta_p_span,
+    theta_e_span=None,
+    theta_p_mix_span=None,
+):
     """Return scan-coordinate distance normalized by the sampled ranges."""
     dz = (first["z"] - second["z"]) / max(z_span, 1.0e-15)
     dt = (
@@ -138,7 +182,18 @@ def normalized_distance(first, second, z_span, theta_span, theta_p_span):
     dtp = (
         first["theta_p_rad"] - second["theta_p_rad"]
     ) / max(theta_p_span, 1.0e-15)
-    return float(np.sqrt(dz**2 + dt**2 + dtp**2))
+    terms = [dz, dt, dtp]
+    if theta_e_span is not None:
+        terms.append(
+            (first["initial_theta_rad"] - second["initial_theta_rad"])
+            / max(theta_e_span, 1.0e-15)
+        )
+    if theta_p_mix_span is not None:
+        terms.append(
+            (first["initial_theta_p_rad"] - second["initial_theta_p_rad"])
+            / max(theta_p_mix_span, 1.0e-15)
+        )
+    return float(np.linalg.norm(terms))
 
 
 def select_regions(rows, key, minimized):
@@ -146,41 +201,43 @@ def select_regions(rows, key, minimized):
     finite = [row for row in rows if np.isfinite(float(row.get(key, np.nan)))]
     score = lambda row: abs(float(row[key]))
     finite.sort(key=score, reverse=not minimized)
-    point_map = {
-        (
-            int(row["z_index"]),
-            int(row["theta_index"]),
-            int(row["theta_p_index"]),
-        ): row
-        for row in finite
-    }
+    is_mixing_scan = bool(finite and "theta_e_mix_index" in finite[0])
     local_extrema = []
-    for (z_index, theta_index, theta_p_index), row in point_map.items():
-        neighbors = [
-            point_map.get((
-                z_index + dz,
-                theta_index + dt,
-                theta_p_index + dtp,
-            ))
-            for dz in (-1, 0, 1)
-            for dt in (-1, 0, 1)
-            for dtp in (-1, 0, 1)
-            if dz != 0 or dt != 0 or dtp != 0
-        ]
-        neighbor_scores = [score(item) for item in neighbors if item is not None]
-        if not neighbor_scores:
-            continue
-        value = score(row)
-        is_extremum = (
-            value <= min(neighbor_scores) if minimized
-            else value >= max(neighbor_scores)
-        )
-        is_strict = (
-            value < max(neighbor_scores) if minimized
-            else value > min(neighbor_scores)
-        )
-        if is_extremum and is_strict:
-            local_extrema.append(row)
+    if not is_mixing_scan:
+        point_map = {
+            (
+                int(row["z_index"]),
+                int(row["theta_index"]),
+                int(row["theta_p_index"]),
+            ): row
+            for row in finite
+        }
+        for (z_index, theta_index, theta_p_index), row in point_map.items():
+            neighbors = [
+                point_map.get((
+                    z_index + dz,
+                    theta_index + dt,
+                    theta_p_index + dtp,
+                ))
+                for dz in (-1, 0, 1)
+                for dt in (-1, 0, 1)
+                for dtp in (-1, 0, 1)
+                if dz != 0 or dt != 0 or dtp != 0
+            ]
+            neighbor_scores = [score(item) for item in neighbors if item is not None]
+            if not neighbor_scores:
+                continue
+            value = score(row)
+            is_extremum = (
+                value <= min(neighbor_scores) if minimized
+                else value >= max(neighbor_scores)
+            )
+            is_strict = (
+                value < max(neighbor_scores) if minimized
+                else value > min(neighbor_scores)
+            )
+            if is_extremum and is_strict:
+                local_extrema.append(row)
     local_extrema.sort(key=score, reverse=not minimized)
     seen = {id(row) for row in local_extrema}
     candidates = (
@@ -195,6 +252,14 @@ def select_regions(rows, key, minimized):
     z_span = float(np.ptp(z_values))
     theta_span = float(np.ptp(theta_values))
     theta_p_span = float(np.ptp(theta_p_values))
+    theta_e_span = (
+        float(np.ptp([row["initial_theta_rad"] for row in rows]))
+        if is_mixing_scan else None
+    )
+    theta_p_mix_span = (
+        float(np.ptp([row["initial_theta_p_rad"] for row in rows]))
+        if is_mixing_scan else None
+    )
     selected = []
     for row in candidates:
         if all(
@@ -204,6 +269,8 @@ def select_regions(rows, key, minimized):
                 z_span,
                 theta_span,
                 theta_p_span,
+                theta_e_span,
+                theta_p_mix_span,
             ) >= REGION_SEPARATION
             for other in selected
         ):
@@ -220,7 +287,7 @@ def configuration_record(row, spin_case, observable, region_index):
         "detail_id": f"{observable}_{spin_case}_region_{region_index}",
         "selected_observable": observable,
         "selected_spin_case": spin_case,
-        "selected_spin_label": spin_case_display_label(spin_case),
+        "selected_spin_label": ep_cm_spin_case_display_label(spin_case),
         "region": region_index,
         "selected_value": row[key],
         "selected_abs_value": abs(row[key]),
@@ -228,6 +295,16 @@ def configuration_record(row, spin_case, observable, region_index):
         "theta_cm_rad": row["theta_cm_rad"],
         "theta_p_rad": row["theta_p_rad"],
         "theta_p_deg": row["theta_p_deg"],
+        "initial_theta_rad": row["initial_theta_rad"],
+        "initial_theta_deg": row.get(
+            "initial_theta_deg",
+            np.degrees(row["initial_theta_rad"]),
+        ),
+        "initial_theta_p_rad": row["initial_theta_p_rad"],
+        "initial_theta_p_deg": row.get(
+            "initial_theta_p_deg",
+            np.degrees(row["initial_theta_p_rad"]),
+        ),
         "final_proton_momentum_GeV": row["final_proton_momentum_GeV"],
         "final_proton_energy_GeV": row["final_proton_energy_GeV"],
         "mu": row["mu"],
@@ -282,10 +359,14 @@ def explicit_initial_component(label):
     proton = pieces[1].removeprefix("proton ") if len(pieces) > 1 else "unknown"
     lepton_value = lepton.removeprefix("h=")
     proton_value = proton.removeprefix("h=")
+    if lepton_value.startswith("theta=") and proton_value.startswith("theta_p="):
+        initial_component = f"{lepton_value}, {proton_value}"
+    else:
+        initial_component = f"h_l={lepton_value}, h_p={proton_value}"
     return {
         "incoming_lepton_state": lepton_value,
         "incoming_proton_state": proton_value,
-        "initial_component": f"h_l={lepton_value}, h_p={proton_value}",
+        "initial_component": initial_component,
     }
 
 
@@ -304,18 +385,43 @@ def amplitude_records(config):
         F2,
         electron_mass=LEPTON_MASS_GEV,
     )
-    process_rho = process_density_matrix_from_amplitudes(amplitudes)
-    contracted = contract_initial_state(process_rho, config["selected_spin_case"])
-    total = float(np.real_if_close(np.trace(contracted), tol=1000).real)
+    if config["selected_spin_case"] == SPIN_CASE_MIXING_ANGLES:
+        state = mixed_angle_final_state(
+            amplitudes,
+            lepton_angle=config["initial_theta_rad"],
+            proton_angle=config["initial_theta_p_rad"],
+        )
+        total = float(np.vdot(state, state).real)
+        ensemble = [{
+            "weight": 1.0,
+            "label": (
+                f"electron theta={config['initial_theta_rad']:.16g}, "
+                f"proton theta_p={config['initial_theta_p_rad']:.16g}"
+            ),
+            "state": state,
+        }]
+    else:
+        process_rho = process_density_matrix_from_amplitudes(amplitudes)
+        contracted = contract_initial_state(
+            process_rho,
+            config["selected_spin_case"],
+        )
+        total = float(np.real_if_close(np.trace(contracted), tol=1000).real)
+        ensemble = final_state_ensemble(
+            amplitudes,
+            config["selected_spin_case"],
+        )
     if total <= 0.0 or not np.isfinite(total):
         raise ZeroDivisionError(f"Invalid amplitude norm for {config['detail_id']}.")
     records = []
-    ensemble = final_state_ensemble(amplitudes, config["selected_spin_case"])
     for component in ensemble:
         for out_index, (labels, amplitude) in enumerate(
             zip(outgoing_spin_states(), component["state"])
         ):
             weighted_abs2 = float(component["weight"] * abs(amplitude) ** 2)
+            normalized_amplitude = (
+                np.sqrt(component["weight"]) * amplitude / np.sqrt(total)
+            )
             h_out, s_out, photon_helicity = labels
             phase_rad = float(np.angle(amplitude))
             records.append({
@@ -326,9 +432,18 @@ def amplitude_records(config):
                 "h_l": h_out,
                 "h_p": s_out,
                 "h_gamma": photon_helicity,
+                "final_state_order": "p_gamma_l",
+                "final_state_ket": (
+                    f"|{'+' if s_out > 0 else '-'}"
+                    f"{'+' if photon_helicity > 0 else '-'}"
+                    f"{'+' if h_out > 0 else '-'}>"
+                ),
                 "amplitude_real": amplitude.real,
                 "amplitude_imag": amplitude.imag,
                 "amplitude_abs": abs(amplitude),
+                "normalized_amplitude_real": normalized_amplitude.real,
+                "normalized_amplitude_imag": normalized_amplitude.imag,
+                "normalized_amplitude_abs": abs(normalized_amplitude),
                 "amplitude_phase": phase_rad,
                 "amplitude_phase_rad": phase_rad,
                 "amplitude_phase_over_pi": phase_rad / np.pi,
@@ -376,7 +491,7 @@ def parallel_amplitude_records(configurations):
     return [record for result in results for record in result]
 
 
-def build_target(target, rows):
+def build_target(target, rows, mixing_rows):
     """Build combined and per-polarization CSV packages for one target."""
     observable, tag, minimized = target
     configurations = []
@@ -384,11 +499,16 @@ def build_target(target, rows):
     selected_by_spin = {}
     configs_by_spin = {}
     momenta_by_spin = {}
-    for spin_case in EP_CM_SPIN_CASES:
+    for spin_case in ACTIVE_SPIN_CASES:
+        case_rows = (
+            mixing_rows
+            if spin_case == SPIN_CASE_MIXING_ANGLES
+            else rows
+        )
         key = observable_column(spin_case, observable)
-        if key not in rows[0]:
+        if key not in case_rows[0]:
             raise KeyError(f"Missing required scan column {key!r}.")
-        selected = select_regions(rows, key, minimized)
+        selected = select_regions(case_rows, key, minimized)
         selected_by_spin[spin_case] = selected
         spin_configs = [
             configuration_record(row, spin_case, observable, region_index)
@@ -403,7 +523,7 @@ def build_target(target, rows):
         momenta.extend(spin_momenta)
 
     amplitudes = parallel_amplitude_records(configurations)
-    for spin_case in EP_CM_SPIN_CASES:
+    for spin_case in ACTIVE_SPIN_CASES:
         base = DATA_DIR / tag / polarization_prefix(spin_case)
         spin_amplitudes = [
             record for record in amplitudes
@@ -447,6 +567,25 @@ def scan_grid(rows, key, minimized):
             grid[index] = value
     order = np.argsort(recoil_values)
     return theta_values, recoil_values[order], grid[order, :]
+
+
+def polarization_angle_grid(rows, key, minimized):
+    """Return a theta_p x theta_e grid reduced over all kinematic axes."""
+    theta_e_values = np.unique([row["initial_theta_rad"] for row in rows])
+    theta_p_values = np.unique([row["initial_theta_p_rad"] for row in rows])
+    theta_e_index = {value: index for index, value in enumerate(theta_e_values)}
+    theta_p_index = {value: index for index, value in enumerate(theta_p_values)}
+    grid = np.full((len(theta_p_values), len(theta_e_values)), np.nan)
+    for row in rows:
+        index = (
+            theta_p_index[row["initial_theta_p_rad"]],
+            theta_e_index[row["initial_theta_rad"]],
+        )
+        value = abs(row[key])
+        current = grid[index]
+        if np.isnan(current) or (value < current if minimized else value > current):
+            grid[index] = value
+    return theta_e_values, theta_p_values, grid
 
 
 def target_plot_path(target, spin_case):
@@ -553,13 +692,19 @@ def plot_kinematic_text(ax, config):
         f"absolute value: {config['selected_abs_value']:.10g}",
         f"z = {config['z']:.10g}",
         f"theta_cm = {config['theta_cm_rad']:.10g} rad",
-        f"theta_p = {config['theta_p_rad']:.10g} rad",
+        f"theta_p(recoil) = {config['theta_p_rad']:.10g} rad",
         f"mu = {config['mu']:.10g}",
         f"sqrt(s) = {config['sqrt_s_GeV']:.10g} GeV",
         f"t = {config['t_GeV2']:.10g} GeV^2",
         f"W(q+l) = {config['subsystem_mass_GeV']:.10g} GeV",
         "",
     ]
+    if config["selected_spin_case"] == SPIN_CASE_MIXING_ANGLES:
+        lines[8:8] = [
+            f"theta_e(initial mix) = {config['initial_theta_rad']:.10g} rad",
+            f"theta_p(initial mix) = "
+            f"{config['initial_theta_p_rad']:.10g} rad",
+        ]
     labels = {
         "k": r"l ", "p": "P ", "kp": r"l'", "pp": "P'", "qout": "q_gamma",
     }
@@ -633,7 +778,12 @@ def plot_amplitude_components(ax, config, amplitudes):
     ax.grid(axis="y", alpha=0.25)
 
 
-def save_polarization_target_plot(package, rows, spin_case):
+def save_polarization_target_plot(
+    package,
+    rows,
+    spin_case,
+    mixing_grid_data=None,
+):
     """Write a scan page and detailed configuration pages for one case."""
     observable, tag, minimized = package["target"]
     output = target_plot_path(package["target"], spin_case)
@@ -641,32 +791,55 @@ def save_polarization_target_plot(package, rows, spin_case):
     plt, PdfPages = require_matplotlib()
     with PdfPages(output) as pdf:
         key = observable_column(spin_case, observable)
-        theta_values, recoil_values, grid = scan_grid(rows, key, minimized)
         fig, ax = plt.subplots(figsize=(8.2, 6.0), constrained_layout=True)
-        image = ax.pcolormesh(
-            theta_values, recoil_values, grid, shading="auto",
-            cmap="viridis_r" if minimized else "viridis",
-            vmin=0.0,
-        )
         selected = package["selected_by_spin"][spin_case]
-        for region, row in enumerate(selected, start=1):
-            ax.scatter(
-                row["theta_cm_rad"], row["final_proton_momentum_GeV"],
-                marker="o", s=90,
-                facecolors="none", edgecolors="red", linewidths=1.5,
+        if spin_case == SPIN_CASE_MIXING_ANGLES:
+            if mixing_grid_data is None:
+                raise ValueError("The mixing-angle plot requires a reduced grid.")
+            theta_e_values, theta_p_values, grid = mixing_grid_data
+            image = ax.pcolormesh(
+                theta_e_values,
+                theta_p_values,
+                grid,
+                shading="auto",
+                cmap="viridis_r" if minimized else "viridis",
+                vmin=0.0,
             )
-            ax.annotate(
-                str(region),
-                (row["theta_cm_rad"], row["final_proton_momentum_GeV"]),
-                color="red",
+            for region, row in enumerate(selected, start=1):
+                point = (row["initial_theta_rad"], row["initial_theta_p_rad"])
+                ax.scatter(
+                    *point, marker="o", s=90, facecolors="none",
+                    edgecolors="red", linewidths=1.5,
+                )
+                ax.annotate(str(region), point, color="red")
+            ax.set_xlabel(r"$\theta_e$ [rad]")
+            ax.set_ylabel(r"$\theta_p$ [rad]")
+            reduction_label = "optimized over all kinematic axes"
+        else:
+            theta_values, recoil_values, grid = scan_grid(rows, key, minimized)
+            image = ax.pcolormesh(
+                theta_values, recoil_values, grid, shading="auto",
+                cmap="viridis_r" if minimized else "viridis",
+                vmin=0.0,
             )
-        ax.axhline(1.0, color="white", linestyle="--", linewidth=0.8)
-        ax.set_xlabel(r"$\theta_{\gamma\ell}^{(q\ell\,\mathrm{CM})}$ [rad]")
-        ax.set_ylabel(r"$|\mathbf{p}'_p|$ [GeV]")
+            for region, row in enumerate(selected, start=1):
+                point = (
+                    row["theta_cm_rad"],
+                    row["final_proton_momentum_GeV"],
+                )
+                ax.scatter(
+                    *point, marker="o", s=90, facecolors="none",
+                    edgecolors="red", linewidths=1.5,
+                )
+                ax.annotate(str(region), point, color="red")
+            ax.axhline(1.0, color="white", linestyle="--", linewidth=0.8)
+            ax.set_xlabel(r"$\theta_{\gamma\ell}^{(q\ell\,\mathrm{CM})}$ [rad]")
+            ax.set_ylabel(r"$|\mathbf{p}'_p|$ [GeV]")
+            reduction_label = "optimized over proton recoil angle"
         ax.set_title(
-            f"|{species_observable_name(observable, 'heavy')}|: "
-            f"{spin_case_display_label(spin_case)}\n"
-            f"optimized over proton recoil angle; red circles = local "
+            f"|{species_observable_name(observable, LEPTON_NAME)}|: "
+            f"{ep_cm_spin_case_display_label(spin_case)}\n"
+            f"{reduction_label}; red circles = selected "
             f"{'minima' if minimized else 'maxima'}"
         )
         fig.colorbar(image, ax=ax, label=f"|{observable}|")
@@ -683,8 +856,9 @@ def save_polarization_target_plot(package, rows, spin_case):
             plot_kinematic_text(text_ax, config)
             plot_amplitude_components(amplitude_ax, config, package["amplitudes"])
             fig.suptitle(
-                f"Region {config['region']}: {spin_case_display_label(spin_case)}, "
-                f"|{species_observable_name(observable, 'heavy')}|"
+                f"Region {config['region']}: "
+                f"{ep_cm_spin_case_display_label(spin_case)}, "
+                f"|{species_observable_name(observable, LEPTON_NAME)}|"
             )
             pdf.savefig(fig)
             plt.close(fig)
@@ -692,13 +866,15 @@ def save_polarization_target_plot(package, rows, spin_case):
 
 
 _PLOT_WORKER_ROWS = None
+_PLOT_WORKER_MIXING_GRIDS = None
 _PLOT_WORKER_PACKAGES = None
 
 
-def _initialize_plot_worker(rows, packages):
+def _initialize_plot_worker(rows, mixing_grids, packages):
     """Load shared scan/package payloads once in each plotting process."""
-    global _PLOT_WORKER_ROWS, _PLOT_WORKER_PACKAGES
+    global _PLOT_WORKER_ROWS, _PLOT_WORKER_MIXING_GRIDS, _PLOT_WORKER_PACKAGES
     _PLOT_WORKER_ROWS = rows
+    _PLOT_WORKER_MIXING_GRIDS = mixing_grids
     _PLOT_WORKER_PACKAGES = {
         package["target"][0]: package for package in packages
     }
@@ -708,18 +884,33 @@ def _save_target_plot_worker(task):
     observable, spin_case = task
     package = _PLOT_WORKER_PACKAGES[observable]
     key = (observable, spin_case)
-    return key, save_polarization_target_plot(package, _PLOT_WORKER_ROWS, spin_case)
+    return key, save_polarization_target_plot(
+        package,
+        _PLOT_WORKER_ROWS,
+        spin_case,
+        _PLOT_WORKER_MIXING_GRIDS[observable],
+    )
 
 
-def save_target_plots(packages, rows):
+def save_target_plots(packages, rows, mixing_rows):
     """Save every target/polarization detail PDF in bounded processes."""
     package_by_observable = {
         package["target"][0]: package for package in packages
     }
+    mixing_grids = {
+        observable: polarization_angle_grid(
+            mixing_rows,
+            observable_column(SPIN_CASE_MIXING_ANGLES, observable),
+            minimized,
+        )
+        for observable, _tag, minimized in (
+            package["target"] for package in packages
+        )
+    }
     tasks = [
         (package["target"][0], spin_case)
         for package in packages
-        for spin_case in EP_CM_SPIN_CASES
+        for spin_case in ACTIVE_SPIN_CASES
     ]
     if (
         not CONFIGGEN_PLOT_WORKERS
@@ -728,7 +919,10 @@ def save_target_plots(packages, rows):
     ):
         return {
             (observable, spin_case): save_polarization_target_plot(
-                package_by_observable[observable], rows, spin_case
+                package_by_observable[observable],
+                rows,
+                spin_case,
+                mixing_grids[observable],
             )
             for observable, spin_case in tasks
         }
@@ -737,7 +931,7 @@ def save_target_plots(packages, rows):
         with ProcessPoolExecutor(
             max_workers=workers,
             initializer=_initialize_plot_worker,
-            initargs=(rows, packages),
+            initargs=(rows, mixing_grids, packages),
         ) as executor:
             return dict(executor.map(
                 _save_target_plot_worker,
@@ -747,7 +941,10 @@ def save_target_plots(packages, rows):
     except (OSError, PermissionError):
         return {
             (observable, spin_case): save_polarization_target_plot(
-                package_by_observable[observable], rows, spin_case
+                package_by_observable[observable],
+                rows,
+                spin_case,
+                mixing_grids[observable],
             )
             for observable, spin_case in tasks
         }
@@ -757,10 +954,15 @@ def build_report(packages, input_path):
     lines = [
         "Focused ep-CM configuration generator",
         f"  input: {input_path}",
+        f"  mixing-angle input: {MIXING_SCAN_CSV}",
         f"  output data: {DATA_DIR}",
         f"  output plots: {PLOT_DIR}",
         f"  regions per target/polarization: up to {MAX_REGIONS_PER_SPIN}",
         f"  minimum normalized region separation: {REGION_SEPARATION}",
+        f"  coherent theta_e scan: {len(THETA_E_MIX_VALUES_RAD)} points over "
+        f"{THETA_E_MIX_VALUES_RAD[0]:.8g}--{THETA_E_MIX_VALUES_RAD[-1]:.8g} rad",
+        f"  coherent theta_p scan: {len(THETA_P_MIX_VALUES_RAD)} points over "
+        f"{THETA_P_MIX_VALUES_RAD[0]:.8g}--{THETA_P_MIX_VALUES_RAD[-1]:.8g} rad",
         f"  parallel kinematic/amplitude workers: {CONFIGGEN_KINEMATIC_WORKERS}",
         f"  parallel PDF workers: {CONFIGGEN_PLOT_WORKERS}",
         "",
@@ -771,16 +973,26 @@ def build_report(packages, input_path):
             f"Target |{observable}| "
             f"({'local minimum' if minimized else 'local maximum'}):"
         )
-        for spin_case in EP_CM_SPIN_CASES:
+        for spin_case in ACTIVE_SPIN_CASES:
             selected = package["selected_by_spin"][spin_case]
-            values = ", ".join(
-                f"{row[observable_column(spin_case, observable)]:.6g} at "
-                f"(z={row['z']:.5g}, theta={row['theta_cm_rad']:.5g}, mu={row['mu']:.5g})"
-                for row in selected
-            )
-            lines.append(f"  {spin_case_display_label(spin_case)}: {values}")
+            if spin_case == SPIN_CASE_MIXING_ANGLES:
+                values = ", ".join(
+                    f"{row[observable_column(spin_case, observable)]:.6g} at "
+                    f"(theta_e={row['initial_theta_rad']:.5g}, "
+                    f"theta_p={row['initial_theta_p_rad']:.5g}, "
+                    f"z={row['z']:.5g}, theta_cm={row['theta_cm_rad']:.5g})"
+                    for row in selected
+                )
+            else:
+                values = ", ".join(
+                    f"{row[observable_column(spin_case, observable)]:.6g} at "
+                    f"(z={row['z']:.5g}, "
+                    f"theta={row['theta_cm_rad']:.5g}, mu={row['mu']:.5g})"
+                    for row in selected
+                )
+            lines.append(f"  {ep_cm_spin_case_display_label(spin_case)}: {values}")
         lines.append("  per-polarization PDFs:")
-        for spin_case in EP_CM_SPIN_CASES:
+        for spin_case in ACTIVE_SPIN_CASES:
             lines.append(f"    {spin_case}: {target_plot_path(package['target'], spin_case)}")
         lines.append("")
     return "\n".join(lines) + "\n"
@@ -797,17 +1009,25 @@ def validate_settings():
         )
     if TOP_CANDIDATES_PER_SPIN < 1 or MAX_REGIONS_PER_SPIN < 1:
         raise ValueError("Candidate and region counts must be positive.")
-    if not 0.0 < REGION_SEPARATION <= np.sqrt(2.0):
-        raise ValueError("REGION_SEPARATION must lie in (0, sqrt(2)].")
+    if not 0.0 < REGION_SEPARATION <= np.sqrt(5.0):
+        raise ValueError("REGION_SEPARATION must lie in (0, sqrt(5)].")
     if CONFIGGEN_KINEMATIC_WORKERS < 1 or CONFIGGEN_PLOT_WORKERS < 1:
         raise ValueError("Kinematic and plot worker counts must be positive.")
 
 
 def main():
     validate_settings()
-    rows = read_scan_rows(SCAN_CSV)
-    packages = [build_target(target, rows) for target in CONFIG_TARGETS]
-    save_target_plots(packages, rows)
+    if SCAN_INITIAL_MIXING_ANGLES:
+        rows = []
+        mixing_rows = read_mixing_scan_rows(MIXING_SCAN_CSV)
+    else:
+        rows = read_scan_rows(SCAN_CSV)
+        mixing_rows = []
+    packages = [
+        build_target(target, rows, mixing_rows)
+        for target in CONFIG_TARGETS
+    ]
+    save_target_plots(packages, rows, mixing_rows)
     report = build_report(packages, SCAN_CSV)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     LOG_PATH.write_text(report, encoding="utf-8")

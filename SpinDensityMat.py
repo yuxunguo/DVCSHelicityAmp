@@ -377,6 +377,61 @@ def amplitude_table(mom, m, F1, F2, electron_mass=0.0):
     )
 
 
+def mixing_angle_coefficients(angle_rad):
+    """Return coefficients for ``cos(theta)|+> + sin(theta)|->``."""
+    angle = float(angle_rad)
+    if not np.isfinite(angle):
+        raise ValueError("The polarization mixing angle must be finite.")
+    return {-1: np.sin(angle), +1: np.cos(angle)}
+
+
+def mixed_angle_final_state(amplitudes, lepton_angle, proton_angle):
+    """Contract the amplitude table with coherent lepton/proton angle states."""
+    amplitudes = np.asarray(amplitudes, dtype=complex)
+    if amplitudes.shape != (4, 8):
+        raise ValueError("The helicity-amplitude table must have shape (4, 8).")
+    lepton = mixing_angle_coefficients(lepton_angle)
+    proton = mixing_angle_coefficients(proton_angle)
+    state = np.zeros(8, dtype=complex)
+    for h_in, lepton_coefficient in lepton.items():
+        for s_in, proton_coefficient in proton.items():
+            incoming_index = initial_spin_states().index((h_in, s_in))
+            state += (
+                lepton_coefficient
+                * proton_coefficient
+                * amplitudes[incoming_index]
+            )
+    return state
+
+
+def mixed_angle_spin_density_observables(
+    amplitudes,
+    lepton_angle,
+    proton_angle,
+    normalize_trace=NORMALIZE_TRACE,
+):
+    """Return observables for a coherent two-angle incoming preparation."""
+    state = mixed_angle_final_state(amplitudes, lepton_angle, proton_angle)
+    spin_signal = float(np.vdot(state, state).real)
+    if not np.isfinite(spin_signal) or spin_signal <= 0.0:
+        raise ZeroDivisionError("The mixed-angle outgoing state has zero norm.")
+    squared_amplitude = float(np.sum(np.abs(amplitudes) ** 2) / 4.0)
+    unnormalized_rho = np.outer(state, state.conj())
+    state_rho = normalized_density_matrix(unnormalized_rho)
+    rho = state_rho if normalize_trace else unnormalized_rho
+    normalized_state = state / np.sqrt(spin_signal)
+    return {
+        "rho": rho,
+        "squared_amplitude": squared_amplitude,
+        "spin_signal": spin_signal,
+        "trace": trace_value(rho),
+        "cross_section_ratio": spin_signal / squared_amplitude,
+        "purity": float(np.trace(state_rho @ state_rho).real),
+        "M2_magic": second_stabilizer_renyi_entropy(state_rho),
+        "entanglement": entanglement_measures_from_state(normalized_state),
+    }
+
+
 def density_matrix_from_amplitudes(
     amplitudes,
     spin_case=SPIN_CASE_UNPOLARIZED,

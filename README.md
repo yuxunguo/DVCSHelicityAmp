@@ -14,6 +14,7 @@ Requirements:
 ```text
 numpy
 matplotlib
+scipy
 ```
 
 Run the main workflows from the repository root:
@@ -25,7 +26,8 @@ python3 AlignmentScan.py     # angular alignment and entanglement scan
 python3 ConfigGen.py         # selected configurations from AlignmentScan
 python3 PhaseSpaceScan.py    # adaptive all-observable/all-lepton phase-space scan
 python3 PhaseSpaceConfigScan.py  # ConfigGen packages from PhaseSpaceScan results
-python3 EpCMEntanglementScan.py   # slow-recoil-proton heavy-lepton scan
+python3 GradientPhaseSpaceScan.py # random-start local D_W minimization and configs
+python3 EpCMEntanglementScan.py   # reference-centered electron ep-CM scan
 python3 EpCMConfigGen.py          # config packages from the focused ep-CM scan
 python3 ProtonVirtualPhotonAmp.py # proton-current virtual-photon decomposition
 python3 QuasiRealComptonHelicity.py  # gamma* lepton CM helicity components
@@ -43,8 +45,9 @@ BHHelicityAmp.py      Bethe–Heitler amplitudes and benchmarks
 SpinDensityMat.py     Density matrices and entanglement observables
 AlignmentScan.py      Fine angular scan at characteristic kinematics
 ConfigGen.py          Ranked-region configuration and plot generator
-PhaseSpaceScan.py      Adaptive five-dimensional entanglement phase-space scan
+PhaseSpaceScan.py      Adaptive seven-dimensional kinematic/polarization scan
 PhaseSpaceConfigScan.py ConfigGen-style packages from PhaseSpaceScan results
+GradientPhaseSpaceScan.py Random-start gradient search for local D_W minima
 EpCMEntanglementScan.py Exact ep-CM scan with a slow final proton
 EpCMConfigGen.py      ConfigGen packages for the focused ep-CM scan
 ProtonVirtualPhotonAmp.py Proton helicity/current decomposition into T-/T+/L virtual photons
@@ -266,50 +269,112 @@ values are more W-like, so ranked CSVs, refinement seeds, and ConfigGen select
 the minima. The per-polarization PDFs include a reversed-color `D_W` heatmap,
 and ConfigGen writes the low-distance configuration package under `Data/dw/`.
 
-`PhaseSpaceScan.py` performs a stratified five-dimensional scan followed by local
-refinement around the best candidate for every AlignmentScan observable and
-polarization. It runs electron, muon, heavy-lepton, and massless-lepton
-species by default, and writes independent AlignmentScan-compatible full,
-aligned, ranked, and plotted results under `Output/PhaseSpaceScan/<lepton>/`.
+`PhaseSpaceScan.py` performs a stratified seven-dimensional scan over its five
+kinematic coordinates plus the coherent incoming angles `theta_e` and
+`theta_p`, followed by local kinematic refinement. The coherent state is
+`|e> = cos(theta_e)|+> + sin(theta_e)|->` and
+`|p> = cos(theta_p)|+> + sin(theta_p)|->`, with each angle covering `[0, pi)`.
+The original fixed-polarization results are preserved without duplication.
+The electron scan also contains an exact deterministic seed equivalent by
+spatial rotation to the reference point `pIn=0.130 GeV`, `pOut=0.028 GeV`,
+`theta_p'=3.429`, and `theta_gamma=1.298`, together with mixing angles
+`5.503 mod pi` and `3.056`.
+
+The script runs electron, muon, heavy-lepton, and massless-lepton species by
+default, and writes independent AlignmentScan-compatible full, aligned,
+ranked, and plotted fixed-polarization results under
+`Output/PhaseSpaceScan/<lepton>/`. Each species additionally receives
+`<stem>_mixing_angle_phase_space.csv`, `<stem>_mixing_angle_top.csv`, and
+`phase_space_scan_lepton_<species>_theta_mix_proton_theta_p_mix.pdf`. The
+mixed-angle PDF retains all three original kinematic projections and the
+observable histogram, then adds projections involving `theta_e` and
+`theta_p`.
+
+The central `SCAN_INITIAL_MIXING_ANGLES` option in `config.py` selects one
+mutually exclusive scan mode. When `True`, every sampled row contains the
+original five kinematic variables plus `theta_e` and `theta_p`, and only the
+coherent mixed-angle polarization is evaluated. When `False`, sampling returns
+to the original five-dimensional design and evaluates each established fixed
+polarization separately. The EpCM scan and `EpCMConfigGen.py` obey the same
+switch and only produce or consume the selected mode's files.
 Its plot filenames use the same explicit convention:
 `phase_space_scan_lepton_<species>_<polarization>_proton_<polarization>.pdf`.
 Point evaluations run in parallel. Edit `LEPTONS_TO_SCAN`,
-`PHASE_SPACE_SCAN_WORKERS`, sample counts, ranges, and output settings at the
-top of `PhaseSpaceScan.py`.
+`PHASE_SPACE_SCAN_WORKERS`, ranges, and output settings at the top of
+`PhaseSpaceScan.py`. Set the global and refinement point budgets with
+`PHASE_SPACE_SAMPLES` and `REFINEMENT_SAMPLES` in `config.py`.
 
-`PhaseSpaceConfigScan.py` consumes those full phase-space CSVs and applies the
-same clustering, reconstructed-momentum, helicity-amplitude decomposition, and
-per-polarization PDF workflow as `ConfigGen.py`. Because `PhaseSpaceScan` uses
-a continuous photon energy, its valid rows are divided into balanced low,
-middle, and high `E_gamma` bands before configuration selection. Outputs are
-written under `Output/PhaseSpaceConfigScan/<lepton>/`, with a combined report
-at `Output/PhaseSpaceConfigScan.log`.
+`PhaseSpaceConfigScan.py` consumes the PhaseSpaceScan CSV selected by the same
+central mode switch. In fixed mode it retains the ConfigGen per-polarization
+workflow. In mixing-angle mode it clusters in all seven variables, writes
+`theta_e` and `theta_p` into the configuration, momentum, and amplitude CSVs,
+and contracts each amplitude with the exact coherent incoming state. Its PDFs
+retain the original kinematic projections and add the two mixing-angle
+dimensions. Each PDF then appends the old ConfigGen-style momentum,
+four-vector, kinematic-summary, and final-state-amplitude page for every
+selected minimum/maximum. The central `PHASE_SPACE_CONFIG_STEP` setting in
+`config.py` limits both displayed and selectable points to an absolute
+distance no larger than `STEP` from each observable's scanned maximum (or its
+minimum for `D_W`); its default is `0.1`. Because `PhaseSpaceScan` uses a
+continuous photon energy, valid rows are divided into balanced low, middle,
+and high `E_gamma` bands before configuration selection. Outputs are written under
+`Output/PhaseSpaceConfigScan/<lepton>/`, with a combined report at
+`Output/PhaseSpaceConfigScan.log`.
 Because it inherits the same ConfigGen targets, it also writes maximum-magic
 packages under `Data/m2_magic/`.
 
-## Focused ep-CM slow-recoil-proton scan
+`GradientPhaseSpaceScan.py` provides a local-optimization alternative to the
+dense phase-space scan. It generates randomized Latin-hypercube starting
+points across the seven-dimensional coherent-state domain, runs bounded
+L-BFGS-B minimization of `D_W`, and then continues with a periodic-aware
+multiscale coordinate poll. The poll follows every improving neighbor and
+shrinks its mesh until no direction improves at the configured precision,
+including when L-BFGS-B stopped early on a branch-sensitive surface.
+For each species, all independent starts share one process pool controlled by
+`SCAN_WORKERS`; species and their configuration outputs remain sequential.
+The seven coordinates are `sqrt(s)`, `theta_in`, the physical `E_gamma`
+fraction, the incoming-lepton and photon azimuths, `theta_e`, and `theta_p`.
+This workflow requires `SCAN_INITIAL_MIXING_ANGLES = True`. Distinct local
+minima and an all-minima PDF are saved under
+`Output/GradientPhaseSpaceScan/<lepton>/`. Minima within
+`PHASE_SPACE_CONFIG_STEP` of the global minimum are identified in a second
+plot; only those points receive reconstructed configuration, momentum,
+coherent final-state amplitude CSVs, and PDF detail pages under
+`Output/GradientPhaseSpaceConfig/<lepton>/`. Configure the normalized gradient
+and local-verification resolution with `DW_GRADIENT_SCAN_PRECISION`; the other
+`DW_GRADIENT_*` settings control random starts, iterations, tolerance,
+basin separation, and the random seed. The `DW_LOCAL_SEARCH_*` settings control
+the initial polishing mesh, its reduction rate, maximum polls, exploratory
+direction pairs, and the independent objective-improvement tolerance.
 
-`EpCMEntanglementScan.py` targets the heavy-lepton region with incoming ep-CM
-momentum `p = 50 GeV` and a slow final proton after transferring most of its
-energy to the virtual photon. It constructs the final
-state by an exact two-body boost, rather than by using approximate massless
-four-vectors. The default
+## Reference-centered electron ep-CM scan
+
+`EpCMEntanglementScan.py` is centered on the electron W-state reference point
+with incoming ep-CM momentum `p = 0.130 GeV` and final-proton momentum
+`p' = 0.028 GeV`. It constructs the final state by an exact two-body boost,
+rather than by using approximate massless four-vectors. The default
 focused polarization set additionally includes direct proton preparations
 along `-Tx` and `-Ty`, with the incoming lepton averaged incoherently.
 It also includes the direct product preparations `L lepton + -Tx proton` and
 `L lepton + -Ty proton`.
+An additional `mixing_angles` case prepares both incoming particles
+coherently as
+`|p> = cos(theta_p)|+> + sin(theta_p)|->` and
+`|l> = cos(theta_e)|+> + sin(theta_e)|->`. The independent
+`THETA_E_MIX_VALUES_RAD` and `THETA_P_MIX_VALUES_RAD` axes cover one physical
+period `[0, pi)` and include the benchmark angles `5.503 mod pi` and `3.056`
+radians exactly. The scan stores them as `initial_theta_rad` and
+`initial_theta_p_rad`, so they cannot be confused with the final-proton recoil
+coordinate `theta_p_rad`.
 `EpCMConfigGen.py` generates the corresponding configuration CSVs and PDFs.
-The default grid samples the final-proton momentum logarithmically from
-`5 GeV` down to `0.05 GeV` at 13 points, equivalent to
-`z = 0.90--0.999`, and covers the complete final-state polar-angle range
-`theta_cm = 0--pi` in three-degree steps. The proton azimuth is fixed to zero
-to define the reference scattering plane, while its recoil polar angle spans
-`theta_p = 0--pi` in ten-degree steps. This
-high-transfer region is not labelled
-quasi-real: the CSV records the virtuality, final-proton energy, absolute
-energy loss, and energy-loss fraction. It writes a full CSV, per-observable
-rankings, heatmaps versus final-proton momentum reduced over `theta_p`, and an
-anchor-momentum report
+The default grid scans final-proton momentum from `0.036` down to `0.020 GeV`,
+including `0.028 GeV` exactly. The internal two-body angle scans
+`theta_cm = 1.30--1.55` and includes `1.4276943335`, which maps to the
+reference ep-CM photon angle `theta_gamma = 1.298`. The oriented recoil angle
+scans `3.30--3.56` and includes `theta_p' = 3.429` at input `phi_p' = 0`.
+The CSV records the virtuality, final-proton energy, absolute energy loss, and
+energy-loss fraction. It writes full CSVs, per-observable rankings, heatmaps,
+and an anchor-momentum report
 under:
 
 ```text
@@ -317,8 +382,13 @@ Output/EpCMEntanglementScan/
 ```
 
 The full CSV contains the same 13 entanglement/projection quantities and the
-same explicit heavy-lepton polarization/observable labels as `AlignmentScan`,
+same explicit electron polarization/observable labels as `AlignmentScan`,
 alongside `z`, `theta_cm`, `mu`, and slow-proton diagnostics.
+The legacy fixed-polarization results remain in
+`ep_cm_entanglement_scan.csv`. The coherent two-angle scan is written
+separately to `ep_cm_mixing_angle_scan.csv`, with its own ranked
+`ep_cm_mixing_angle_top.csv`, so fixed-polarization rows are not duplicated
+for every `(theta_e, theta_p)` pair.
 The per-polarization PDFs plot the absolute value of all 13 quantities; purity
 is retained only in the CSV as the mixed-state diagnostic used by
 `AlignmentScan`, not as an entanglement heatmap.
@@ -336,7 +406,8 @@ components. CSV versions of the configuration, momentum, and amplitude records
 are written alongside the marked region PDFs under
 `Output/EpCMConfigGen/`.
 The decomposition labels final helicities explicitly as `h_l`, `h_p`, and
-`h_gamma`. Momentum figures follow the AlignmentScan ConfigGen convention:
+`h_gamma`; it also writes `final_state_ket` in the user's `|p gamma l>`
+ordering. Momentum figures follow the AlignmentScan ConfigGen convention:
 incoming trajectories terminate at the interaction origin, lepton lines are
 dashed, the photon line is wavy, and particles are labelled
 `P`, `P'`, `l`, `l'`, and `q_gamma`.

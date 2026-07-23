@@ -486,7 +486,12 @@ def _evaluate_kinematic_sample(task):
         "aligned": angle_rad <= settings["angle_max_rad"],
         "squared_amplitude_M2": np.nan,
     }
-    for prefix, _label, _spin_case in ALIGNMENT_SPIN_CASES:
+    fixed_spin_cases = (
+        ()
+        if settings.get("skip_fixed_polarizations", False)
+        else ALIGNMENT_SPIN_CASES
+    )
+    for prefix, _label, _spin_case in fixed_spin_cases:
         row[f"{prefix}_trace"] = np.nan
         row[f"{prefix}_spin_signal_M2"] = np.nan
         row[f"{prefix}_cross_section_ratio"] = np.nan
@@ -515,7 +520,7 @@ def _evaluate_kinematic_sample(task):
     )
     process_rho = process_density_matrix_from_amplitudes(amplitudes)
     squared_amplitude = np.nan
-    for prefix, _label, spin_case in ALIGNMENT_SPIN_CASES:
+    for prefix, _label, spin_case in fixed_spin_cases:
         spin_data = spin_density_observables_from_amplitudes(
             amplitudes,
             spin_case=spin_case,
@@ -548,7 +553,10 @@ def _evaluate_kinematic_sample(task):
         row[f"{prefix}_W_purity"] = w_observables["W_fidelity"]
 
     row["squared_amplitude_M2"] = squared_amplitude
-    return {"ok": True, "row": row}
+    result = {"ok": True, "row": row}
+    if settings.get("return_amplitudes", False):
+        result["amplitudes"] = amplitudes
+    return result
 
 
 def _safe_evaluate_kinematic_sample(task):

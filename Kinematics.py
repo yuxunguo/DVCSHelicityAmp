@@ -169,12 +169,65 @@ def solve_pout_from_user_independent(
     low_value = _user_energy_residual_for_pout(
         low, sqrt_s, qOut, phiOut, m, electron_mass
     )
-    if low_value > tol:
-        raise ValueError(
-            "No physical pOut: photon energy is too large for this s and phiOut."
-        )
     if abs(low_value) <= tol:
         return 0.0
+
+    # For backward photon emission the energy residual can initially decrease,
+    # producing two positive roots even when its value at pOut=0 is positive.
+    # Locate the unique convex minimum and choose the first physical root.
+    if low_value > tol:
+        sine = np.sin(phiOut)
+
+        def derivative(momentum):
+            lepton_energy = np.sqrt(
+                momentum**2
+                + qOut**2
+                + 2.0 * momentum * qOut * sine
+                + electron_mass**2
+            )
+            return (
+                momentum / np.sqrt(momentum**2 + m**2)
+                + (momentum + qOut * sine) / lepton_energy
+            )
+
+        if derivative(0.0) >= 0.0:
+            raise ValueError(
+                "No physical pOut: photon energy is too large for this s and phiOut."
+            )
+        minimum_high = max(1.0, sqrt_s)
+        while derivative(minimum_high) <= 0.0:
+            minimum_high *= 2.0
+        minimum_low = 0.0
+        for _iteration in range(100):
+            midpoint = 0.5 * (minimum_low + minimum_high)
+            if derivative(midpoint) > 0.0:
+                minimum_high = midpoint
+            else:
+                minimum_low = midpoint
+        minimum = 0.5 * (minimum_low + minimum_high)
+        minimum_value = _user_energy_residual_for_pout(
+            minimum, sqrt_s, qOut, phiOut, m, electron_mass
+        )
+        if minimum_value > tol:
+            raise ValueError(
+                "No physical pOut: photon energy is too large for this s and phiOut."
+            )
+        if abs(minimum_value) <= tol:
+            return minimum
+        low, low_value = 0.0, low_value
+        high, high_value = minimum, minimum_value
+        for _iteration in range(100):
+            mid = 0.5 * (low + high)
+            mid_value = _user_energy_residual_for_pout(
+                mid, sqrt_s, qOut, phiOut, m, electron_mass
+            )
+            if abs(mid_value) <= tol:
+                return mid
+            if mid_value > 0.0:
+                low = mid
+            else:
+                high = mid
+        return 0.5 * (low + high)
 
     high = max(1.0, sqrt_s)
     high_value = _user_energy_residual_for_pout(
