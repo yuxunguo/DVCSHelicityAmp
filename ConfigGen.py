@@ -1108,17 +1108,22 @@ def _plot_vector_3d(ax, vector, label, color, line_scale):
 
 
 def plot_transverse_momenta(ax, kin, title="Transverse plane"):
-    """Draw styled transverse momentum vectors."""
+    """Draw transverse momenta with limits fitted to the current point."""
     momenta = kin["momenta"]
     transverse = np.asarray([momenta[name][1:3] for name in DISPLAY_MOMENTA])
-    line_scale = max(1.0, float(np.nanmax(np.abs(transverse))) * 1.20)
+    max_component = float(np.nanmax(np.abs(transverse)))
+    if not np.isfinite(max_component):
+        raise ValueError("Transverse momentum components must be finite.")
+    # Keep equal x/y units so vector directions are not distorted, but scale
+    # each configuration independently instead of imposing a +/-1 GeV floor.
+    line_scale = max(1.0e-9, max_component * 1.20)
     for name in DISPLAY_MOMENTA:
         _plot_vector_2d(ax, momenta[name], name, MOMENTUM_COLORS[name], line_scale)
     ax.set_xlim(-line_scale, line_scale)
     ax.set_ylim(-line_scale, line_scale)
     ax.axhline(0.0, color="0.82", linewidth=0.8)
     ax.axvline(0.0, color="0.82", linewidth=0.8)
-    ax.set_aspect("equal", adjustable="box")
+    ax.set_aspect(1.0, adjustable="box")
     ax.set_title(title)
     ax.set_xlabel(r"$p_x$ [GeV]")
     ax.set_ylabel(r"$p_y$ [GeV]")

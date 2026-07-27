@@ -10,8 +10,10 @@ and ``theta_p`` when reconstructing amplitudes.
 import csv
 import math
 from pathlib import Path
+import zlib
 
 import numpy as np
+from scipy.optimize import minimize
 
 import ConfigGen as config
 import config as scan_settings
@@ -21,6 +23,7 @@ from FormFactors import yahl_dirac_pauli_from_t
 from PlotUtils import print_console_text
 from SpinDensityMat import (
     amplitude_table,
+    entanglement_measures_from_state,
     mixed_angle_final_state,
     outgoing_spin_states,
 )
@@ -33,6 +36,14 @@ PHASE_SPACE_CONFIG_PLOT_WORKERS = max(1, min(SCAN_WORKERS, 24))
 ENERGY_BAND_QUANTILES = (1.0 / 3.0, 2.0 / 3.0)
 ENERGY_BAND_LABELS = ("low_Egamma", "mid_Egamma", "high_Egamma")
 PHASE_SPACE_CONFIG_TARGETS = config.CONFIG_TARGETS
+
+# Gradient-config W-orbit diagnostics.  A local-unitary search is attempted
+# only when both the W-concurrence distance and all CKW residuals pass these
+# explicit "small" thresholds.
+W_DW_SMALL_THRESHOLD = 5.0e-2
+W_MONOGAMY_SMALL_THRESHOLD = 1.0e-3
+W_LU_EQUIVALENCE_TOLERANCE = 1.0e-6
+W_LU_OPTIMIZATION_RESTARTS = 8
 
 PHASE_SPACE_OUTPUT_ROOT = Path("Output") / "PhaseSpaceScan"
 OUTPUT_ROOT = Path("Output") / "PhaseSpaceConfigScan"
@@ -439,6 +450,224 @@ def _mixing_amplitude_rows(detail_rows):
     return records
 
 
+def _normalized_mixed_final_state(row):
+    """Reconstruct and normalize one coherent outgoing three-qubit state."""
+    kin = config.kinematics_from_config_row(row)
+    F1, F2 = yahl_dirac_pauli_from_t(kin["t"], config.M)
+    amplitudes = amplitude_table(
+        kin["momenta"],
+        config.M,
+        F1,
+        F2,
+        electron_mass=kin["electron_mass"],
+    )
+    state = mixed_angle_final_state(
+        amplitudes,
+        config.parse_float(row["theta_e"]),
+        config.parse_float(row["theta_p"]),
+    )
+    norm = float(np.vdot(state, state).real)
+    if not np.isfinite(norm) or norm <= 0.0:
+        raise ZeroDivisionError(
+            f"Non-positive mixed-state norm for {row['detail_id']}."
+        )
+    return state / np.sqrt(norm)
+
+
+def _su2_zyz(angles):
+    """Return Rz(alpha) Ry(beta) Rz(gamma) in the (-,+) basis."""
+    alpha, beta, gamma = np.asarray(angles, dtype=float)
+    cos_half = np.cos(0.5 * beta)
+    sin_half = np.sin(0.5 * beta)
+    return np.asarray(
+        (
+            (
+                np.exp(-0.5j * (alpha + gamma)) * cos_half,
+                -np.exp(-0.5j * (alpha - gamma)) * sin_half,
+            ),
+            (
+                np.exp(+0.5j * (alpha - gamma)) * sin_half,
+                np.exp(+0.5j * (alpha + gamma)) * cos_half,
+            ),
+        ),
+        dtype=complex,
+    )
+
+
+def _su2_zyz_angles(rotation):
+    """Return standard Z-Y-Z Euler angles for an SU(2) matrix."""
+    rotation = np.asarray(rotation, dtype=complex)
+    cos_half = float(np.clip(abs(rotation[0, 0]), 0.0, 1.0))
+    sin_half = float(np.clip(abs(rotation[1, 0]), 0.0, 1.0))
+    beta = 2.0 * np.arctan2(sin_half, cos_half)
+    tolerance = 1.0e-12
+    if sin_half <= tolerance:
+        alpha = 0.0
+        gamma = -2.0 * np.angle(rotation[0, 0])
+    elif cos_half <= tolerance:
+        alpha = 2.0 * np.angle(rotation[1, 0])
+        gamma = 0.0
+    else:
+        phase_00 = np.angle(rotation[0, 0])
+        phase_10 = np.angle(rotation[1, 0])
+        alpha = phase_10 - phase_00
+        gamma = -phase_10 - phase_00
+
+    # Do not wrap alpha and gamma independently: shifting either by 2*pi can
+    # change the SU(2) matrix by its central minus sign.  The unwrapped values
+    # reconstruct the printed matrix exactly.
+    return float(alpha), float(beta), float(gamma)
+
+
+def _local_eigenbasis_rotations(state):
+    """Return local SU(2) bases aligned with the one-qubit density matrices."""
+    tensor = np.asarray(state, dtype=complex).reshape(2, 2, 2)
+    rotations = []
+    for axis in range(3):
+        matrix = np.moveaxis(tensor, axis, 0).reshape(2, -1)
+        rho = matrix @ matrix.conj().T
+        _eigenvalues, eigenvectors = np.linalg.eigh(rho)
+        # For canonical W, the high-population eigenvector is |-> and the
+        # low-population eigenvector is |+>.
+        rotation = np.vstack(
+            (eigenvectors[:, 1].conj(), eigenvectors[:, 0].conj())
+        )
+        determinant = (
+            rotation[0, 0] * rotation[1, 1]
+            - rotation[0, 1] * rotation[1, 0]
+        )
+        rotation /= np.sqrt(determinant)
+        rotations.append(rotation)
+    return tuple(rotations)
+
+
+def _canonical_w_state():
+    """Return (|+--> + |-+-> + |--+>)/sqrt(3) in project ordering."""
+    target = np.zeros(8, dtype=complex)
+    states = outgoing_spin_states()
+    for labels in ((+1, -1, -1), (-1, +1, -1), (-1, -1, +1)):
+        target[states.index(labels)] = 1.0 / np.sqrt(3.0)
+    return target
+
+
+def _search_w_local_unitaries(state, seed_label=""):
+    """Maximize W fidelity over U_l tensor U_p tensor U_gamma."""
+    state = np.asarray(state, dtype=complex)
+    state /= np.sqrt(float(np.vdot(state, state).real))
+    target = _canonical_w_state()
+    bases = _local_eigenbasis_rotations(state)
+
+    def rotations(parameters):
+        return tuple(
+            _su2_zyz(parameters[3 * index:3 * index + 3]) @ bases[index]
+            for index in range(3)
+        )
+
+    def objective(parameters):
+        local = rotations(parameters)
+        operator = np.kron(np.kron(local[0], local[1]), local[2])
+        overlap = np.vdot(target, operator @ state)
+        return -float(abs(overlap) ** 2)
+
+    seed = zlib.crc32(str(seed_label).encode("utf-8"))
+    rng = np.random.default_rng(seed)
+    starts = [np.zeros(9, dtype=float)]
+    starts.extend(
+        rng.uniform(-np.pi, np.pi, size=9)
+        for _ in range(max(0, W_LU_OPTIMIZATION_RESTARTS - 1))
+    )
+    bounds = [(-np.pi, np.pi)] * 9
+    best = None
+    for start in starts:
+        result = minimize(
+            objective,
+            start,
+            method="L-BFGS-B",
+            bounds=bounds,
+            options={"ftol": 1.0e-14, "gtol": 1.0e-10, "maxiter": 1000},
+        )
+        if best is None or result.fun < best.fun:
+            best = result
+    local = rotations(best.x)
+    fidelity = float(np.clip(-best.fun, 0.0, 1.0))
+    return {
+        "fidelity": fidelity,
+        "rotations": local,
+        "optimizer_success": bool(best.success),
+    }
+
+
+def _format_complex(value):
+    """Format one compact complex matrix element."""
+    return f"{value.real:+.3f}{value.imag:+.3f}i"
+
+
+def _format_local_rotation(label, rotation):
+    """Format a 2x2 local rotation on one monospace text line."""
+    return (
+        f"{label}=[[{_format_complex(rotation[0, 0])},"
+        f"{_format_complex(rotation[0, 1])}],"
+        f"[{_format_complex(rotation[1, 0])},"
+        f"{_format_complex(rotation[1, 1])}]]"
+    )
+
+
+def _gradient_w_diagnostic_lines(row):
+    """Calculate W diagnostics and, when appropriate, an LU rotation."""
+    if row.get("detail_source") != "random_start_gradient_search":
+        return []
+    state = _normalized_mixed_final_state(row)
+    measures = entanglement_measures_from_state(state)
+    d_w = float(measures["D_W"])
+    residuals = tuple(
+        float(measures[name]) for name in ("M_e", "M_p", "M_gamma")
+    )
+    d_w_small = d_w <= W_DW_SMALL_THRESHOLD
+    residuals_small = max(abs(value) for value in residuals) <= (
+        W_MONOGAMY_SMALL_THRESHOLD
+    )
+    lines = [
+        "",
+        (
+            f"W test: D_W={d_w:.3e} "
+            f"({'small' if d_w_small else 'not small'}, "
+            f"tol={W_DW_SMALL_THRESHOLD:.1e})"
+        ),
+        (
+            f"M_l={residuals[0]:.3e}, M_p={residuals[1]:.3e}, "
+            f"M_gamma={residuals[2]:.3e} "
+            f"({'all small' if residuals_small else 'not all small'}, "
+            f"tol={W_MONOGAMY_SMALL_THRESHOLD:.1e})"
+        ),
+    ]
+    if not (d_w_small and residuals_small):
+        lines.append("local-W rotation: not searched (smallness tests failed)")
+        return lines
+    result = _search_w_local_unitaries(state, row.get("detail_id", ""))
+    fidelity = result["fidelity"]
+    equivalent = 1.0 - fidelity <= W_LU_EQUIVALENCE_TOLERANCE
+    lines.append(
+        f"local-W search: F_LU={fidelity:.10f}, "
+        f"{'LU-equivalent' if equivalent else 'approximately W-like'} "
+        f"(1-F tol={W_LU_EQUIVALENCE_TOLERANCE:.1e})"
+    )
+    lines.append(
+        "rotations in (-,+) basis: "
+        "(U_l x U_p x U_gamma)|psi> -> |W>"
+    )
+    for label, rotation in zip(
+        ("U_l", "U_p", "U_gamma"), result["rotations"]
+    ):
+        lines.append(_format_local_rotation(label, rotation))
+        alpha, beta, gamma = _su2_zyz_angles(rotation)
+        lines.append(
+            f"  {label}=Rz(alpha)Ry(beta)Rz(gamma): "
+            f"(alpha,beta,gamma)=({alpha:+.6f},{beta:+.6f},"
+            f"{gamma:+.6f}) rad"
+        )
+    return lines
+
+
 def _plot_mixing_configuration_text(ax, row, kin):
     """Draw the old ConfigGen kinematic summary with coherent-angle metadata."""
     ax.axis("off")
@@ -448,6 +677,10 @@ def _plot_mixing_configuration_text(ax, row, kin):
         region_line += f"  final-pair delta_xy={pair_delta:.6g} rad"
     theta_e = config.parse_float(row["theta_e"])
     theta_p = config.parse_float(row["theta_p"])
+    lepton_plus = np.cos(theta_e)
+    lepton_minus = np.sin(theta_e)
+    proton_plus = np.cos(theta_p)
+    proton_minus = np.sin(theta_p)
     lines = [
         (
             f"{row['detail_id']}  {row['selected_observable_label']}="
@@ -456,13 +689,15 @@ def _plot_mixing_configuration_text(ax, row, kin):
         region_line,
         f"outgoing-state purity: {row['selected_purity']:.6g}",
         f"kinematic point: {row.get('kinematic_point', '')}",
+        f"lepton mixing angle: theta_e={theta_e:.8g} rad",
         (
             "incoming lepton: "
-            f"cos({theta_e:.8g})|+> + sin({theta_e:.8g})|->"
+            f"{lepton_plus:.6g}|+> {lepton_minus:+.6g}|->"
         ),
+        f"proton mixing angle: theta_p={theta_p:.8g} rad",
         (
             "incoming proton: "
-            f"cos({theta_p:.8g})|+> + sin({theta_p:.8g})|->"
+            f"{proton_plus:.6g}|+> {proton_minus:+.6g}|->"
         ),
         "",
         (
@@ -489,14 +724,15 @@ def _plot_mixing_configuration_text(ax, row, kin):
         config.format_vector_line(name, kin["momenta"][name])
         for name in config.DISPLAY_MOMENTA
     )
+    lines.extend(_gradient_w_diagnostic_lines(row))
     ax.text(
         0.0, 1.0, "\n".join(lines),
-        va="top", ha="left", family="monospace", fontsize=8.7,
+        va="top", ha="left", family="monospace", fontsize=10.2,
     )
 
 
 def _plot_mixing_amplitude_decomposition(ax, row):
-    """Draw leading coherent final-state components in |p gamma lepton> order."""
+    """Draw leading coherent final-state components by final helicity."""
     records = _mixing_amplitude_rows([row])
     if not records:
         ax.text(0.5, 0.5, "No retained amplitude components", ha="center")
@@ -504,8 +740,6 @@ def _plot_mixing_amplitude_decomposition(ax, row):
         return
     labels = [
         (
-            rf"$|p\,\gamma\,\ell\rangle={item['final_ket']}$"
-            "\n"
             rf"$(h_p,h_\gamma,h_\ell)="
             rf"({item['sOut']:+d},{item['lambda']:+d},{item['hOut']:+d})$"
         )
@@ -513,10 +747,6 @@ def _plot_mixing_amplitude_decomposition(ax, row):
     ]
     fractions = np.asarray(
         [config.parse_float(item["fraction"]) for item in records],
-        dtype=float,
-    )
-    phases = np.asarray(
-        [config.parse_float(item["amplitude_phase"]) for item in records],
         dtype=float,
     )
     y_pos = np.arange(len(records))
@@ -530,27 +760,32 @@ def _plot_mixing_amplitude_decomposition(ax, row):
         f"(N={len(records)}, retained={retained:.1%})"
     )
     ax.set_xlim(0.0, max(0.08, float(np.nanmax(fractions)) * 1.25))
-    for bar, item, phase in zip(bars, records, phases):
+    for bar, item in zip(bars, records):
+        real = config.parse_float(item["amplitude_real"])
+        imag = config.parse_float(item["amplitude_imag"])
         ax.text(
             bar.get_width(),
             bar.get_y() + 0.5 * bar.get_height(),
-            (
-                f"  phase={phase:.2f}, "
-                f"Re={config.parse_float(item['amplitude_real']):.2e}, "
-                f"Im={config.parse_float(item['amplitude_imag']):.2e}"
-            ),
+            f"  A={real:.2e}{imag:+.2e}i",
             va="center",
-            fontsize=8,
+            fontsize=9.5,
         )
-    ax.tick_params(axis="y", labelsize=8)
+    ax.tick_params(axis="both", labelsize=10)
+    ax.xaxis.label.set_size(11)
+    ax.title.set_size(12)
 
 
 def _save_mixing_detail_pages(pdf, plt, detail_rows):
     """Append the old momentum/text/amplitude page for every selected optimum."""
     for row in detail_rows:
         kin = config.kinematics_from_config_row(row)
-        fig = plt.figure(figsize=(13.2, 8.2), constrained_layout=True)
-        grid = fig.add_gridspec(2, 3, width_ratios=(1.05, 1.05, 1.25))
+        fig = plt.figure(figsize=(16.0, 11.5), constrained_layout=True)
+        grid = fig.add_gridspec(
+            2,
+            3,
+            width_ratios=(1.05, 1.05, 1.25),
+            height_ratios=(1.25, 1.0),
+        )
         config.plot_momentum_panels(fig, grid, kin)
         text_ax = fig.add_subplot(grid[0, 1:])
         _plot_mixing_configuration_text(text_ax, row, kin)

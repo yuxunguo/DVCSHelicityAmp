@@ -44,4 +44,4 @@ SCAN_INITIAL_MIXING_ANGLES = True
 
 # PhaseSpaceConfigScan keeps and displays points whose observable is no more
 # than this absolute distance from that observable's scanned minimum/maximum.
-PHASE_SPACE_CONFIG_STEP = 0.1
+PHASE_SPACE_CONFIG_STEP = 0.05

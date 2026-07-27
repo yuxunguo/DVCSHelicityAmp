@@ -43,6 +43,9 @@ from PlotUtils import print_console_text
 # Script controls.
 LEPTONS_TO_OPTIMIZE = ("electron", "muon", "heavy", "massless")
 GRADIENT_WORKERS = SCAN_WORKERS
+# Set True to rebuild the phase-space and configuration PDFs from each
+# species' existing local_minima.csv without rerunning the gradient search.
+REGENERATE_PLOTS_FROM_CSV = True
 OUTPUT_ROOT = Path("Output") / "GradientPhaseSpaceScan"
 CONFIG_OUTPUT_ROOT = Path("Output") / "GradientPhaseSpaceConfig"
 LOG_PATH = OUTPUT_ROOT / "GradientPhaseSpaceScan.log"
@@ -342,10 +345,42 @@ def _write_csv(path, rows):
     return path
 
 
+def _read_csv(path):
+    """Load a saved dictionary CSV and require at least one data row."""
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Cannot regenerate gradient plots; missing saved data: {path}"
+        )
+    with path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    if not rows:
+        raise ValueError(
+            f"Cannot regenerate gradient plots; {path} contains no data rows."
+        )
+    return rows
+
+
 def _d_w_values(rows, lepton_name):
     """Return the local-minimum D_W values in row order."""
     key = f"{config_scan.mixing_prefix(lepton_name)}_D_W"
     return np.asarray([float(row[key]) for row in rows], dtype=float)
+
+
+def _annotate_minimum_ids(ax, x, y, rows):
+    """Label phase-space points with their persistent local-minimum IDs."""
+    for x_value, y_value, row in zip(x, y, rows):
+        minimum_id = row.get("local_minimum_id")
+        if minimum_id is None:
+            continue
+        ax.annotate(
+            f"ID {minimum_id}",
+            (x_value, y_value),
+            xytext=(4, 4),
+            textcoords="offset points",
+            fontsize=8,
+            color="black",
+        )
 
 
 def _plot_all_local_minima(rows, lepton_name, path):
@@ -373,8 +408,10 @@ def _plot_all_local_minima(rows, lepton_name, path):
                 x[best_index], y[best_index], marker="*", s=180,
                 c="red", edgecolors="black", label="global minimum",
             )
-            ax.set_xlabel(x_label)
-            ax.set_ylabel(y_label)
+            _annotate_minimum_ids(ax, x, y, rows)
+            ax.set_xlabel(x_label, fontsize=11)
+            ax.set_ylabel(y_label, fontsize=11)
+            ax.tick_params(labelsize=10)
         axes[0, 0].legend()
         axes[2, 2].hist(values, bins=min(60, max(5, len(values))))
         axes[2, 2].axvline(
@@ -489,8 +526,10 @@ def _write_configuration_plot(
                 s=150, cmap=cmap, vmin=vmin, vmax=vmax,
                 edgecolors="black", label="configuration selected",
             )
-            ax.set_xlabel(x_label)
-            ax.set_ylabel(y_label)
+            _annotate_minimum_ids(ax, x, y, all_rows)
+            ax.set_xlabel(x_label, fontsize=11)
+            ax.set_ylabel(y_label, fontsize=11)
+            ax.tick_params(labelsize=10)
         axes[0, 0].legend()
         axes[2, 2].hist(
             values[~eligible],
@@ -662,6 +701,53 @@ def run_species(lepton_name, results=None):
     )
 
 
+def regenerate_species_plots(lepton_name):
+    """Rebuild one species' PDFs from its saved local-minimum CSV."""
+    species_dir = OUTPUT_ROOT / lepton_name
+    minima_path = species_dir / "local_minima.csv"
+    minimum_rows = _read_csv(minima_path)
+    minimum_rows, selected_rows, optimum = _mark_configuration_minima(
+        minimum_rows, lepton_name
+    )
+    minima_plot = _plot_all_local_minima(
+        minimum_rows,
+        lepton_name,
+        species_dir / "all_local_minima.pdf",
+    )
+    config_gen.configure_lepton(
+        lepton_name,
+        input_path=minima_path,
+        output_root=CONFIG_OUTPUT_ROOT,
+    )
+    detail_rows = _configuration_rows(selected_rows, lepton_name)
+    config_plot = (
+        config_gen.OUTPUT_DIR
+        / config_scan.mixing_prefix(lepton_name)
+        / "dw_gradient_local_minima.pdf"
+    )
+    _write_configuration_plot(
+        minimum_rows,
+        detail_rows,
+        lepton_name,
+        optimum,
+        config_plot,
+    )
+    return "\n".join(
+        (
+            f"Regenerated gradient D_W plots ({lepton_name})",
+            f"  source data: {minima_path}",
+            f"  local minima loaded: {len(minimum_rows)}",
+            (
+                f"  minima within STEP={PHASE_SPACE_CONFIG_STEP:g}: "
+                f"{len(selected_rows)}/{len(minimum_rows)}"
+            ),
+            f"  all-local-minima plot: {minima_plot}",
+            f"  configuration PDF: {config_plot}",
+            "  gradient optimization was not rerun",
+        )
+    )
+
+
 def validate_settings():
     """Validate controls before starting expensive optimization work."""
     if not SCAN_INITIAL_MIXING_ANGLES:
@@ -722,11 +808,17 @@ def validate_settings():
 
 def main():
     """Optimize D_W and generate local-minimum configurations."""
-    validate_settings()
-    reports = [
-        run_species(lepton_name)
-        for lepton_name in LEPTONS_TO_OPTIMIZE
-    ]
+    if REGENERATE_PLOTS_FROM_CSV:
+        reports = [
+            regenerate_species_plots(lepton_name)
+            for lepton_name in LEPTONS_TO_OPTIMIZE
+        ]
+    else:
+        validate_settings()
+        reports = [
+            run_species(lepton_name)
+            for lepton_name in LEPTONS_TO_OPTIMIZE
+        ]
     report = "\n\n".join(reports) + "\n"
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     LOG_PATH.write_text(report, encoding="utf-8")

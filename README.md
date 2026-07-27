@@ -346,6 +346,15 @@ and local-verification resolution with `DW_GRADIENT_SCAN_PRECISION`; the other
 basin separation, and the random seed. The `DW_LOCAL_SEARCH_*` settings control
 the initial polishing mesh, its reduction rate, maximum polls, exploratory
 direction pairs, and the independent objective-improvement tolerance.
+Set `REGENERATE_PLOTS_FROM_CSV = True` in `GradientPhaseSpaceScan.py` to
+rebuild both gradient PDFs from the existing per-species `local_minima.csv`
+files without rerunning the optimization.
+Each selected gradient configuration page also recalculates the three CKW
+residuals `M_l`, `M_p`, and `M_gamma`. When both `D_W` and all residuals pass
+the `W_DW_SMALL_THRESHOLD` and `W_MONOGAMY_SMALL_THRESHOLD` controls in
+`PhaseSpaceConfigScan.py`, a deterministic multistart search maximizes the
+fidelity with canonical W over three local SU(2) rotations. The page reports
+the optimized fidelity and the three rotation matrices in the `(-,+)` basis.
 
 ## Reference-centered electron ep-CM scan
 
