@@ -62,6 +62,12 @@ The editable `theta_p_values` and `z_values` grids generate
 normalized-magnitude and phase curves as functions of `theta_p` and `z`,
 together with separate scan CSVs. Both scans also store and plot
 `R_L/T = |A_L|^2 / (|A_T-|^2 + |A_T+|^2)` for each proton-helicity transition.
+Its default point is the ep-CM W-state benchmark
+`|p|=0.194 GeV`, `|p'|=0.165 GeV`, and `theta_gamma=3.032`, with exact
+energy conservation fixing `E_gamma`. It additionally writes the raw
+`6 x 2` proton-emission matrix and the coherently prepared
+`(p', gamma*)` amplitudes to `epcm_w_proton_emission_matrix.csv` and
+`epcm_w_prepared_intermediate_state.csv`.
 QuasiRealComptonHelicity.py Off-shell gamma* lepton Compton helicity analysis
 FixedHelicityTest.py  Small editable fixed-helicity example
 Mathematica/          Wolfram Language implementation and benchmarks
@@ -465,16 +471,27 @@ The amplitudes omit the overall QED factor `e^2`. Longitudinal results are
 reported as spacelike polarization-basis responses, not as probabilities for
 an asymptotic photon.
 
+The script also evaluates the exact ep-CM W-state event shared with
+`ProtonVirtualPhotonAmp.py`. It writes the `4 x 6` Compton matrix, the
+factorized `8 x 4` Bethe--Heitler matrix, and the normalized three-particle
+state to `epcm_w_compton_matrix.csv`, `epcm_w_full_scattering_matrix.csv`, and
+`epcm_w_final_state.csv`. The factorization
+`M = (I_p x C)(I_p x G x I_e)(H x I_e)` is checked entry by entry against the
+direct Bethe--Heitler amplitude table. The final-state CSV contains both the
+complete result and the two-branch approximation that retains only
+`|p'(+1) L>` and `|p'(-1) T->`.
+
 The default Compton setup uses `sqrt(s_gamma_l) = 80 GeV`, corresponding to a
-nominal 40 GeV per incoming particle, and evaluates `Q2 = 1, 10, 100 GeV^2`.
+nominal 40 GeV per incoming particle, and evaluates `Q2 = 1, 10, 40 GeV^2`.
 Exact CM kinematics give slightly unequal photon and massive-lepton energies.
 
-`FIXED_INCOMING_LEPTON_HELICITY` defaults to `+1`. A dedicated filtered CSV
-and PDF compare the four final `(h_l_out, h_gamma_out)` channels separately
-for each incoming virtual-photon polarization across `theta_cm`. This includes
-the coherent transverse sum at amplitude level, so its plots retain the
-interference between the `+1` and `-1` components. The CSV also ranks the four
-final channels and records their fractions within each initial state.
+`FIXED_INCOMING_LEPTON_HELICITY` defaults to `+1`. The comparison PDF uses
+columns `T-`, `T+`, and `L`; its first row uses the fixed `+1` lepton and its
+second row uses the coherent transverse lepton
+`(|+> + |->)/sqrt(2)`. The coherent transverse-photon sum remains available
+in the component and response CSVs but is excluded from both plot products.
+The transverse-lepton amplitudes are written separately to
+`compton_transverse_initial_lepton_components.csv`.
 
 ## Prepared-spin example
 

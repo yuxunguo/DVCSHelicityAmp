@@ -27,7 +27,7 @@ from BHHelicityAmp import proton_current_helicity_decomposition
 from EpCMEntanglementScan import BEAM_MOMENTUM_GEV
 from FormFactors import YAHL_MODEL_NAME, yahl_dirac_pauli_from_t
 from PlotUtils import print_console_text, require_matplotlib
-from config import PROTON_MASS_GEV
+from config import ELECTRON_MASS_GEV, PROTON_MASS_GEV
 
 
 OUTPUT_DIR = Path("Output") / "ProtonVirtualPhotonAmp"
@@ -37,6 +37,19 @@ THETA_SCAN_CSV = OUTPUT_DIR / "proton_virtual_photon_theta_scan.csv"
 Z_SCAN_CSV = OUTPUT_DIR / "proton_virtual_photon_z_scan.csv"
 PLOT_PATH = OUTPUT_DIR / "proton_virtual_photon_amplitude_decomposition.pdf"
 LOG_PATH = Path("Output") / "ProtonVirtualPhotonAmp.log"
+EPCM_W_MATRIX_CSV = OUTPUT_DIR / "epcm_w_proton_emission_matrix.csv"
+EPCM_W_STATE_CSV = OUTPUT_DIR / "epcm_w_prepared_intermediate_state.csv"
+
+# ep-CM W-state benchmark.  The real-photon energy is fixed by exact
+# energy-momentum conservation in :func:`epcm_w_benchmark_momenta`.
+EPCM_W_PIN_GEV = 0.194
+EPCM_W_POUT_GEV = 0.165
+EPCM_W_THETA_GAMMA_RAD = 3.032
+EPCM_W_PHI_GAMMA_RAD = 0.0
+EPCM_W_PROTON_MIXING_ANGLE_RAD = -0.036
+EPCM_W_ELECTRON_MIXING_ANGLE_RAD = 0.834
+EPCM_W_HELICITY_ORDER = (+1, -1)
+EPCM_W_VIRTUAL_POLARIZATION_ORDER = ("T-", "T+", "L")
 
 
 def real_scalar(value, name, tolerance=1.0e-10):
@@ -110,6 +123,185 @@ def complex_fields(prefix, value):
         f"{prefix}_phase_over_pi": phase / np.pi,
         f"{prefix}_phase_deg": float(np.degrees(phase)),
     }
+
+
+def epcm_w_benchmark_momenta():
+    """Return the exact ep-CM four-vectors for the W-state benchmark."""
+    p_in = EPCM_W_PIN_GEV
+    p_out = EPCM_W_POUT_GEV
+    theta_gamma = EPCM_W_THETA_GAMMA_RAD
+    phi_gamma = EPCM_W_PHI_GAMMA_RAD
+    proton_energy = np.sqrt(p_in**2 + PROTON_MASS_GEV**2)
+    electron_energy = np.sqrt(p_in**2 + ELECTRON_MASS_GEV**2)
+    recoil_energy = np.sqrt(p_out**2 + PROTON_MASS_GEV**2)
+    available_energy = proton_energy + electron_energy - recoil_energy
+    photon_energy = (
+        available_energy**2 - p_out**2 - ELECTRON_MASS_GEV**2
+    ) / (
+        2.0 * (available_energy + p_out * np.cos(theta_gamma))
+    )
+    photon_direction = np.array((
+        np.sin(theta_gamma) * np.cos(phi_gamma),
+        np.sin(theta_gamma) * np.sin(phi_gamma),
+        np.cos(theta_gamma),
+    ))
+    p = np.array((proton_energy, 0.0, 0.0, p_in))
+    k = np.array((electron_energy, 0.0, 0.0, -p_in))
+    pp = np.array((recoil_energy, 0.0, 0.0, p_out))
+    qout = np.concatenate(([photon_energy], photon_energy * photon_direction))
+    kp = k + p - pp - qout
+    virtual_photon = p - pp
+    t = real_scalar(
+        mdot(virtual_photon, virtual_photon),
+        "ep-CM W-state momentum transfer",
+    )
+    residual = k + p - kp - pp - qout
+    shell_errors = (
+        abs(
+            real_scalar(mdot(kp, kp), "final-electron shell")
+            - ELECTRON_MASS_GEV**2
+        ),
+        abs(real_scalar(mdot(qout, qout), "real-photon shell")),
+    )
+    if np.max(np.abs(residual)) > 1.0e-12 or max(shell_errors) > 1.0e-10:
+        raise ValueError("The ep-CM W-state benchmark failed its kinematic checks.")
+    subsystem = k + virtual_photon
+    return {
+        "momenta": {"k": k, "p": p, "kp": kp, "pp": pp, "qout": qout},
+        "virtual_photon": virtual_photon,
+        "t": t,
+        "Q2": -t,
+        "sqrt_s": np.sqrt(real_scalar(mdot(k + p, k + p), "ep-CM s")),
+        "subsystem_mass": np.sqrt(
+            real_scalar(mdot(subsystem, subsystem), "gamma*-electron W^2")
+        ),
+        "photon_energy": float(photon_energy),
+        "z": (p_in - p_out) / p_in,
+    }
+
+
+def proton_emission_matrix(decomposition, polarizations):
+    """Return ``H[(sOut, gamma* polarization), sIn]`` for the W basis."""
+    matrix = np.zeros((6, 2), dtype=complex)
+    decomposition_order = tuple(decomposition["helicities"])
+    for out_index, s_out in enumerate(EPCM_W_HELICITY_ORDER):
+        source_out = decomposition_order.index(s_out)
+        for polarization_index, name in enumerate(
+            EPCM_W_VIRTUAL_POLARIZATION_ORDER
+        ):
+            row = 3 * out_index + polarization_index
+            for in_index, s_in in enumerate(EPCM_W_HELICITY_ORDER):
+                source_in = decomposition_order.index(s_in)
+                matrix[row, in_index] = contract_current(
+                    polarizations[name],
+                    decomposition["total"][source_out, source_in],
+                )
+    return matrix
+
+
+def epcm_w_proton_results():
+    """Return the proton-emission matrix and prepared intermediate amplitudes."""
+    kin = epcm_w_benchmark_momenta()
+    F1, F2 = yahl_dirac_pauli_from_t(kin["t"], PROTON_MASS_GEV)
+    decomposition = proton_current_helicity_decomposition(
+        kin["momenta"]["p"],
+        kin["momenta"]["pp"],
+        PROTON_MASS_GEV,
+        F1,
+        F2,
+    )
+    polarizations = virtual_photon_polarizations(kin["virtual_photon"])
+    matrix = proton_emission_matrix(decomposition, polarizations)
+    proton_state = np.array((
+        np.cos(EPCM_W_PROTON_MIXING_ANGLE_RAD),
+        np.sin(EPCM_W_PROTON_MIXING_ANGLE_RAD),
+    ))
+    prepared = (matrix @ proton_state).reshape(2, 3)
+    return {
+        "kinematics": kin,
+        "decomposition": decomposition,
+        "polarizations": polarizations,
+        "matrix": matrix,
+        "proton_state": proton_state,
+        "prepared": prepared,
+    }
+
+
+def epcm_w_proton_rows(results):
+    """Return CSV rows for the W-benchmark proton matrix and intermediate state."""
+    matrix_rows = []
+    state_rows = []
+    matrix = results["matrix"]
+    prepared = results["prepared"]
+    total = float(np.sum(np.abs(prepared) ** 2))
+    for out_index, s_out in enumerate(EPCM_W_HELICITY_ORDER):
+        for polarization_index, name in enumerate(
+            EPCM_W_VIRTUAL_POLARIZATION_ORDER
+        ):
+            row_index = 3 * out_index + polarization_index
+            for in_index, s_in in enumerate(EPCM_W_HELICITY_ORDER):
+                matrix_rows.append({
+                    "row_index": row_index,
+                    "column_index": in_index,
+                    "sOut": s_out,
+                    "virtual_photon_polarization": name,
+                    "sIn": s_in,
+                    **complex_fields("H", matrix[row_index, in_index]),
+                })
+            amplitude = prepared[out_index, polarization_index]
+            state_rows.append({
+                "row_index": row_index,
+                "sOut": s_out,
+                "virtual_photon_polarization": name,
+                "proton_mixing_angle_rad": EPCM_W_PROTON_MIXING_ANGLE_RAD,
+                "retained_for_two_branch_W": row_index in (2, 3),
+                **complex_fields("prepared_H", amplitude),
+                "prepared_abs2": float(abs(amplitude) ** 2),
+                "prepared_fraction": (
+                    float(abs(amplitude) ** 2 / total) if total > 0.0 else 0.0
+                ),
+            })
+    return matrix_rows, state_rows
+
+
+def epcm_w_proton_report(results):
+    """Return a compact report for the benchmark intermediate state."""
+    kin = results["kinematics"]
+    prepared = results["prepared"]
+    components = []
+    for out_index, s_out in enumerate(EPCM_W_HELICITY_ORDER):
+        for polarization_index, name in enumerate(
+            EPCM_W_VIRTUAL_POLARIZATION_ORDER
+        ):
+            components.append((
+                abs(prepared[out_index, polarization_index]),
+                s_out,
+                name,
+                prepared[out_index, polarization_index],
+            ))
+    components.sort(reverse=True, key=lambda item: item[0])
+    return "\n".join([
+        "",
+        "ep-CM W-state proton--virtual-photon benchmark",
+        f"  |p|={EPCM_W_PIN_GEV:.12g} GeV, |p'|={EPCM_W_POUT_GEV:.12g} GeV",
+        f"  theta_gamma={EPCM_W_THETA_GAMMA_RAD:.12g} rad",
+        f"  E_gamma={kin['photon_energy']:.12g} GeV",
+        f"  t={kin['t']:.12g} GeV^2, Q2={kin['Q2']:.12g} GeV^2",
+        f"  W(gamma* e)={kin['subsystem_mass']:.12g} GeV",
+        (
+            "  prepared proton: cos(-0.036)|+> + sin(-0.036)|-> = "
+            f"({results['proton_state'][0]:+.8g},"
+            f" {results['proton_state'][1]:+.8g})"
+        ),
+        "  prepared intermediate amplitudes H(sOut, gamma*):",
+        *[
+            f"    |p'({s_out:+d}) {name}>: "
+            f"{amplitude.real:+.9g}{amplitude.imag:+.9g}i"
+            for _, s_out, name, amplitude in components
+        ],
+        f"  matrix CSV: {EPCM_W_MATRIX_CSV}",
+        f"  prepared-state CSV: {EPCM_W_STATE_CSV}",
+    ]) + "\n"
 
 
 def current_component_rows(decomposition):
@@ -554,10 +746,10 @@ def build_report(
 
 def main():
     """Calculate one editable proton--virtual-photon decomposition."""
-    z = 0.90
-    theta_p = 0.01
+    z = (EPCM_W_PIN_GEV - EPCM_W_POUT_GEV) / EPCM_W_PIN_GEV
+    theta_p = 0.0
     phi_p = 0.0
-    beam_momentum = BEAM_MOMENTUM_GEV
+    beam_momentum = EPCM_W_PIN_GEV
     theta_p_values = np.linspace(0.0, 0.02, 101)
     z_values = np.linspace(0.01, 0.80, 101)
 
@@ -599,6 +791,10 @@ def main():
     )
     write_rows(THETA_SCAN_CSV, theta_rows)
     write_rows(Z_SCAN_CSV, z_rows)
+    epcm_results = epcm_w_proton_results()
+    epcm_matrix_rows, epcm_state_rows = epcm_w_proton_rows(epcm_results)
+    write_rows(EPCM_W_MATRIX_CSV, epcm_matrix_rows)
+    write_rows(EPCM_W_STATE_CSV, epcm_state_rows)
     save_plot(theta_rows, z_rows)
     report = build_report(
         kin,
@@ -606,6 +802,7 @@ def main():
         polarizations,
         amplitude_rows,
     )
+    report += epcm_w_proton_report(epcm_results)
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     LOG_PATH.write_text(report, encoding="utf-8")
     print_console_text(report)
