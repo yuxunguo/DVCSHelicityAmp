@@ -21,6 +21,11 @@ REFINEMENT_SAMPLES = 4096 * 2
 
 # Randomized stratified starts followed by gradient and multiscale local search.
 DW_GRADIENT_RANDOM_STARTS = 32
+# A larger low-discrepancy pool is evaluated cheaply before optimization.
+# The lowest spatially separated candidates become additional starts.
+DW_GRADIENT_SCREENING_SAMPLES = 4096
+DW_GRADIENT_SCREENED_STARTS = 32
+DW_GRADIENT_SCREENING_SEPARATION = 0.06
 DW_GRADIENT_MAX_ITERATIONS = 80
 DW_GRADIENT_TOLERANCE = 1.0e-7
 # Resolution in normalized scan coordinates. This controls both the numerical
@@ -39,9 +44,14 @@ DW_LOCAL_SEARCH_OBJECTIVE_TOLERANCE = 1.0e-10
 # True:  scan only the coherent
 #        cos(theta_e)|+> + sin(theta_e)|-> tensor
 #        cos(theta_p)|+> + sin(theta_p)|-> preparation.
-# False: scan only the established fixed polarization cases.
 SCAN_INITIAL_MIXING_ANGLES = True
 
 # PhaseSpaceConfigScan keeps and displays points whose observable is no more
-# than this absolute distance from that observable's scanned minimum/maximum.
-PHASE_SPACE_CONFIG_STEP = 0.05
+# than this absolute threshold from that observable's scanned minimum/maximum.
+PHASE_SPACE_CONFIG_THRESHOLD = 0.05
+
+# GradientPhaseSpaceScan samples this objective-level contour around every
+# selected local minimum in the full seven-dimensional phase space.
+PHASE_SPACE_CONFIG_CONTOUR_DELTA = 0.05
+# Total seven-dimensional radial directions sampled for each contour.
+PHASE_SPACE_CONFIG_CONTOUR_SAMPLES = 3 ** 7

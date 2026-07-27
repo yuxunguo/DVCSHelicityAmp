@@ -172,7 +172,7 @@ def validate_mixing_columns(rows, lepton_name):
 
 
 def _threshold_mask(values, observable):
-    """Select finite values within STEP of the requested minimum/maximum."""
+    """Select finite values within the threshold of the requested optimum."""
     values = np.asarray(values, dtype=float)
     finite = np.isfinite(values)
     if not np.any(finite):
@@ -182,12 +182,12 @@ def _threshold_mask(values, observable):
         if config.observable_is_minimized(observable)
         else float(np.max(values[finite]))
     )
-    tolerance = scan_settings.PHASE_SPACE_CONFIG_STEP
-    return finite & (np.abs(values - optimum) <= tolerance + 1.0e-12)
+    threshold = scan_settings.PHASE_SPACE_CONFIG_THRESHOLD
+    return finite & (np.abs(values - optimum) <= threshold + 1.0e-12)
 
 
 def _threshold_fixed_rows(rows):
-    """Mask fixed-polarization values farther than STEP from each optimum."""
+    """Mask fixed-polarization values farther than the threshold from optimum."""
     filtered = [dict(row) for row in rows]
     for observable, _file_tag in PHASE_SPACE_CONFIG_TARGETS:
         for key in config.target_columns(rows, observable):
@@ -851,7 +851,7 @@ def _write_mixing_target_plot(rows, detail_rows, lepton_name, observable, path):
         axes[2, 2].set_ylabel("samples")
         fig.suptitle(
             f"{lepton_name}: coherent mixing-angle configuration regions; "
-            f"within STEP={scan_settings.PHASE_SPACE_CONFIG_STEP:g} "
+            f"within Threshold={scan_settings.PHASE_SPACE_CONFIG_THRESHOLD:g} "
             f"of the {config.observable_optimum_word(observable)}"
         )
         if image is not None:
@@ -899,8 +899,9 @@ def run_mixing_species(lepton_name, rows, input_path, bands, prepared_path):
         f"  input: {input_path}",
         f"  rows: {len(rows)}",
         (
-            f"  displayed/eligible points: within STEP="
-            f"{scan_settings.PHASE_SPACE_CONFIG_STEP:g} of each target optimum"
+            f"  displayed/eligible points: within Threshold="
+            f"{scan_settings.PHASE_SPACE_CONFIG_THRESHOLD:g} "
+            f"of each target optimum"
         ),
         "  scan dimensions: s, theta_in, phi_in, qOut, phiOut, theta_e, theta_p",
         f"  polarization prefix: {mixing_prefix(lepton_name)}",
@@ -974,10 +975,12 @@ def validate_settings():
     if PHASE_SPACE_CONFIG_PLOT_WORKERS < 1:
         raise ValueError("PHASE_SPACE_CONFIG_PLOT_WORKERS must be positive.")
     if (
-        not np.isfinite(scan_settings.PHASE_SPACE_CONFIG_STEP)
-        or scan_settings.PHASE_SPACE_CONFIG_STEP < 0.0
+        not np.isfinite(scan_settings.PHASE_SPACE_CONFIG_THRESHOLD)
+        or scan_settings.PHASE_SPACE_CONFIG_THRESHOLD < 0.0
     ):
-        raise ValueError("PHASE_SPACE_CONFIG_STEP must be finite and non-negative.")
+        raise ValueError(
+            "PHASE_SPACE_CONFIG_THRESHOLD must be finite and non-negative."
+        )
     if len(ENERGY_BAND_QUANTILES) != 2:
         raise ValueError("ENERGY_BAND_QUANTILES must contain two boundaries.")
     if not 0.0 < ENERGY_BAND_QUANTILES[0] < ENERGY_BAND_QUANTILES[1] < 1.0:

@@ -312,10 +312,10 @@ and contracts each amplitude with the exact coherent incoming state. Its PDFs
 retain the original kinematic projections and add the two mixing-angle
 dimensions. Each PDF then appends the old ConfigGen-style momentum,
 four-vector, kinematic-summary, and final-state-amplitude page for every
-selected minimum/maximum. The central `PHASE_SPACE_CONFIG_STEP` setting in
-`config.py` limits both displayed and selectable points to an absolute
-distance no larger than `STEP` from each observable's scanned maximum (or its
-minimum for `D_W`); its default is `0.1`. Because `PhaseSpaceScan` uses a
+selected minimum/maximum. The central `PHASE_SPACE_CONFIG_THRESHOLD` setting
+in `config.py` limits both displayed and selectable points to an absolute
+distance no larger than the threshold from each observable's scanned maximum
+(or its minimum for `D_W`); its default is `0.05`. Because `PhaseSpaceScan` uses a
 continuous photon energy, valid rows are divided into balanced low, middle,
 and high `E_gamma` bands before configuration selection. Outputs are written under
 `Output/PhaseSpaceConfigScan/<lepton>/`, with a combined report at
@@ -324,12 +324,20 @@ Because it inherits the same ConfigGen targets, it also writes maximum-magic
 packages under `Data/m2_magic/`.
 
 `GradientPhaseSpaceScan.py` provides a local-optimization alternative to the
-dense phase-space scan. It generates randomized Latin-hypercube starting
-points across the seven-dimensional coherent-state domain, runs bounded
-L-BFGS-B minimization of `D_W`, and then continues with a periodic-aware
+dense phase-space scan. Its hybrid start design combines randomized
+Latin-hypercube points, low-`D_W` spatially separated candidates selected from
+a larger Sobol screening set, and deterministic physics anchors. Each start
+runs bounded L-BFGS-B minimization of `D_W` followed by a periodic-aware
 multiscale coordinate poll. The poll follows every improving neighbor and
 shrinks its mesh until no direction improves at the configured precision,
-including when L-BFGS-B stopped early on a branch-sensitive surface.
+including when L-BFGS-B stopped early on a branch-sensitive surface. The
+screening pool size, optimized screened-start count, and separation are set by
+`DW_GRADIENT_SCREENING_SAMPLES`, `DW_GRADIENT_SCREENED_STARTS`, and
+`DW_GRADIENT_SCREENING_SEPARATION` in `config.py`; `optimization_runs.csv`
+records the source and screening value of every start.
+The deterministic electron anchors currently include the ep-CM W-state point
+mapped into the gradient scan's user-frame coordinates, preventing its narrow
+high-photon-fraction basin from depending on a chance random start.
 For each species, all independent starts share one process pool controlled by
 `SCAN_WORKERS`; species and their configuration outputs remain sequential.
 The seven coordinates are `sqrt(s)`, `theta_in`, the physical `E_gamma`
@@ -337,7 +345,7 @@ fraction, the incoming-lepton and photon azimuths, `theta_e`, and `theta_p`.
 This workflow requires `SCAN_INITIAL_MIXING_ANGLES = True`. Distinct local
 minima and an all-minima PDF are saved under
 `Output/GradientPhaseSpaceScan/<lepton>/`. Minima within
-`PHASE_SPACE_CONFIG_STEP` of the global minimum are identified in a second
+`PHASE_SPACE_CONFIG_THRESHOLD` of the global minimum are identified in a second
 plot; only those points receive reconstructed configuration, momentum,
 coherent final-state amplitude CSVs, and PDF detail pages under
 `Output/GradientPhaseSpaceConfig/<lepton>/`. Configure the normalized gradient
@@ -346,6 +354,17 @@ and local-verification resolution with `DW_GRADIENT_SCAN_PRECISION`; the other
 basin separation, and the random seed. The `DW_LOCAL_SEARCH_*` settings control
 the initial polishing mesh, its reduction rate, maximum polls, exploratory
 direction pairs, and the independent objective-improvement tolerance.
+Each selected minimum receives a separate configuration page containing only
+that minimum and pairwise projections of its sampled seven-dimensional
+`D_W = D_W(local minimum) + PHASE_SPACE_CONFIG_CONTOUR_DELTA` hypersurface.
+The first configuration page summarizes every selected minimum and overlays
+all of their projected contours. Each selected minimum then has its
+configuration/momentum-amplitude page followed by its contour-projection page.
+The contour delta and number of sampled seven-dimensional radial directions
+are controlled by `PHASE_SPACE_CONFIG_CONTOUR_DELTA` and
+`PHASE_SPACE_CONFIG_CONTOUR_SAMPLES` in `config.py`. Every projection uses the
+full configured phase-space range; periodic contours are split at the physical
+plot boundary instead of drawing a false line across the panel.
 Set `REGENERATE_PLOTS_FROM_CSV = True` in `GradientPhaseSpaceScan.py` to
 rebuild both gradient PDFs from the existing per-species `local_minima.csv`
 files without rerunning the optimization.

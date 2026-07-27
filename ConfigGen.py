@@ -1130,10 +1130,15 @@ def plot_transverse_momenta(ax, kin, title="Transverse plane"):
 
 
 def plot_momentum_panels(fig, grid_spec, kin):
-    """Draw 3D and transverse-plane momentum panels."""
+    """Draw momentum panels with per-configuration, undistorted scaling."""
     momenta = kin["momenta"]
     vectors = np.asarray([momenta[name][1:4] for name in DISPLAY_MOMENTA])
-    line_scale = max(1.0, float(np.nanmax(np.abs(vectors))) * 1.15)
+    max_component = float(np.nanmax(np.abs(vectors)))
+    if not np.isfinite(max_component):
+        raise ValueError("Three-dimensional momentum components must be finite.")
+    # Fit the axes to the momentum scale of this configuration. Identical
+    # limits and a cubic plot box preserve a 1:1:1 x/y/z aspect ratio.
+    line_scale = max(1.0e-9, max_component * 1.15)
     ax3d = fig.add_subplot(grid_spec[0, 0], projection="3d")
     ax2d = fig.add_subplot(grid_spec[1, 0])
     for name in DISPLAY_MOMENTA:
@@ -1141,6 +1146,7 @@ def plot_momentum_panels(fig, grid_spec, kin):
     ax3d.set_xlim(-line_scale, line_scale)
     ax3d.set_ylim(-line_scale, line_scale)
     ax3d.set_zlim(-line_scale, line_scale)
+    ax3d.set_box_aspect((1.0, 1.0, 1.0))
     ax3d.set_title("3D momenta")
     ax3d.set_xlabel(r"$p_x$ [GeV]")
     ax3d.set_ylabel(r"$p_y$ [GeV]")
