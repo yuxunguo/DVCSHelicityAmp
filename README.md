@@ -27,6 +27,7 @@ python3 ConfigGen.py         # selected configurations from AlignmentScan
 python3 PhaseSpaceScan.py    # adaptive all-observable/all-lepton phase-space scan
 python3 PhaseSpaceConfigScan.py  # ConfigGen packages from PhaseSpaceScan results
 python3 GradientPhaseSpaceScan.py # random-start local D_W minimization and configs
+python3 GradientGHZPhaseSpaceScan.py # random-start local dGHZ minimization and configs
 python3 EpCMEntanglementScan.py   # reference-centered electron ep-CM scan
 python3 EpCMConfigGen.py          # config packages from the focused ep-CM scan
 python3 ProtonVirtualPhotonAmp.py # proton-current virtual-photon decomposition
@@ -40,7 +41,7 @@ Generated data, plots, and logs are written under `Output/`.
 ```text
 config.py             Shared masses, normalization, and worker settings
 Algebra.py            Dirac algebra, spinors, and photon polarizations
-Kinematics.py         User-frame momenta and kinematic checks
+Kinematics.py         Initial proton-lepton CM momenta and kinematic checks
 BHHelicityAmp.py      Bethe–Heitler amplitudes and benchmarks
 SpinDensityMat.py     Density matrices and entanglement observables
 AlignmentScan.py      Fine angular scan at characteristic kinematics
@@ -48,6 +49,7 @@ ConfigGen.py          Ranked-region configuration and plot generator
 PhaseSpaceScan.py      Adaptive seven-dimensional kinematic/polarization scan
 PhaseSpaceConfigScan.py ConfigGen-style packages from PhaseSpaceScan results
 GradientPhaseSpaceScan.py Random-start gradient search for local D_W minima
+GradientGHZPhaseSpaceScan.py Random-start gradient search for local dGHZ minima
 EpCMEntanglementScan.py Exact ep-CM scan with a slow final proton
 EpCMConfigGen.py      ConfigGen packages for the focused ep-CM scan
 ProtonVirtualPhotonAmp.py Proton helicity/current decomposition into T-/T+/L virtual photons
@@ -98,23 +100,25 @@ NORMALIZE_TRACE = True
 SCAN_WORKERS = ...
 ```
 
-AlignmentScan and ConfigGen use the physical electron mass. The reusable
-low-level amplitude and kinematic APIs retain `electron_mass=0.0` as their
-backward-compatible default.
+Every reusable amplitude and kinematic API requires an explicit lepton mass.
+Use `ELECTRON_MASS_GEV` for electrons or pass `0.0` deliberately for the
+massless approximation.
 
 ## Kinematics
 
-`Kinematics.py` uses a user-frame COM parameterization with independent
-variables
+`Kinematics.py` uses the initial proton--lepton CM frame. The incoming proton
+is fixed along `+z`, the incoming lepton along `-z`, and the independent
+variables are
 
 ```text
-s, theta_in, phi_in, qOut, phiOut
+s, qOut, theta_out, phi_p_out, phi_gamma_out
 ```
 
-Here `theta_in` and `phi_in` define the incoming proton direction, while the
-incoming electron points oppositely. `qOut` and `phiOut` specify the outgoing
-real photon. The code computes the incoming COM momentum `pIn` and solves the
-outgoing proton momentum `pOut` from energy conservation.
+The final proton and real photon share the production-plane polar angle
+`theta_out` and have separate azimuths `phi_p_out` and `phi_gamma_out`.
+The code computes the incoming COM momentum `pIn`, solves the outgoing proton
+momentum `pOut` from energy conservation, and derives the outgoing-lepton
+angles `theta_lepton_out` and `phi_lepton_out` from momentum conservation.
 
 The returned kinematic record includes the momenta `k`, `p`, `kp`, `pp`, and
 `qout`, together with `Q2`, `xB`, `t`, `W2`, and `y`.
@@ -123,10 +127,10 @@ Example with the physical electron mass:
 
 ```python
 from config import ELECTRON_MASS_GEV, PROTON_MASS_GEV
-from Kinematics import kinematics_user_from_independent
+from Kinematics import kinematics_cm_from_independent
 
-kin = kinematics_user_from_independent(
-    s, theta_in, phi_in, qOut, phiOut,
+kin = kinematics_cm_from_independent(
+    s, qOut, theta_out, phi_p_out, phi_gamma_out,
     PROTON_MASS_GEV,
     electron_mass=ELECTRON_MASS_GEV,
 )
@@ -145,8 +149,6 @@ bh_unpolarized_squared_amplitude_core     helicity-summed |M|^2
 proton_current_helicity_decomposition     proton F1/F2 and GE/GM helicity tensors
 electron_current_helicity_decomposition   pointlike electron helicity current
 bh_amplitude_table                        complete 4 x 8 amplitude table
-bh_amplitude_user                         user-frame convenience wrapper
-bh_unpolarized_squared_amplitude_user     user-frame unpolarized wrapper
 ```
 
 Pass the same electron mass to both kinematics and amplitudes:
@@ -196,6 +198,7 @@ The stored observables are:
 C_e_p, C_e_gamma, C_p_gamma       pairwise Wootters concurrences
 C_e_rest, C_p_rest, C_gamma_rest one-to-rest concurrences
 D_W                               distance from ideal W pair concurrences
+dGHZ                              distance from ideal GHZ concurrence invariants
 F3                                concurrence-triangle observable
 M_e, M_p, M_gamma                 CKW monogamy residuals
 M2_magic                          second stabilizer Renyi entropy (magic)
@@ -229,8 +232,8 @@ and the fully unpolarized result as `squared_amplitude_M2`.
 
 ## AlignmentScan and ConfigGen
 
-`AlignmentScan.py` scans `phi_in_lepton` and `phiOut` at characteristic
-values of `s`, `theta_in`, and `qOut`. It records the outgoing
+`AlignmentScan.py` scans `phi_p_out` and `phi_gamma_out` at characteristic
+values of `s`, `theta_out`, and `qOut`. It records the outgoing
 lepton–photon opening angle and writes full, aligned-only, and ranked tables
 directly in each species directory:
 
@@ -275,6 +278,16 @@ values are more W-like, so ranked CSVs, refinement seeds, and ConfigGen select
 the minima. The per-polarization PDFs include a reversed-color `D_W` heatmap,
 and ConfigGen writes the low-distance configuration package under `Data/dw/`.
 
+The GHZ-invariant distance is
+
+```text
+dGHZ = sqrt(C_e_p^2 + C_e_gamma^2 + C_p_gamma^2 + (F3 - 1)^2)
+```
+
+and is also minimized. For a pure three-qubit state, `dGHZ = 0` means all
+pairwise concurrences vanish and `F3 = 1`, identifying the maximally entangled
+GHZ local-unitary orbit.
+
 `PhaseSpaceScan.py` performs a stratified seven-dimensional scan over its five
 kinematic coordinates plus the coherent incoming angles `theta_e` and
 `theta_p`, followed by local kinematic refinement. The coherent state is
@@ -287,7 +300,7 @@ spatial rotation to the reference point `pIn=0.130 GeV`, `pOut=0.028 GeV`,
 `5.503 mod pi` and `3.056`.
 
 The script runs electron, muon, heavy-lepton, and massless-lepton species by
-default, and writes independent AlignmentScan-compatible full, aligned,
+default, and writes independent full, aligned,
 ranked, and plotted fixed-polarization results under
 `Output/PhaseSpaceScan/<lepton>/`. Each species additionally receives
 `<stem>_mixing_angle_phase_space.csv`, `<stem>_mixing_angle_top.csv`, and
@@ -338,16 +351,17 @@ multiscale coordinate poll. The poll follows every improving neighbor and
 shrinks its mesh until no direction improves at the configured precision,
 including when L-BFGS-B stopped early on a branch-sensitive surface. The
 screening pool size, optimized screened-start count, and separation are set by
-`DW_GRADIENT_SCREENING_SAMPLES`, `DW_GRADIENT_SCREENED_STARTS`, and
-`DW_GRADIENT_SCREENING_SEPARATION` in `config.py`; `optimization_runs.csv`
-records the source and screening value of every start.
+`ENTANGLEMENT_GRADIENT_SCREENING_SAMPLES`,
+`ENTANGLEMENT_GRADIENT_SCREENED_STARTS`, and
+`ENTANGLEMENT_GRADIENT_SCREENING_SEPARATION` in `config.py`;
+`optimization_runs.csv` records the source and screening value of every start.
 The deterministic electron anchors currently include the ep-CM W-state point
-mapped into the gradient scan's user-frame coordinates, preventing its narrow
+mapped into the gradient scan's initial-CM coordinates, preventing its narrow
 high-photon-fraction basin from depending on a chance random start.
 For each species, all independent starts share one process pool controlled by
 `SCAN_WORKERS`; species and their configuration outputs remain sequential.
-The seven coordinates are `sqrt(s)`, `theta_in`, the physical `E_gamma`
-fraction, the incoming-lepton and photon azimuths, `theta_e`, and `theta_p`.
+The seven coordinates are `sqrt(s)`, `theta_out`, the physical `E_gamma`
+fraction, the final-proton and photon azimuths, `theta_e`, and `theta_p`.
 This workflow requires `SCAN_INITIAL_MIXING_ANGLES = True`. Distinct local
 minima and an all-minima PDF are saved under
 `Output/GradientPhaseSpaceScan/<lepton>/`. Minima within
@@ -355,11 +369,13 @@ minima and an all-minima PDF are saved under
 plot; only those points receive reconstructed configuration, momentum,
 coherent final-state amplitude CSVs, and PDF detail pages under
 `Output/GradientPhaseSpaceConfig/<lepton>/`. Configure the normalized gradient
-and local-verification resolution with `DW_GRADIENT_SCAN_PRECISION`; the other
-`DW_GRADIENT_*` settings control random starts, iterations, tolerance,
-basin separation, and the random seed. The `DW_LOCAL_SEARCH_*` settings control
-the initial polishing mesh, its reduction rate, maximum polls, exploratory
-direction pairs, and the independent objective-improvement tolerance.
+and local-verification resolution with
+`ENTANGLEMENT_GRADIENT_SCAN_PRECISION`; the other
+`ENTANGLEMENT_GRADIENT_*` settings control random starts, iterations,
+tolerance, basin separation, and the random seed. The
+`ENTANGLEMENT_LOCAL_SEARCH_*` settings control the initial polishing mesh,
+its reduction rate, maximum polls, exploratory direction pairs, and the
+independent objective-improvement tolerance.
 Each selected minimum receives a separate configuration page containing only
 that minimum and pairwise projections of its sampled seven-dimensional
 `D_W = D_W(local minimum) + PHASE_SPACE_CONFIG_CONTOUR_DELTA` hypersurface.
@@ -380,6 +396,25 @@ the `W_DW_SMALL_THRESHOLD` and `W_MONOGAMY_SMALL_THRESHOLD` controls in
 `PhaseSpaceConfigScan.py`, a deterministic multistart search maximizes the
 fidelity with canonical W over three local SU(2) rotations. The page reports
 the optimized fidelity and the three rotation matrices in the `(-,+)` basis.
+
+`GradientGHZPhaseSpaceScan.py` runs the same seven-dimensional hybrid search
+and configuration/contour generation with `dGHZ` as its objective. It writes
+scan results under `Output/GradientGHZPhaseSpaceScan/` and configuration
+packages under `Output/GradientGHZPhaseSpaceConfig/`. The numerical controls
+remain the shared `ENTANGLEMENT_GRADIENT_*` and
+`ENTANGLEMENT_LOCAL_SEARCH_*` settings in `config.py`; the GHZ script uses
+independent output folders and replaces the W-specific anchor with a
+deterministic electron hard-photon endpoint seed.
+The shared phase-space photon-energy fraction extends to `0.999999` (while
+excluding the singular exact endpoint), so the search can resolve the
+canonical-GHZ `z -> 1` region. Set its
+`REGENERATE_PLOTS_FROM_CSV = True` control to rebuild PDFs without rerunning
+the minimization.
+
+The final W and GHZ configuration PDFs share the corresponding species folder
+under `Output/GradientPhaseSpaceConfig/` and use distinct state-specific names,
+for example `W_State_Search_and_Config_Electron.pdf` and
+`GHZ_State_Search_and_Config_Electron.pdf`.
 
 ## Reference-centered electron ep-CM scan
 
@@ -418,7 +453,7 @@ Output/EpCMEntanglementScan/
 The full CSV contains the same 13 entanglement/projection quantities and the
 same explicit electron polarization/observable labels as `AlignmentScan`,
 alongside `z`, `theta_cm`, `mu`, and slow-proton diagnostics.
-The legacy fixed-polarization results remain in
+The fixed-polarization results are written to
 `ep_cm_entanglement_scan.csv`. The coherent two-angle scan is written
 separately to `ep_cm_mixing_angle_scan.csv`, with its own ranked
 `ep_cm_mixing_angle_top.csv`, so fixed-polarization rows are not duplicated

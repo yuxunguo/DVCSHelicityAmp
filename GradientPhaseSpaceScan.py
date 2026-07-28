@@ -5,7 +5,7 @@ incoming-spin preparation as :mod:`PhaseSpaceScan`. The coordinates are
 normalized to a unit box before SciPy's L-BFGS-B minimizer estimates numerical
 gradients. A periodic-aware multiscale direct search then follows unresolved
 descent directions down to the requested scan precision. Distinct verified
-minima are written as scan-compatible rows and converted into ConfigGen-style
+minima are written as phase-space rows and converted into ConfigGen-style
 momentum and amplitude configurations.
 """
 
@@ -24,20 +24,20 @@ import PhaseSpaceConfigScan as config_scan
 import PhaseSpaceScan as phase_scan
 from AlignmentScan import LEPTON_SPECS
 from config import (
-    DW_GRADIENT_MAX_ITERATIONS,
-    DW_GRADIENT_MINIMUM_SEPARATION,
-    DW_GRADIENT_RANDOM_SEED,
-    DW_GRADIENT_RANDOM_STARTS,
-    DW_GRADIENT_SCAN_PRECISION,
-    DW_GRADIENT_SCREENED_STARTS,
-    DW_GRADIENT_SCREENING_SAMPLES,
-    DW_GRADIENT_SCREENING_SEPARATION,
-    DW_GRADIENT_TOLERANCE,
-    DW_LOCAL_SEARCH_INITIAL_STEP,
-    DW_LOCAL_SEARCH_MAX_POLLS,
-    DW_LOCAL_SEARCH_OBJECTIVE_TOLERANCE,
-    DW_LOCAL_SEARCH_RANDOM_DIRECTIONS,
-    DW_LOCAL_SEARCH_STEP_REDUCTION,
+    ENTANGLEMENT_GRADIENT_MAX_ITERATIONS,
+    ENTANGLEMENT_GRADIENT_MINIMUM_SEPARATION,
+    ENTANGLEMENT_GRADIENT_RANDOM_SEED,
+    ENTANGLEMENT_GRADIENT_RANDOM_STARTS,
+    ENTANGLEMENT_GRADIENT_SCAN_PRECISION,
+    ENTANGLEMENT_GRADIENT_SCREENED_STARTS,
+    ENTANGLEMENT_GRADIENT_SCREENING_SAMPLES,
+    ENTANGLEMENT_GRADIENT_SCREENING_SEPARATION,
+    ENTANGLEMENT_GRADIENT_TOLERANCE,
+    ENTANGLEMENT_LOCAL_SEARCH_INITIAL_STEP,
+    ENTANGLEMENT_LOCAL_SEARCH_MAX_POLLS,
+    ENTANGLEMENT_LOCAL_SEARCH_OBJECTIVE_TOLERANCE,
+    ENTANGLEMENT_LOCAL_SEARCH_RANDOM_DIRECTIONS,
+    ENTANGLEMENT_LOCAL_SEARCH_STEP_REDUCTION,
     PHASE_SPACE_CONFIG_CONTOUR_DELTA,
     PHASE_SPACE_CONFIG_CONTOUR_SAMPLES,
     PHASE_SPACE_CONFIG_THRESHOLD,
@@ -55,15 +55,20 @@ GRADIENT_WORKERS = SCAN_WORKERS
 REGENERATE_PLOTS_FROM_CSV = False
 OUTPUT_ROOT = Path("Output") / "GradientPhaseSpaceScan"
 CONFIG_OUTPUT_ROOT = Path("Output") / "GradientPhaseSpaceConfig"
+CONFIG_PDF_OUTPUT_ROOT = Path("Output") / "GradientPhaseSpaceConfig"
 LOG_PATH = OUTPUT_ROOT / "GradientPhaseSpaceScan.log"
+OBJECTIVE_NAME = "D_W"
+OBJECTIVE_FILE_TAG = "dw"
+OBJECTIVE_LATEX = r"D_W"
+OBJECTIVE_STATE_FILE_LABEL = "W"
 INVALID_OBJECTIVE = 1.0e3
 PERIODIC_UNIT_COORDINATES = (3, 4, 5, 6)
 CONFIG_CONTOUR_BISECTION_ITERATIONS = 8
 CONFIG_CONTOUR_INITIAL_RADIUS = 0.01
 PLOT_PANELS = (
-    ("theta_in", "qOut", r"$\theta_{in}$", r"$E_\gamma$ [GeV]"),
+    ("theta_out", "qOut", r"$\theta_{\rm out}$", r"$E_\gamma$ [GeV]"),
     ("sqrt_s", "qOut", r"$\sqrt{s}$ [GeV]", r"$E_\gamma$ [GeV]"),
-    ("phi_in", "phiOut", r"$\phi_{P,in}$", r"$\phi_\gamma$"),
+    ("phi_p_out", "phi_gamma_out", r"$\phi_{p'}$", r"$\phi_\gamma$"),
     ("theta_e", "theta_p", r"$\theta_e$", r"$\theta_p$"),
     ("sqrt_s", "theta_e", r"$\sqrt{s}$ [GeV]", r"$\theta_e$"),
     ("sqrt_s", "theta_p", r"$\sqrt{s}$ [GeV]", r"$\theta_p$"),
@@ -71,28 +76,80 @@ PLOT_PANELS = (
     ("qOut", "theta_p", r"$E_\gamma$ [GeV]", r"$\theta_p$"),
 )
 PLOT_PERIODS = {
-    "phi_in": 2.0 * np.pi,
-    "phiOut": 2.0 * np.pi,
+    "phi_p_out": 2.0 * np.pi,
+    "phi_gamma_out": 2.0 * np.pi,
     "theta_e": np.pi,
     "theta_p": np.pi,
 }
 # Deterministic physical seeds supplement the generic global designs. Values
-# are user-frame coordinates, not optimizer coordinates, so they remain
+# are physical initial-CM coordinates, not optimizer coordinates, so they remain
 # readable and are remapped if species scan ranges change.
 PHYSICS_ANCHOR_STARTS = {
     "electron": (
         {
             "name": "epcm_standard_W",
             "sqrt_s": 1.1518524360498226,
-            "theta_in": 0.5 * np.pi,
+            "theta_out": 0.5 * np.pi,
             "qOut": 0.1771320126293574,
-            "phi_in_lepton": 1.5 * np.pi,
-            "phiOut": (0.5 * np.pi - 3.032) % (2.0 * np.pi),
+            "phi_p_out": 0.0,
+            "phi_gamma_out": 3.032,
             "theta_e": 0.834,
             "theta_p": (-0.036) % np.pi,
         },
     ),
 }
+
+
+def configure_objective(
+    name,
+    file_tag,
+    latex,
+    output_root,
+    config_output_root,
+    log_path,
+    state_file_label,
+    physics_anchor_starts=None,
+):
+    """Configure the minimized observable and its output tree."""
+    global OBJECTIVE_NAME, OBJECTIVE_FILE_TAG, OBJECTIVE_LATEX
+    global OBJECTIVE_STATE_FILE_LABEL
+    global OUTPUT_ROOT, CONFIG_OUTPUT_ROOT, LOG_PATH, PHYSICS_ANCHOR_STARTS
+    OBJECTIVE_NAME = str(name)
+    OBJECTIVE_FILE_TAG = str(file_tag)
+    OBJECTIVE_LATEX = str(latex)
+    OBJECTIVE_STATE_FILE_LABEL = str(state_file_label)
+    OUTPUT_ROOT = Path(output_root)
+    CONFIG_OUTPUT_ROOT = Path(config_output_root)
+    LOG_PATH = Path(log_path)
+    if physics_anchor_starts is not None:
+        PHYSICS_ANCHOR_STARTS = dict(physics_anchor_starts)
+
+
+def _objective_key(lepton_name, objective_name=None):
+    """Return the coherent-angle CSV key for the selected objective."""
+    name = OBJECTIVE_NAME if objective_name is None else objective_name
+    return f"{config_scan.mixing_prefix(lepton_name)}_{name}"
+
+
+def _configuration_plot_path(lepton_name):
+    """Return the shared, state-specific configuration PDF path."""
+    species_label = LEPTON_SPECS[lepton_name]["label"].title().replace(" ", "_")
+    filename = (
+        f"{OBJECTIVE_STATE_FILE_LABEL}_State_Search_and_Config_"
+        f"{species_label}.pdf"
+    )
+    return (
+        CONFIG_PDF_OUTPUT_ROOT
+        / lepton_name
+        / config_scan.mixing_prefix(lepton_name)
+        / filename
+    )
+
+
+def _run_objective_key(stage, objective_name=None):
+    """Return one objective-specific optimization-run column name."""
+    name = OBJECTIVE_NAME if objective_name is None else objective_name
+    return f"{stage}_{name}"
 
 
 def _normalized_to_point(unit_point):
@@ -115,11 +172,11 @@ def _normalized_to_point(unit_point):
     return np.asarray(
         (
             s,
-            phase_scan.THETA_IN_RANGE[0]
+            phase_scan.THETA_OUT_RANGE[0]
             + unit_point[1]
             * (
-                phase_scan.THETA_IN_RANGE[1]
-                - phase_scan.THETA_IN_RANGE[0]
+                phase_scan.THETA_OUT_RANGE[1]
+                - phase_scan.THETA_OUT_RANGE[0]
             ),
             qout_fraction * phase_scan._qout_max(s),
             unit_point[3] * 2.0 * np.pi,
@@ -131,8 +188,13 @@ def _normalized_to_point(unit_point):
     )
 
 
-def _d_w_evaluation(unit_point, lepton_name, evaluation_id):
-    """Evaluate D_W and return its complete coherent-angle result row."""
+def _objective_evaluation(
+    unit_point,
+    lepton_name,
+    evaluation_id,
+    objective_name=None,
+):
+    """Evaluate the selected objective and return its coherent-angle row."""
     result = phase_scan._evaluate_sample(
         _normalized_to_point(unit_point),
         sample_id=evaluation_id,
@@ -143,7 +205,7 @@ def _d_w_evaluation(unit_point, lepton_name, evaluation_id):
     if result is None or result[1] is None:
         return INVALID_OBJECTIVE, None
     row = result[1]
-    key = f"{config_scan.mixing_prefix(lepton_name)}_D_W"
+    key = _objective_key(lepton_name, objective_name)
     value = float(row.get(key, np.nan))
     if not np.isfinite(value):
         return INVALID_OBJECTIVE, None
@@ -157,7 +219,8 @@ def _optimize_start(task):
         run_index,
         start,
         start_source,
-        screening_d_w,
+        screening_value,
+        objective_name,
     ) = task
     phase_scan._configure_lepton(lepton_name)
     cache = {}
@@ -168,10 +231,11 @@ def _optimize_start(task):
         clipped = np.clip(np.asarray(unit_point, dtype=float), 0.0, 1.0)
         key = clipped.tobytes()
         if key not in cache:
-            cache[key] = _d_w_evaluation(
+            cache[key] = _objective_evaluation(
                 clipped,
                 lepton_name,
                 evaluation_id=run_index * 1_000_000 + evaluation_count,
+                objective_name=objective_name,
             )
             evaluation_count += 1
         return cache[key]
@@ -183,10 +247,10 @@ def _optimize_start(task):
         method="L-BFGS-B",
         bounds=((0.0, 1.0),) * 7,
         options={
-            "maxiter": DW_GRADIENT_MAX_ITERATIONS,
-            "ftol": DW_GRADIENT_TOLERANCE,
-            "gtol": DW_GRADIENT_TOLERANCE,
-            "eps": DW_GRADIENT_SCAN_PRECISION,
+            "maxiter": ENTANGLEMENT_GRADIENT_MAX_ITERATIONS,
+            "ftol": ENTANGLEMENT_GRADIENT_TOLERANCE,
+            "gtol": ENTANGLEMENT_GRADIENT_TOLERANCE,
+            "eps": ENTANGLEMENT_GRADIENT_SCAN_PRECISION,
         },
     )
     lbfgs_point = np.clip(np.asarray(result.x, dtype=float), 0.0, 1.0)
@@ -199,7 +263,8 @@ def _optimize_start(task):
     ) = _multiscale_local_search(
         evaluate,
         lbfgs_point,
-        direction_seed=DW_GRADIENT_RANDOM_SEED + run_index,
+        direction_seed=ENTANGLEMENT_GRADIENT_RANDOM_SEED + run_index,
+        objective_name=objective_name,
     )
     gradient_norm = (
         float(np.linalg.norm(np.asarray(result.jac, dtype=float)))
@@ -209,7 +274,7 @@ def _optimize_start(task):
     run = {
         "optimization_run": run_index,
         "start_source": start_source,
-        "screening_D_W": screening_d_w,
+        _run_objective_key("screening", objective_name): screening_value,
         "success": local_search["local_minimum_verified"],
         "lbfgs_success": bool(result.success),
         "lbfgs_status": int(result.status),
@@ -218,9 +283,9 @@ def _optimize_start(task):
         "function_evaluations": evaluation_count,
         "lbfgs_function_evaluations": int(result.nfev),
         "lbfgs_gradient_norm": gradient_norm,
-        "initial_D_W": start_value,
-        "lbfgs_D_W": lbfgs_value,
-        "final_D_W": final_value,
+        _run_objective_key("initial", objective_name): start_value,
+        _run_objective_key("lbfgs", objective_name): lbfgs_value,
+        _run_objective_key("final", objective_name): final_value,
         **local_search,
     }
     for index, value in enumerate(start):
@@ -261,8 +326,13 @@ def _poll_neighbors(point, step, extra_directions=()):
     return neighbors
 
 
-def _multiscale_local_search(evaluate, start, direction_seed=0):
-    """Polish a gradient result until no poll direction improves D_W.
+def _multiscale_local_search(
+    evaluate,
+    start,
+    direction_seed=0,
+    objective_name=None,
+):
+    """Polish a result until no poll direction improves the objective.
 
     Coordinate directions form a positive-spanning set. Repeating the poll
     while shrinking its mesh makes this robust to branch-sensitive or
@@ -273,17 +343,17 @@ def _multiscale_local_search(evaluate, start, direction_seed=0):
     value, row = evaluate(point)
     direction_rng = np.random.default_rng(direction_seed)
     extra_directions = direction_rng.normal(
-        size=(DW_LOCAL_SEARCH_RANDOM_DIRECTIONS, point.size)
+        size=(ENTANGLEMENT_LOCAL_SEARCH_RANDOM_DIRECTIONS, point.size)
     )
     if len(extra_directions):
         extra_directions /= np.linalg.norm(
             extra_directions, axis=1, keepdims=True
         )
-    step = DW_LOCAL_SEARCH_INITIAL_STEP
+    step = ENTANGLEMENT_LOCAL_SEARCH_INITIAL_STEP
     polls = 0
     accepted_moves = 0
     smallest_tested_step = step
-    while polls < DW_LOCAL_SEARCH_MAX_POLLS:
+    while polls < ENTANGLEMENT_LOCAL_SEARCH_MAX_POLLS:
         neighbors = _poll_neighbors(point, step, extra_directions)
         evaluated = [
             (evaluate(neighbor)[0], neighbor)
@@ -292,21 +362,27 @@ def _multiscale_local_search(evaluate, start, direction_seed=0):
         polls += 1
         smallest_tested_step = step
         best_value, best_point = min(evaluated, key=lambda item: item[0])
-        if best_value < value - DW_LOCAL_SEARCH_OBJECTIVE_TOLERANCE:
+        if (
+            best_value
+            < value - ENTANGLEMENT_LOCAL_SEARCH_OBJECTIVE_TOLERANCE
+        ):
             point = best_point
             value, row = evaluate(point)
             accepted_moves += 1
             continue
-        if step <= DW_GRADIENT_SCAN_PRECISION * (1.0 + 1.0e-12):
+        if (
+            step
+            <= ENTANGLEMENT_GRADIENT_SCAN_PRECISION * (1.0 + 1.0e-12)
+        ):
             break
         step = max(
-            DW_GRADIENT_SCAN_PRECISION,
-            step * DW_LOCAL_SEARCH_STEP_REDUCTION,
+            ENTANGLEMENT_GRADIENT_SCAN_PRECISION,
+            step * ENTANGLEMENT_LOCAL_SEARCH_STEP_REDUCTION,
         )
 
     verification_neighbors = _poll_neighbors(
         point,
-        DW_GRADIENT_SCAN_PRECISION,
+        ENTANGLEMENT_GRADIENT_SCAN_PRECISION,
         extra_directions,
     )
     neighbor_values = [
@@ -314,17 +390,18 @@ def _multiscale_local_search(evaluate, start, direction_seed=0):
     ]
     best_neighbor = min(neighbor_values, default=value)
     verified = (
-        best_neighbor >= value - DW_LOCAL_SEARCH_OBJECTIVE_TOLERANCE
+        best_neighbor
+        >= value - ENTANGLEMENT_LOCAL_SEARCH_OBJECTIVE_TOLERANCE
     )
     return point, value, row, {
         "local_search_polls": polls,
         "local_search_moves": accepted_moves,
         "local_search_poll_limit_reached": (
-            polls >= DW_LOCAL_SEARCH_MAX_POLLS
-            and step >= DW_GRADIENT_SCAN_PRECISION
+            polls >= ENTANGLEMENT_LOCAL_SEARCH_MAX_POLLS
+            and step >= ENTANGLEMENT_GRADIENT_SCAN_PRECISION
         ),
         "smallest_tested_step": smallest_tested_step,
-        "best_neighbor_D_W": best_neighbor,
+        _run_objective_key("best_neighbor", objective_name): best_neighbor,
         "local_minimum_verified": verified,
     }
 
@@ -351,21 +428,22 @@ def _unit_distance(first, second):
 
 
 def _deduplicate_minima(results):
-    """Keep the lowest-D_W representative of each converged basin."""
+    """Keep the lowest-objective representative of each converged basin."""
+    final_key = _run_objective_key("final")
     finite = [
         result for result in results
         if (
             result[0]["local_minimum_verified"]
             and result[2] is not None
-            and np.isfinite(result[0]["final_D_W"])
+            and np.isfinite(result[0][final_key])
         )
     ]
-    finite.sort(key=lambda result: result[0]["final_D_W"])
+    finite.sort(key=lambda result: result[0][final_key])
     selected = []
     for result in finite:
         if any(
             _unit_distance(result[1], prior[1])
-            <= DW_GRADIENT_MINIMUM_SEPARATION
+            <= ENTANGLEMENT_GRADIENT_MINIMUM_SEPARATION
             for prior in selected
         ):
             continue
@@ -401,9 +479,9 @@ def _read_csv(path):
     return rows
 
 
-def _d_w_values(rows, lepton_name):
-    """Return the local-minimum D_W values in row order."""
-    key = f"{config_scan.mixing_prefix(lepton_name)}_D_W"
+def _objective_values(rows, lepton_name):
+    """Return the local-minimum objective values in row order."""
+    key = _objective_key(lepton_name)
     return np.asarray([float(row[key]) for row in rows], dtype=float)
 
 
@@ -417,10 +495,10 @@ def _plot_coordinate_values(unit_point):
     point = _normalized_to_point(unit_point)
     return {
         "sqrt_s": float(np.sqrt(point[0])),
-        "theta_in": float(point[1]),
+        "theta_out": float(point[1]),
         "qOut": float(point[2]),
-        "phi_in": float(point[3]),
-        "phiOut": float(point[4]),
+        "phi_p_out": float(point[3]),
+        "phi_gamma_out": float(point[4]),
         "theta_e": float(point[5]),
         "theta_p": float(point[6]),
     }
@@ -462,7 +540,7 @@ def _trace_high_dimensional_contour(
     base_value,
     directions,
 ):
-    """Sample the local D_W isosurface along seven-dimensional rays."""
+    """Sample the local objective isosurface along seven-dimensional rays."""
     target = float(base_value) + PHASE_SPACE_CONFIG_CONTOUR_DELTA
     boundary_points = []
     for direction in directions:
@@ -504,21 +582,29 @@ def _trace_high_dimensional_contour(
 
 def _configuration_contour_task(task):
     """Compute one direction chunk of a local contour in a worker."""
-    row_index, chunk_index, row, lepton_name, directions = task
+    (
+        row_index,
+        chunk_index,
+        row,
+        lepton_name,
+        objective_name,
+        directions,
+    ) = task
     phase_scan._configure_lepton(lepton_name)
     center = _unit_point_from_minimum_row(row)
     base_value = float(
-        row[f"{config_scan.mixing_prefix(lepton_name)}_D_W"]
+        row[_objective_key(lepton_name, objective_name)]
     )
     evaluation_id = row_index * 10_000_000 + chunk_index * 100_000
     evaluation_count = 0
 
     def evaluate(unit_point):
         nonlocal evaluation_count
-        value, _row = _d_w_evaluation(
+        value, _row = _objective_evaluation(
             unit_point,
             lepton_name,
             evaluation_id + evaluation_count,
+            objective_name=objective_name,
         )
         evaluation_count += 1
         return value
@@ -541,7 +627,9 @@ def _configuration_contours(rows, lepton_name):
     tasks = []
     for row_index, row in enumerate(rows):
         direction_chunks = np.array_split(
-            _contour_directions(DW_GRADIENT_RANDOM_SEED + row_index),
+            _contour_directions(
+                ENTANGLEMENT_GRADIENT_RANDOM_SEED + row_index
+            ),
             chunks_per_minimum,
         )
         tasks.extend(
@@ -550,6 +638,7 @@ def _configuration_contours(rows, lepton_name):
                 chunk_index,
                 row,
                 lepton_name,
+                OBJECTIVE_NAME,
                 directions,
             )
             for chunk_index, directions in enumerate(direction_chunks)
@@ -688,10 +777,10 @@ def _full_phase_space_plot_limits(lepton_name):
     ) * phase_scan.QOUT_FRACTION_RANGE[1]
     return {
         "sqrt_s": tuple(phase_scan.SQRT_S_RANGE),
-        "theta_in": tuple(phase_scan.THETA_IN_RANGE),
+        "theta_out": tuple(phase_scan.THETA_OUT_RANGE),
         "qOut": (0.0, float(qout_upper)),
-        "phi_in": tuple(phase_scan.AZIMUTH_RANGE),
-        "phiOut": tuple(phase_scan.AZIMUTH_RANGE),
+        "phi_p_out": tuple(phase_scan.AZIMUTH_RANGE),
+        "phi_gamma_out": tuple(phase_scan.AZIMUTH_RANGE),
         "theta_e": tuple(phase_scan.THETA_E_MIX_RANGE),
         "theta_p": tuple(phase_scan.THETA_P_MIX_RANGE),
     }
@@ -716,8 +805,8 @@ def _annotate_minimum_ids(ax, x, y, rows):
 def _plot_all_local_minima(rows, lepton_name, path):
     """Plot every distinct local minimum before configuration selection."""
     plt, PdfPages = config_gen._require_matplotlib()
-    values = _d_w_values(rows, lepton_name)
-    cmap, vmin, vmax = config_gen.observable_plot_style("D_W")
+    values = _objective_values(rows, lepton_name)
+    cmap, vmin, vmax = config_gen.observable_plot_style(OBJECTIVE_NAME)
     best_index = int(np.argmin(values))
     path.parent.mkdir(parents=True, exist_ok=True)
     with PdfPages(path) as pdf:
@@ -746,20 +835,23 @@ def _plot_all_local_minima(rows, lepton_name, path):
         axes[2, 2].hist(values, bins=min(60, max(5, len(values))))
         axes[2, 2].axvline(
             values[best_index], color="red", linestyle="--",
-            label=rf"$D_{{W,\min}}={values[best_index]:.5g}$",
+            label=(
+                rf"$({OBJECTIVE_LATEX})_{{\min}}="
+                rf"{values[best_index]:.5g}$"
+            ),
         )
-        axes[2, 2].set_xlabel(r"local-minimum $D_W$")
+        axes[2, 2].set_xlabel(rf"local-minimum ${OBJECTIVE_LATEX}$")
         axes[2, 2].set_ylabel("distinct minima")
         axes[2, 2].legend()
         fig.suptitle(
             f"{lepton_name}: all {len(rows)} distinct gradient-search "
-            r"local minima of $D_W$"
+            rf"local minima of ${OBJECTIVE_LATEX}$"
         )
         if image is not None:
             fig.colorbar(
                 image,
                 ax=axes.ravel()[:8].tolist(),
-                label=r"$D_W$",
+                label=rf"${OBJECTIVE_LATEX}$",
             )
         pdf.savefig(fig)
         plt.close(fig)
@@ -768,7 +860,7 @@ def _plot_all_local_minima(rows, lepton_name, path):
 
 def _mark_configuration_minima(rows, lepton_name):
     """Mark minima no farther than the threshold above the global minimum."""
-    values = _d_w_values(rows, lepton_name)
+    values = _objective_values(rows, lepton_name)
     optimum = float(np.min(values))
     marked = []
     selected = []
@@ -776,7 +868,7 @@ def _mark_configuration_minima(rows, lepton_name):
         item = dict(row)
         delta = float(value - optimum)
         eligible = delta <= PHASE_SPACE_CONFIG_THRESHOLD + 1.0e-12
-        item["D_W_above_global_minimum"] = delta
+        item[f"{OBJECTIVE_NAME}_above_global_minimum"] = delta
         item["within_config_threshold"] = eligible
         marked.append(item)
         if eligible:
@@ -787,15 +879,17 @@ def _mark_configuration_minima(rows, lepton_name):
 def _configuration_rows(minimum_rows, lepton_name):
     """Annotate every distinct minimum for the coherent ConfigGen helpers."""
     prefix = config_scan.mixing_prefix(lepton_name)
-    key = f"{prefix}_D_W"
+    key = _objective_key(lepton_name)
     details = []
     for index, source in enumerate(minimum_rows):
         row = dict(source)
         value = float(row[key])
         row.update(
             {
-                "selected_observable": "D_W",
-                "selected_observable_label": config_gen.observable_label("D_W"),
+                "selected_observable": OBJECTIVE_NAME,
+                "selected_observable_label": config_gen.observable_label(
+                    OBJECTIVE_NAME
+                ),
                 "selected_spin_case": "mixing_angles",
                 "selected_spin_label": (
                     f"theta_e={float(row['theta_e']):.8g}, "
@@ -805,13 +899,14 @@ def _configuration_rows(minimum_rows, lepton_name):
                 "selected_concurrence": value,
                 "selected_purity": float(row[f"{prefix}_purity"]),
                 "pair_delta_xy": np.nan,
-                "scan_phi_lepton_in": float(row["phi_in_lepton"]),
-                "scan_phi_p_in": float(row["phi_in"]),
-                "scan_phi_gamma": float(row["phiOut"]),
+                "scan_phi_p_out": float(row["phi_p_out"]),
+                "scan_phi_gamma_out": float(row["phi_gamma_out"]),
                 "cluster_id": index,
                 "energy_band_cluster_id": index,
                 "selected_region": f"local_minimum_{index}",
-                "detail_id": f"dw_mixing_angles_local_minimum_{index}",
+                "detail_id": (
+                    f"{OBJECTIVE_FILE_TAG}_mixing_angles_local_minimum_{index}"
+                ),
                 "detail_source": "random_start_gradient_search",
                 "qOut_regime": "gradient_local_minimum",
             }
@@ -839,7 +934,7 @@ def _write_configuration_plot(
         )
     full_limits = _full_phase_space_plot_limits(lepton_name)
     contours = _configuration_contours(selected_rows, lepton_name)
-    d_w_key = f"{config_scan.mixing_prefix(lepton_name)}_D_W"
+    objective_key = _objective_key(lepton_name)
     path.parent.mkdir(parents=True, exist_ok=True)
     with PdfPages(path) as pdf:
         overview_fig, overview_axes = plt.subplots(
@@ -926,11 +1021,14 @@ def _write_configuration_plot(
                 f"{PHASE_SPACE_CONFIG_CONTOUR_SAMPLES}"
             ),
             "",
-            " ID       D_W(local)    above global   contour pts",
+            (
+                f" ID       {OBJECTIVE_NAME}(local)    "
+                "above global   contour pts"
+            ),
         ]
         for selected_index, row in enumerate(selected_rows):
             minimum_id = row.get("local_minimum_id", selected_index)
-            local_value = float(row[d_w_key])
+            local_value = float(row[objective_key])
             overview_lines.append(
                 f"{str(minimum_id):>3s}  {local_value:14.7g}  "
                 f"{local_value - optimum:12.6g}  "
@@ -962,7 +1060,7 @@ def _write_configuration_plot(
             center = _unit_point_from_minimum_row(row)
             boundary_points = contours[selected_index]
             minimum_id = row.get("local_minimum_id", selected_index)
-            local_value = float(row[d_w_key])
+            local_value = float(row[objective_key])
             fig, axes = plt.subplots(
                 3, 3, figsize=(14.0, 11.5), constrained_layout=True
             )
@@ -1014,7 +1112,8 @@ def _write_configuration_plot(
                         color="tab:red",
                         linewidth=1.5,
                         label=(
-                            rf"$D_W=D_{{W,\mathrm{{local}}}}"
+                            rf"${OBJECTIVE_LATEX}="
+                            rf"({OBJECTIVE_LATEX})_{{\mathrm{{local}}}}"
                             rf"+{PHASE_SPACE_CONFIG_CONTOUR_DELTA:g}$ projection"
                             if panel_index == 0 else None
                         ),
@@ -1046,9 +1145,9 @@ def _write_configuration_plot(
             summary_lines = [
                 f"selected local minimum ID {minimum_id}",
                 "",
-                f"D_W(local) = {local_value:.8g}",
+                f"{OBJECTIVE_NAME}(local) = {local_value:.8g}",
                 (
-                    f"D_W contour = "
+                    f"{OBJECTIVE_NAME} contour = "
                     f"{local_value + PHASE_SPACE_CONFIG_CONTOUR_DELTA:.8g}"
                 ),
                 (
@@ -1067,10 +1166,10 @@ def _write_configuration_plot(
                 f"{name:>10s} = {coordinates[name]:.7g}"
                 for name in (
                     "sqrt_s",
-                    "theta_in",
+                    "theta_out",
                     "qOut",
-                    "phi_in",
-                    "phiOut",
+                    "phi_p_out",
+                    "phi_gamma_out",
                     "theta_e",
                     "theta_p",
                 )
@@ -1088,7 +1187,8 @@ def _write_configuration_plot(
             fig.suptitle(
                 f"{lepton_name}: selected local minimum ID {minimum_id}; "
                 "pairwise projections of the 7D "
-                rf"$D_W=D_{{W,\mathrm{{local}}}}"
+                rf"${OBJECTIVE_LATEX}="
+                rf"({OBJECTIVE_LATEX})_{{\mathrm{{local}}}}"
                 rf"+{PHASE_SPACE_CONFIG_CONTOUR_DELTA:g}$ contour"
             )
             pdf.savefig(fig)
@@ -1112,7 +1212,7 @@ def _write_configurations(
     config_gen.clean_egamma_config_outputs()
     config_gen.clean_data_outputs()
     details = _configuration_rows(selected_minimum_rows, lepton_name)
-    paths = config_gen.target_paths("dw")
+    paths = config_gen.target_paths(OBJECTIVE_FILE_TAG)
     config_scan._plain_write_csv(paths["examples"], details)
     config_scan._plain_write_csv(
         paths["clusters"], config_scan._mixing_cluster_rows(details)
@@ -1123,11 +1223,7 @@ def _write_configurations(
     config_scan._plain_write_csv(
         paths["amplitudes"], config_scan._mixing_amplitude_rows(details)
     )
-    plot_path = (
-        config_gen.OUTPUT_DIR
-        / config_scan.mixing_prefix(lepton_name)
-        / "dw_gradient_local_minima.pdf"
-    )
+    plot_path = _configuration_plot_path(lepton_name)
     _write_configuration_plot(
         all_minimum_rows,
         details,
@@ -1152,10 +1248,10 @@ def _physical_start_to_unit_point(start):
                 - phase_scan.SQRT_S_RANGE[0]
             ),
             (
-                float(start["theta_in"]) - phase_scan.THETA_IN_RANGE[0]
+                float(start["theta_out"]) - phase_scan.THETA_OUT_RANGE[0]
             ) / (
-                phase_scan.THETA_IN_RANGE[1]
-                - phase_scan.THETA_IN_RANGE[0]
+                phase_scan.THETA_OUT_RANGE[1]
+                - phase_scan.THETA_OUT_RANGE[0]
             ),
             (
                 qout_fraction - phase_scan.QOUT_FRACTION_RANGE[0]
@@ -1163,8 +1259,8 @@ def _physical_start_to_unit_point(start):
                 phase_scan.QOUT_FRACTION_RANGE[1]
                 - phase_scan.QOUT_FRACTION_RANGE[0]
             ),
-            float(start["phi_in_lepton"]) / (2.0 * np.pi),
-            float(start["phiOut"]) / (2.0 * np.pi),
+            float(start["phi_p_out"]) / (2.0 * np.pi),
+            float(start["phi_gamma_out"]) / (2.0 * np.pi),
             float(start["theta_e"]) / np.pi,
             float(start["theta_p"]) / np.pi,
         ),
@@ -1174,12 +1270,13 @@ def _physical_start_to_unit_point(start):
 
 def _screen_start_task(task):
     """Evaluate one low-discrepancy candidate without optimizing it."""
-    lepton_name, candidate_index, point = task
+    lepton_name, candidate_index, point, objective_name = task
     phase_scan._configure_lepton(lepton_name)
-    value, _row = _d_w_evaluation(
+    value, _row = _objective_evaluation(
         point,
         lepton_name,
         evaluation_id=2_000_000_000 + candidate_index,
+        objective_name=objective_name,
     )
     return candidate_index, value, point
 
@@ -1204,15 +1301,15 @@ def _run_screening_tasks(tasks):
 
 
 def _screened_sobol_starts(lepton_name, species_seed):
-    """Select low-D_W, spatially separated starts from a Sobol design."""
-    exponent = int(np.log2(DW_GRADIENT_SCREENING_SAMPLES))
+    """Select low-objective, spatially separated Sobol starts."""
+    exponent = int(np.log2(ENTANGLEMENT_GRADIENT_SCREENING_SAMPLES))
     candidates = qmc.Sobol(
         d=7,
         scramble=True,
         seed=species_seed + 10_000,
     ).random_base2(exponent)
     tasks = [
-        (lepton_name, index, point)
+        (lepton_name, index, point, OBJECTIVE_NAME)
         for index, point in enumerate(candidates)
     ]
     evaluated = sorted(
@@ -1226,20 +1323,20 @@ def _screened_sobol_starts(lepton_name, species_seed):
             continue
         if all(
             _unit_distance(point, prior[1])
-            >= DW_GRADIENT_SCREENING_SEPARATION
+            >= ENTANGLEMENT_GRADIENT_SCREENING_SEPARATION
             for prior in selected
         ):
             selected.append((value, point))
-            if len(selected) == DW_GRADIENT_SCREENED_STARTS:
+            if len(selected) == ENTANGLEMENT_GRADIENT_SCREENED_STARTS:
                 break
         else:
             deferred.append((value, point))
-    if len(selected) < DW_GRADIENT_SCREENED_STARTS:
+    if len(selected) < ENTANGLEMENT_GRADIENT_SCREENED_STARTS:
         for value, point in deferred:
             if any(np.array_equal(point, prior[1]) for prior in selected):
                 continue
             selected.append((value, point))
-            if len(selected) == DW_GRADIENT_SCREENED_STARTS:
+            if len(selected) == ENTANGLEMENT_GRADIENT_SCREENED_STARTS:
                 break
     return selected
 
@@ -1248,10 +1345,11 @@ def _species_tasks(lepton_name):
     """Return hybrid global, screened, and physics-anchored start tasks."""
     phase_scan._configure_lepton(lepton_name)
     species_seed = (
-        DW_GRADIENT_RANDOM_SEED + tuple(LEPTON_SPECS).index(lepton_name)
+        ENTANGLEMENT_GRADIENT_RANDOM_SEED
+        + tuple(LEPTON_SPECS).index(lepton_name)
     )
     latin_starts = qmc.LatinHypercube(d=7, seed=species_seed).random(
-        DW_GRADIENT_RANDOM_STARTS
+        ENTANGLEMENT_GRADIENT_RANDOM_STARTS
     )
     starts = [
         (point, "latin_hypercube", np.nan)
@@ -1282,9 +1380,10 @@ def _species_tasks(lepton_name):
             run_index,
             point,
             source,
-            screening_d_w,
+            screening_value,
+            OBJECTIVE_NAME,
         )
-        for run_index, (point, source, screening_d_w) in enumerate(starts)
+        for run_index, (point, source, screening_value) in enumerate(starts)
     ]
 
 
@@ -1297,9 +1396,10 @@ def run_species(lepton_name, results=None):
     minima = _deduplicate_minima(results)
     if not minima:
         raise RuntimeError(
-            f"No converged, locally verified D_W minimum was found for "
+            f"No converged, locally verified {OBJECTIVE_NAME} minimum was "
+            f"found for "
             f"{lepton_name}; inspect the optimizer settings or increase "
-            "DW_GRADIENT_MAX_ITERATIONS."
+            "ENTANGLEMENT_GRADIENT_MAX_ITERATIONS."
         )
 
     species_dir = OUTPUT_ROOT / lepton_name
@@ -1351,21 +1451,22 @@ def run_species(lepton_name, results=None):
         for task in tasks
         if task[3] == "sobol_screened" and np.isfinite(task[4])
     ]
-    d_w_key = f"{config_scan.mixing_prefix(lepton_name)}_D_W"
+    objective_key = _objective_key(lepton_name)
     return "\n".join(
         (
-            f"Hybrid global gradient D_W search ({lepton_name})",
+            f"Hybrid global gradient {OBJECTIVE_NAME} search ({lepton_name})",
             f"  optimization starts: {len(tasks)}",
             f"  Latin-hypercube starts: {latin_count}",
             (
-                f"  Sobol screening: {DW_GRADIENT_SCREENING_SAMPLES} "
+                f"  Sobol screening: "
+                f"{ENTANGLEMENT_GRADIENT_SCREENING_SAMPLES} "
                 f"candidates -> {screened_count} optimized starts"
             ),
             (
-                f"  best screened D_W: "
+                f"  best screened {OBJECTIVE_NAME}: "
                 f"{min(screened_values):.10g}"
                 if screened_values
-                else "  best screened D_W: unavailable"
+                else f"  best screened {OBJECTIVE_NAME}: unavailable"
             ),
             f"  deterministic physics anchors: {anchor_count}",
             f"  shared optimization workers: {GRADIENT_WORKERS}",
@@ -1376,7 +1477,10 @@ def run_species(lepton_name, results=None):
                 f"  minima within Threshold={PHASE_SPACE_CONFIG_THRESHOLD:g}: "
                 f"{len(selected_rows)}/{len(minimum_rows)}"
             ),
-            f"  best D_W: {minimum_rows[0][d_w_key]:.10g}",
+            (
+                f"  best {OBJECTIVE_NAME}: "
+                f"{minimum_rows[0][objective_key]:.10g}"
+            ),
             f"  optimization runs: {run_path}",
             f"  local minima: {minima_path}",
             f"  all-local-minima plot: {minima_plot}",
@@ -1412,11 +1516,7 @@ def regenerate_species_plots(lepton_name):
         output_root=CONFIG_OUTPUT_ROOT,
     )
     detail_rows = _configuration_rows(selected_rows, lepton_name)
-    config_plot = (
-        config_gen.OUTPUT_DIR
-        / config_scan.mixing_prefix(lepton_name)
-        / "dw_gradient_local_minima.pdf"
-    )
+    config_plot = _configuration_plot_path(lepton_name)
     _write_configuration_plot(
         minimum_rows,
         detail_rows,
@@ -1426,7 +1526,7 @@ def regenerate_species_plots(lepton_name):
     )
     return "\n".join(
         (
-            f"Regenerated gradient D_W plots ({lepton_name})",
+            f"Regenerated gradient {OBJECTIVE_NAME} plots ({lepton_name})",
             f"  source data: {minima_path}",
             f"  local minima loaded: {len(minimum_rows)}",
             (
@@ -1457,74 +1557,110 @@ def validate_settings():
         raise ValueError("LEPTONS_TO_OPTIMIZE must not be empty.")
     if GRADIENT_WORKERS < 1:
         raise ValueError("GRADIENT_WORKERS must be positive.")
-    if DW_GRADIENT_RANDOM_STARTS < 1:
-        raise ValueError("DW_GRADIENT_RANDOM_STARTS must be positive.")
+    if ENTANGLEMENT_GRADIENT_RANDOM_STARTS < 1:
+        raise ValueError(
+            "ENTANGLEMENT_GRADIENT_RANDOM_STARTS must be positive."
+        )
     if (
-        not isinstance(DW_GRADIENT_SCREENING_SAMPLES, (int, np.integer))
-        or isinstance(DW_GRADIENT_SCREENING_SAMPLES, (bool, np.bool_))
-        or DW_GRADIENT_SCREENING_SAMPLES < 2
+        not isinstance(
+            ENTANGLEMENT_GRADIENT_SCREENING_SAMPLES,
+            (int, np.integer),
+        )
+        or isinstance(
+            ENTANGLEMENT_GRADIENT_SCREENING_SAMPLES,
+            (bool, np.bool_),
+        )
+        or ENTANGLEMENT_GRADIENT_SCREENING_SAMPLES < 2
         or (
-            DW_GRADIENT_SCREENING_SAMPLES
-            & (DW_GRADIENT_SCREENING_SAMPLES - 1)
+            ENTANGLEMENT_GRADIENT_SCREENING_SAMPLES
+            & (ENTANGLEMENT_GRADIENT_SCREENING_SAMPLES - 1)
         )
     ):
         raise ValueError(
-            "DW_GRADIENT_SCREENING_SAMPLES must be a power-of-two integer."
+            "ENTANGLEMENT_GRADIENT_SCREENING_SAMPLES must be a "
+            "power-of-two integer."
         )
     if (
-        not isinstance(DW_GRADIENT_SCREENED_STARTS, (int, np.integer))
-        or isinstance(DW_GRADIENT_SCREENED_STARTS, (bool, np.bool_))
+        not isinstance(
+            ENTANGLEMENT_GRADIENT_SCREENED_STARTS,
+            (int, np.integer),
+        )
+        or isinstance(
+            ENTANGLEMENT_GRADIENT_SCREENED_STARTS,
+            (bool, np.bool_),
+        )
         or not 1
-        <= DW_GRADIENT_SCREENED_STARTS
-        <= DW_GRADIENT_SCREENING_SAMPLES
+        <= ENTANGLEMENT_GRADIENT_SCREENED_STARTS
+        <= ENTANGLEMENT_GRADIENT_SCREENING_SAMPLES
     ):
         raise ValueError(
-            "DW_GRADIENT_SCREENED_STARTS must be an integer between 1 "
-            "and DW_GRADIENT_SCREENING_SAMPLES."
+            "ENTANGLEMENT_GRADIENT_SCREENED_STARTS must be an integer "
+            "between 1 and ENTANGLEMENT_GRADIENT_SCREENING_SAMPLES."
         )
     if (
-        not np.isfinite(DW_GRADIENT_SCREENING_SEPARATION)
-        or not 0.0 < DW_GRADIENT_SCREENING_SEPARATION <= 1.0
+        not np.isfinite(ENTANGLEMENT_GRADIENT_SCREENING_SEPARATION)
+        or not 0.0
+        < ENTANGLEMENT_GRADIENT_SCREENING_SEPARATION
+        <= 1.0
     ):
         raise ValueError(
-            "DW_GRADIENT_SCREENING_SEPARATION must lie in (0, 1]."
+            "ENTANGLEMENT_GRADIENT_SCREENING_SEPARATION must lie "
+            "in (0, 1]."
         )
-    if DW_GRADIENT_MAX_ITERATIONS < 1:
-        raise ValueError("DW_GRADIENT_MAX_ITERATIONS must be positive.")
+    if ENTANGLEMENT_GRADIENT_MAX_ITERATIONS < 1:
+        raise ValueError(
+            "ENTANGLEMENT_GRADIENT_MAX_ITERATIONS must be positive."
+        )
     for name, value in (
-        ("DW_GRADIENT_TOLERANCE", DW_GRADIENT_TOLERANCE),
         (
-            "DW_GRADIENT_SCAN_PRECISION",
-            DW_GRADIENT_SCAN_PRECISION,
+            "ENTANGLEMENT_GRADIENT_TOLERANCE",
+            ENTANGLEMENT_GRADIENT_TOLERANCE,
         ),
-        ("DW_GRADIENT_MINIMUM_SEPARATION", DW_GRADIENT_MINIMUM_SEPARATION),
-        ("DW_LOCAL_SEARCH_INITIAL_STEP", DW_LOCAL_SEARCH_INITIAL_STEP),
         (
-            "DW_LOCAL_SEARCH_OBJECTIVE_TOLERANCE",
-            DW_LOCAL_SEARCH_OBJECTIVE_TOLERANCE,
+            "ENTANGLEMENT_GRADIENT_SCAN_PRECISION",
+            ENTANGLEMENT_GRADIENT_SCAN_PRECISION,
+        ),
+        (
+            "ENTANGLEMENT_GRADIENT_MINIMUM_SEPARATION",
+            ENTANGLEMENT_GRADIENT_MINIMUM_SEPARATION,
+        ),
+        (
+            "ENTANGLEMENT_LOCAL_SEARCH_INITIAL_STEP",
+            ENTANGLEMENT_LOCAL_SEARCH_INITIAL_STEP,
+        ),
+        (
+            "ENTANGLEMENT_LOCAL_SEARCH_OBJECTIVE_TOLERANCE",
+            ENTANGLEMENT_LOCAL_SEARCH_OBJECTIVE_TOLERANCE,
         ),
     ):
         if not np.isfinite(value) or value <= 0.0:
             raise ValueError(f"{name} must be finite and positive.")
-    if DW_GRADIENT_SCAN_PRECISION > 1.0:
+    if ENTANGLEMENT_GRADIENT_SCAN_PRECISION > 1.0:
         raise ValueError(
-            "DW_GRADIENT_SCAN_PRECISION must not exceed the normalized "
-            "scan width of 1."
+            "ENTANGLEMENT_GRADIENT_SCAN_PRECISION must not exceed "
+            "the normalized scan width of 1."
         )
-    if not 0.0 < DW_LOCAL_SEARCH_STEP_REDUCTION < 1.0:
+    if not 0.0 < ENTANGLEMENT_LOCAL_SEARCH_STEP_REDUCTION < 1.0:
         raise ValueError(
-            "DW_LOCAL_SEARCH_STEP_REDUCTION must lie strictly between 0 and 1."
+            "ENTANGLEMENT_LOCAL_SEARCH_STEP_REDUCTION must lie "
+            "strictly between 0 and 1."
         )
-    if DW_LOCAL_SEARCH_INITIAL_STEP < DW_GRADIENT_SCAN_PRECISION:
+    if (
+        ENTANGLEMENT_LOCAL_SEARCH_INITIAL_STEP
+        < ENTANGLEMENT_GRADIENT_SCAN_PRECISION
+    ):
         raise ValueError(
-            "DW_LOCAL_SEARCH_INITIAL_STEP must be at least "
-            "DW_GRADIENT_SCAN_PRECISION."
+            "ENTANGLEMENT_LOCAL_SEARCH_INITIAL_STEP must be at least "
+            "ENTANGLEMENT_GRADIENT_SCAN_PRECISION."
         )
-    if DW_LOCAL_SEARCH_MAX_POLLS < 1:
-        raise ValueError("DW_LOCAL_SEARCH_MAX_POLLS must be positive.")
-    if DW_LOCAL_SEARCH_RANDOM_DIRECTIONS < 0:
+    if ENTANGLEMENT_LOCAL_SEARCH_MAX_POLLS < 1:
         raise ValueError(
-            "DW_LOCAL_SEARCH_RANDOM_DIRECTIONS must be non-negative."
+            "ENTANGLEMENT_LOCAL_SEARCH_MAX_POLLS must be positive."
+        )
+    if ENTANGLEMENT_LOCAL_SEARCH_RANDOM_DIRECTIONS < 0:
+        raise ValueError(
+            "ENTANGLEMENT_LOCAL_SEARCH_RANDOM_DIRECTIONS must be "
+            "non-negative."
         )
     if (
         not np.isfinite(PHASE_SPACE_CONFIG_THRESHOLD)
@@ -1580,7 +1716,7 @@ def validate_settings():
 
 
 def main():
-    """Optimize D_W and generate local-minimum configurations."""
+    """Optimize the selected objective and generate local-minimum configs."""
     if REGENERATE_PLOTS_FROM_CSV:
         reports = [
             regenerate_species_plots(lepton_name)

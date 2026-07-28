@@ -6,7 +6,7 @@ The outgoing spin basis is ordered as ``(hOut, sOut, lambda)``:
 * particle 2 is the outgoing proton spin/helicity ``sOut``;
 * particle 3 is the outgoing real-photon helicity ``lambda``.
 
-For each independent user-frame kinematic point, this module builds the ``4 x 8`` table of
+For each independent initial-CM kinematic point, this module builds the ``4 x 8`` table of
 Bethe-Heitler amplitudes over incoming and outgoing spin labels, converts it
 into an ``8 x 8`` final-state spin-density matrix, normalizes it by the
 corresponding squared amplitude when requested, and computes the two-body and
@@ -29,25 +29,32 @@ import numpy as np
 from Algebra import HELICITIES
 from BHHelicityAmp import bh_amplitude_table
 from FormFactors import YAHL_MODEL_NAME, yahl_dirac_pauli_from_t
-from Kinematics import kinematics_user_from_independent
-from config import NORMALIZE_TRACE, PROTON_MASS_GEV as M, SCAN_WORKERS
+from Kinematics import kinematics_cm_from_independent
+from config import (
+    ELECTRON_MASS_GEV,
+    NORMALIZE_TRACE,
+    PROTON_MASS_GEV as M,
+    SCAN_WORKERS,
+)
 
 
 # ============================================================
 # Scan and output settings
 # ============================================================
 
-USER_BEAM_ENERGY_REFERENCE = 11.0
-USER_S_CENTER = M**2 + 2.0 * M * USER_BEAM_ENERGY_REFERENCE
-USER_S_VALUES = np.linspace(0.72 * USER_S_CENTER, 1.20 * USER_S_CENTER, 9)
-USER_QOUT_VALUES = np.linspace(0.30, 1.55, 9)
-USER_THETA_IN_VALUES = np.linspace(0.35, 2.80, 9)
-USER_PHI_OUT_VALUES = np.linspace(0.0, 2.0 * np.pi, 12, endpoint=False)
-USER_FIXED_S = USER_S_CENTER
-USER_FIXED_THETA_IN = 1.30
-USER_FIXED_PHI_IN = 0.0
-USER_FIXED_QOUT = 0.85
-USER_FIXED_PHI_OUT = np.pi
+CM_BEAM_ENERGY_REFERENCE = 11.0
+CM_S_CENTER = M**2 + 2.0 * M * CM_BEAM_ENERGY_REFERENCE
+CM_S_VALUES = np.linspace(0.72 * CM_S_CENTER, 1.20 * CM_S_CENTER, 9)
+CM_QOUT_VALUES = np.linspace(0.30, 1.55, 9)
+CM_THETA_OUT_VALUES = np.linspace(0.35, 2.80, 9)
+CM_PHI_GAMMA_OUT_VALUES = np.linspace(
+    0.0, 2.0 * np.pi, 12, endpoint=False
+)
+CM_FIXED_S = CM_S_CENTER
+CM_FIXED_THETA_OUT = 1.30
+CM_FIXED_PHI_P_OUT = 0.0
+CM_FIXED_QOUT = 0.85
+CM_FIXED_PHI_GAMMA_OUT = np.pi
 
 TRACE_BENCHMARK_TOL = 1e-10
 SPIN_CASE_UNPOLARIZED = "unpolarized"
@@ -111,6 +118,7 @@ ENTANGLEMENT_NAMES = (
     "C_p_rest",
     "C_gamma_rest",
     "D_W",
+    "dGHZ",
     "F3",
     "M_e",
     "M_p",
@@ -140,10 +148,10 @@ def w_concurrence_distance(c_e_p, c_e_gamma, c_p_gamma):
         + (c_p_gamma - target) ** 2
     ))
 
-BENCHMARK_USER_KINEMATIC_INPUTS = (
-    ("U1", USER_S_CENTER, 1.30, 0.0, 0.85, np.pi),
-    ("U2", 0.90 * USER_S_CENTER, 0.85, 0.5 * np.pi, 0.60, 0.5 * np.pi),
-    ("U3", 1.15 * USER_S_CENTER, 2.20, np.pi, 1.10, 0.0),
+BENCHMARK_CM_KINEMATIC_INPUTS = (
+    ("CM1", CM_S_CENTER, 1.30, 0.0, 0.85, np.pi),
+    ("CM2", 0.90 * CM_S_CENTER, 0.85, 0.5 * np.pi, 0.60, 0.5 * np.pi),
+    ("CM3", 1.15 * CM_S_CENTER, 2.20, np.pi, 1.10, 0.0),
 )
 
 OUTPUT_DIR = Path("Output") / "SpinDensityMat"
@@ -359,7 +367,7 @@ def initial_spin_average_divisor(spin_case):
     return float(ensemble_size)
 
 
-def amplitude_table(mom, m, F1, F2, electron_mass=0.0):
+def amplitude_table(mom, m, F1, F2, electron_mass):
     """Return ``A[in_state, out_state]`` for all BH helicity amplitudes.
 
     ``in_state`` spans incoming electron/proton labels ``(hIn, sIn)`` and
@@ -555,6 +563,16 @@ def f3_from_one_to_rest(c_e_rest, c_p_rest, c_gamma_rest):
     return float(np.sqrt(max(0.0, area_argument)))
 
 
+def ghz_concurrence_distance(c_e_p, c_e_gamma, c_p_gamma, f3):
+    """Return distance from the ideal GHZ concurrence invariants."""
+    return float(np.sqrt(
+        c_e_p**2
+        + c_e_gamma**2
+        + c_p_gamma**2
+        + (f3 - 1.0) ** 2
+    ))
+
+
 def entanglement_measures_from_state(state):
     """Compute concurrence observables and monogamy residuals.
 
@@ -570,6 +588,7 @@ def entanglement_measures_from_state(state):
     c_e_rest = one_to_rest_concurrence(rho, 0)
     c_p_rest = one_to_rest_concurrence(rho, 1)
     c_gamma_rest = one_to_rest_concurrence(rho, 2)
+    f3 = f3_from_one_to_rest(c_e_rest, c_p_rest, c_gamma_rest)
     return {
         "C_e_p": c_e_p,
         "C_e_gamma": c_e_gamma,
@@ -578,7 +597,10 @@ def entanglement_measures_from_state(state):
         "C_p_rest": c_p_rest,
         "C_gamma_rest": c_gamma_rest,
         "D_W": w_concurrence_distance(c_e_p, c_e_gamma, c_p_gamma),
-        "F3": f3_from_one_to_rest(c_e_rest, c_p_rest, c_gamma_rest),
+        "dGHZ": ghz_concurrence_distance(
+            c_e_p, c_e_gamma, c_p_gamma, f3
+        ),
+        "F3": f3,
         "M_e": c_e_rest**2 - c_e_p**2 - c_e_gamma**2,
         "M_p": c_p_rest**2 - c_e_p**2 - c_p_gamma**2,
         "M_gamma": c_gamma_rest**2 - c_e_gamma**2 - c_p_gamma**2,
@@ -600,6 +622,7 @@ def entanglement_measures_from_density_matrix(rho):
     c_p_gamma = two_qubit_concurrence(reduced_density_matrix(rho, (1, 2)))
     purity = float(np.real_if_close(np.trace(rho @ rho), tol=1000).real)
     if not np.isclose(purity, 1.0, rtol=1e-9, atol=1e-10):
+        f3 = 0.0
         return {
             "C_e_p": c_e_p,
             "C_e_gamma": c_e_gamma,
@@ -608,7 +631,10 @@ def entanglement_measures_from_density_matrix(rho):
             "C_p_rest": 0.0,
             "C_gamma_rest": 0.0,
             "D_W": w_concurrence_distance(c_e_p, c_e_gamma, c_p_gamma),
-            "F3": 0.0,
+            "dGHZ": ghz_concurrence_distance(
+                c_e_p, c_e_gamma, c_p_gamma, f3
+            ),
+            "F3": f3,
             "M_e": -(c_e_p**2 + c_e_gamma**2),
             "M_p": -(c_e_p**2 + c_p_gamma**2),
             "M_gamma": -(c_e_gamma**2 + c_p_gamma**2),
@@ -616,6 +642,7 @@ def entanglement_measures_from_density_matrix(rho):
     c_e_rest = one_to_rest_concurrence(rho, 0)
     c_p_rest = one_to_rest_concurrence(rho, 1)
     c_gamma_rest = one_to_rest_concurrence(rho, 2)
+    f3 = f3_from_one_to_rest(c_e_rest, c_p_rest, c_gamma_rest)
     return {
         "C_e_p": c_e_p,
         "C_e_gamma": c_e_gamma,
@@ -624,7 +651,10 @@ def entanglement_measures_from_density_matrix(rho):
         "C_p_rest": c_p_rest,
         "C_gamma_rest": c_gamma_rest,
         "D_W": w_concurrence_distance(c_e_p, c_e_gamma, c_p_gamma),
-        "F3": f3_from_one_to_rest(c_e_rest, c_p_rest, c_gamma_rest),
+        "dGHZ": ghz_concurrence_distance(
+            c_e_p, c_e_gamma, c_p_gamma, f3
+        ),
+        "F3": f3,
         "M_e": c_e_rest**2 - c_e_p**2 - c_e_gamma**2,
         "M_p": c_p_rest**2 - c_e_p**2 - c_p_gamma**2,
         "M_gamma": c_gamma_rest**2 - c_e_gamma**2 - c_p_gamma**2,
@@ -740,28 +770,32 @@ def spin_density_observables_from_amplitudes(
     }
 
 
-def build_user_scan_point(
+def build_cm_scan_point(
     s,
-    theta_in,
-    phi_in,
+    theta_out,
+    phi_p_out,
     qOut,
-    phiOut,
+    phi_gamma_out,
     m,
+    electron_mass,
     normalize_trace=NORMALIZE_TRACE,
     spin_case=SPIN_CASE_UNPOLARIZED,
 ):
-    """Evaluate spin-density data at one independent user-frame point."""
-    kin = kinematics_user_from_independent(
+    """Evaluate spin-density data at one independent initial-CM point."""
+    kin = kinematics_cm_from_independent(
         s,
-        theta_in,
-        phi_in,
         qOut,
-        phiOut,
+        theta_out,
+        phi_p_out,
+        phi_gamma_out,
         m,
-        label=f"user s={s:.6g}, theta={theta_in:.6g}, qOut={qOut:.6g}",
+        electron_mass,
+        label=f"initial-CM s={s:.6g}, theta_out={theta_out:.6g}, qOut={qOut:.6g}",
     )
     F1, F2 = yahl_dirac_pauli_from_t(kin["t"], kin["m"])
-    amplitudes = amplitude_table(kin["momenta"], kin["m"], F1, F2)
+    amplitudes = amplitude_table(
+        kin["momenta"], kin["m"], F1, F2, electron_mass
+    )
     spin_data = spin_density_observables_from_amplitudes(
         amplitudes,
         spin_case=spin_case,
@@ -775,16 +809,17 @@ def build_user_scan_point(
     }
 
 
-def _scan_spin_density_user_grid_task(task):
-    """Evaluate one independent user-frame spin-density grid point."""
-    y_index, x_index, user_vars, settings = task
-    point = build_user_scan_point(
-        user_vars["s"],
-        user_vars["theta_in"],
-        user_vars["phi_in"],
-        user_vars["qOut"],
-        user_vars["phiOut"],
+def _scan_spin_density_cm_grid_task(task):
+    """Evaluate one independent initial-CM spin-density grid point."""
+    y_index, x_index, cm_vars, settings = task
+    point = build_cm_scan_point(
+        cm_vars["s"],
+        cm_vars["theta_out"],
+        cm_vars["phi_p_out"],
+        cm_vars["qOut"],
+        cm_vars["phi_gamma_out"],
         settings["m"],
+        settings["electron_mass"],
         normalize_trace=settings["normalize_trace"],
         spin_case=settings["spin_case"],
     )
@@ -792,32 +827,33 @@ def _scan_spin_density_user_grid_task(task):
         "ok": True,
         "y_index": y_index,
         "x_index": x_index,
-        "user_vars": user_vars,
+        "cm_vars": cm_vars,
         "point": point,
     }
 
 
-def user_vars_for_scan_point(x_name, x_value, y_name, y_value, fixed_user):
-    """Return the independent user variables for one 2D scan point."""
-    user_vars = dict(fixed_user)
-    user_vars[x_name] = float(x_value)
-    user_vars[y_name] = float(y_value)
-    return user_vars
+def cm_vars_for_scan_point(x_name, x_value, y_name, y_value, fixed_cm):
+    """Return the independent CM variables for one 2D scan point."""
+    cm_vars = dict(fixed_cm)
+    cm_vars[x_name] = float(x_value)
+    cm_vars[y_name] = float(y_value)
+    return cm_vars
 
 
-def scan_spin_density_user_grid(
+def scan_spin_density_cm_grid(
     x_values,
     y_values,
     x_name,
     y_name,
-    fixed_user,
-    m=M,
+    fixed_cm,
+    m,
+    electron_mass,
     normalize_trace=NORMALIZE_TRACE,
     spin_case=SPIN_CASE_UNPOLARIZED,
     max_workers=SCAN_WORKERS,
 ):
-    """Scan a 2D grid of independent user-frame kinematic variables."""
-    allowed = {"s", "theta_in", "phi_in", "qOut", "phiOut"}
+    """Scan a 2D grid of independent initial-CM kinematic variables."""
+    allowed = {"s", "theta_out", "phi_p_out", "qOut", "phi_gamma_out"}
     if x_name not in allowed or y_name not in allowed:
         raise ValueError(f"x_name and y_name must be in {sorted(allowed)}.")
     if x_name == y_name:
@@ -845,10 +881,16 @@ def scan_spin_density_user_grid(
             "sqrt_s",
             "pIn",
             "pOut",
+            "theta_p_in",
+            "phi_p_in",
+            "theta_lepton_in",
+            "phi_lepton_in",
             "qOut",
-            "theta_in",
-            "phi_in",
-            "phiOut",
+            "theta_out",
+            "phi_p_out",
+            "phi_gamma_out",
+            "theta_lepton_out",
+            "phi_lepton_out",
             "Q2",
             "xB",
             "t",
@@ -862,35 +904,36 @@ def scan_spin_density_user_grid(
 
     settings = {
         "m": m,
+        "electron_mass": electron_mass,
         "normalize_trace": normalize_trace,
         "spin_case": spin_case,
     }
     tasks = []
     for y_index, y_value in enumerate(y_values):
         for x_index, x_value in enumerate(x_values):
-            user_vars = user_vars_for_scan_point(
+            cm_vars = cm_vars_for_scan_point(
                 x_name,
                 x_value,
                 y_name,
                 y_value,
-                fixed_user,
+                fixed_cm,
             )
-            tasks.append((y_index, x_index, user_vars, settings))
+            tasks.append((y_index, x_index, cm_vars, settings))
 
     if max_workers and max_workers > 1 and len(tasks) > 1:
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            results = list(executor.map(_scan_spin_density_user_grid_task, tasks))
+            results = list(executor.map(_scan_spin_density_cm_grid_task, tasks))
     else:
-        results = [_scan_spin_density_user_grid_task(task) for task in tasks]
+        results = [_scan_spin_density_cm_grid_task(task) for task in tasks]
 
     for result in results:
         if not result["ok"]:
             failures.append((
                 result.get("s", np.nan),
-                result.get("theta_in", np.nan),
-                result.get("phi_in", np.nan),
+                result.get("theta_out", np.nan),
+                result.get("phi_p_out", np.nan),
                 result.get("qOut", np.nan),
-                result.get("phiOut", np.nan),
+                result.get("phi_gamma_out", np.nan),
                 result["error"],
             ))
             continue
@@ -907,7 +950,12 @@ def scan_spin_density_user_grid(
         trace_grid[y_index, x_index] = point["trace"]
         for name, value in point["entanglement"].items():
             entanglement_grid[name][y_index, x_index] = value
-        for key in ("s", "theta_in", "phi_in", "qOut", "phiOut"):
+        for key in (
+            "s", "theta_p_in", "phi_p_in",
+            "theta_lepton_in", "phi_lepton_in",
+            "theta_out", "phi_p_out", "qOut", "phi_gamma_out",
+            "theta_lepton_out", "phi_lepton_out",
+        ):
             kinematic_grids[key][y_index, x_index] = kin[key]
         kinematic_grids["sqrt_s"][y_index, x_index] = kin["sqrt_s"]
         kinematic_grids["pIn"][y_index, x_index] = kin["pIn"]
@@ -930,14 +978,14 @@ def scan_spin_density_user_grid(
         "entanglement_names": ENTANGLEMENT_NAMES,
         "valid": valid,
         "failures": failures,
-        "label": f"user_{x_name}_{y_name}",
+        "label": f"cm_{x_name}_{y_name}",
         "x_name": x_name,
         "y_name": y_name,
-        "x_label": user_axis_label(x_name),
-        "y_label": user_axis_label(y_name),
+        "x_label": cm_axis_label(x_name),
+        "y_label": cm_axis_label(y_name),
         "y_values": y_values,
         "x_values": x_values,
-        "fixed_user": dict(fixed_user),
+        "fixed_cm": dict(fixed_cm),
         "out_states": out_states,
         "initial_states": initial_spin_states(),
         "incoming_spin_weights": incoming_spin_weights(spin_case),
@@ -949,14 +997,14 @@ def scan_spin_density_user_grid(
     }
 
 
-def user_axis_label(name):
-    """Return a plot/report label for one independent user-frame variable."""
+def cm_axis_label(name):
+    """Return a plot/report label for one independent initial-CM variable."""
     labels = {
         "s": r"$s$ [GeV$^2$]",
-        "theta_in": r"$\theta_{\rm in}$ [rad]",
-        "phi_in": r"$\phi_{\rm in}$ [rad]",
+        "theta_out": r"$\theta_{\rm out}$ [rad]",
+        "phi_p_out": r"$\phi_{p'}$ [rad]",
         "qOut": r"$E_{\gamma}'$ [GeV]",
-        "phiOut": r"$\phi_{\gamma}'$ [rad]",
+        "phi_gamma_out": r"$\phi_{\gamma}$ [rad]",
     }
     return labels.get(name, name)
 
@@ -968,24 +1016,28 @@ def entanglement_mode(spin_case):
 
 
 def benchmark_spin_density_trace(
-    kinematic_inputs=BENCHMARK_USER_KINEMATIC_INPUTS,
-    m=M,
+    m,
+    electron_mass,
+    kinematic_inputs=BENCHMARK_CM_KINEMATIC_INPUTS,
     tol=TRACE_BENCHMARK_TOL,
 ):
     """Check that selected benchmark density matrices normalize to trace one."""
     rows = []
-    for case_id, s, theta_in, phi_in, qOut, phiOut in kinematic_inputs:
-        kin = kinematics_user_from_independent(
+    for case_id, s, theta_out, phi_p_out, qOut, phi_gamma_out in kinematic_inputs:
+        kin = kinematics_cm_from_independent(
             s,
-            theta_in,
-            phi_in,
             qOut,
-            phiOut,
+            theta_out,
+            phi_p_out,
+            phi_gamma_out,
             m,
+            electron_mass,
             label=f"trace benchmark {case_id}",
         )
         F1, F2 = yahl_dirac_pauli_from_t(kin["t"], kin["m"])
-        amplitudes = amplitude_table(kin["momenta"], kin["m"], F1, F2)
+        amplitudes = amplitude_table(
+            kin["momenta"], kin["m"], F1, F2, electron_mass
+        )
         rho, _spin_signal, squared_amplitude = density_matrix_from_amplitudes(
             amplitudes,
             spin_case=SPIN_CASE_UNPOLARIZED,
@@ -1011,10 +1063,10 @@ def benchmark_spin_density_trace(
         rows.append({
             "case": case_id,
             "s": s,
-            "theta_in": theta_in,
-            "phi_in": phi_in,
+            "theta_out": theta_out,
+            "phi_p_out": phi_p_out,
             "qOut": qOut,
-            "phiOut": phiOut,
+            "phi_gamma_out": phi_gamma_out,
             "Q2": kin["Q2"],
             "xB": kin["xB"],
             "t": kin["t"],
@@ -1213,10 +1265,16 @@ def _matrix_headers(include_matrix_indices):
         "sqrt_s",
         "pIn",
         "pOut",
+        "theta_p_in",
+        "phi_p_in",
+        "theta_lepton_in",
+        "phi_lepton_in",
         "qOut",
-        "theta_in",
-        "phi_in",
-        "phiOut",
+        "theta_out",
+        "phi_p_out",
+        "phi_gamma_out",
+        "theta_lepton_out",
+        "phi_lepton_out",
         "Q2",
         "xB",
         "t",
@@ -1251,7 +1309,7 @@ def _matrix_headers(include_matrix_indices):
 
 
 def _metadata_row(scan, y_index, x_index):
-    """Return common user-frame kinematic and entanglement columns for one point."""
+    """Return common initial-CM kinematic and entanglement columns."""
     grids = scan.get("kinematic_grids", {})
 
     def grid_value(name, default=np.nan):
@@ -1270,10 +1328,16 @@ def _metadata_row(scan, y_index, x_index):
         f"{grid_value('sqrt_s'):.16e}",
         f"{grid_value('pIn'):.16e}",
         f"{grid_value('pOut'):.16e}",
+        f"{grid_value('theta_p_in'):.16e}",
+        f"{grid_value('phi_p_in'):.16e}",
+        f"{grid_value('theta_lepton_in'):.16e}",
+        f"{grid_value('phi_lepton_in'):.16e}",
         f"{grid_value('qOut'):.16e}",
-        f"{grid_value('theta_in'):.16e}",
-        f"{grid_value('phi_in'):.16e}",
-        f"{grid_value('phiOut'):.16e}",
+        f"{grid_value('theta_out'):.16e}",
+        f"{grid_value('phi_p_out'):.16e}",
+        f"{grid_value('phi_gamma_out'):.16e}",
+        f"{grid_value('theta_lepton_out'):.16e}",
+        f"{grid_value('phi_lepton_out'):.16e}",
         f"{grid_value('Q2'):.16e}",
         f"{grid_value('xB'):.16e}",
         f"{grid_value('t'):.16e}",
@@ -1465,7 +1529,7 @@ def format_trace_benchmark_rows(rows):
     headers = (
         "case",
         "s",
-        "theta_in",
+        "theta_out",
         "qOut",
         "F1",
         "F2",
@@ -1479,7 +1543,7 @@ def format_trace_benchmark_rows(rows):
         (
             row["case"],
             f"{row['s']:.6g}",
-            f"{row['theta_in']:.6g}",
+            f"{row['theta_out']:.6g}",
             f"{row['qOut']:.6g}",
             f"{row['F1']:.6g}",
             f"{row['F2']:.6g}",
@@ -1509,12 +1573,12 @@ def format_trace_benchmark_rows(rows):
 def build_scan_report(scan, paths):
     """Build the report block for one completed scan."""
     y_values = scan["y_values"]
-    fixed_user = scan["fixed_user"]
+    fixed_cm = scan["fixed_cm"]
     fixed_line = (
-        "  fixed user vars: "
+        "  fixed CM vars: "
         + ", ".join(
             f"{name}={value:.6g}"
-            for name, value in fixed_user.items()
+            for name, value in fixed_cm.items()
             if name not in (scan["x_name"], scan["y_name"])
         )
     )
@@ -1563,10 +1627,11 @@ def build_scan_report(scan, paths):
     ])
     if scan["failures"]:
         lines.append("  invalid grid points:")
-        for s, theta_in, phi_in, qOut, phiOut, message in scan["failures"]:
+        for s, theta_out, phi_p_out, qOut, phi_gamma_out, message in scan["failures"]:
             lines.append(
-                f"    s={s:.8g}, theta_in={theta_in:.8g}, phi_in={phi_in:.8g}, "
-                f"qOut={qOut:.8g}, phiOut={phiOut:.8g}: {message}"
+                f"    s={s:.8g}, theta_out={theta_out:.8g}, "
+                f"phi_p_out={phi_p_out:.8g}, qOut={qOut:.8g}, "
+                f"phi_gamma_out={phi_gamma_out:.8g}: {message}"
             )
     return "\n".join(lines)
 
@@ -1589,31 +1654,37 @@ def build_report(scan_results, trace_benchmark_rows):
 def main():
     """Regenerate all SpinDensityMat outputs from the current settings."""
     clean_generated_outputs()
-    trace_benchmark_rows = benchmark_spin_density_trace()
-    fixed_user = {
-        "s": USER_FIXED_S,
-        "theta_in": USER_FIXED_THETA_IN,
-        "phi_in": USER_FIXED_PHI_IN,
-        "qOut": USER_FIXED_QOUT,
-        "phiOut": USER_FIXED_PHI_OUT,
+    trace_benchmark_rows = benchmark_spin_density_trace(
+        M, ELECTRON_MASS_GEV
+    )
+    fixed_cm = {
+        "s": CM_FIXED_S,
+        "theta_out": CM_FIXED_THETA_OUT,
+        "phi_p_out": CM_FIXED_PHI_P_OUT,
+        "qOut": CM_FIXED_QOUT,
+        "phi_gamma_out": CM_FIXED_PHI_GAMMA_OUT,
     }
     scans = []
     for spin_case in SPIN_CASES:
         scans.extend([
-            scan_spin_density_user_grid(
-                USER_S_VALUES,
-                USER_QOUT_VALUES,
+            scan_spin_density_cm_grid(
+                CM_S_VALUES,
+                CM_QOUT_VALUES,
                 x_name="s",
                 y_name="qOut",
-                fixed_user=fixed_user,
+                fixed_cm=fixed_cm,
+                m=M,
+                electron_mass=ELECTRON_MASS_GEV,
                 spin_case=spin_case,
             ),
-            scan_spin_density_user_grid(
-                USER_THETA_IN_VALUES,
-                USER_PHI_OUT_VALUES,
-                x_name="theta_in",
-                y_name="phiOut",
-                fixed_user=fixed_user,
+            scan_spin_density_cm_grid(
+                CM_THETA_OUT_VALUES,
+                CM_PHI_GAMMA_OUT_VALUES,
+                x_name="theta_out",
+                y_name="phi_gamma_out",
+                fixed_cm=fixed_cm,
+                m=M,
+                electron_mass=ELECTRON_MASS_GEV,
                 spin_case=spin_case,
             ),
         ])

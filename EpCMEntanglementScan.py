@@ -10,9 +10,9 @@ scattered into an on-shell photon and electron at ``theta_cm``, then boosted
 back to the ep CM frame.
 
 All external masses and four-momentum conservation are retained exactly.
-The legacy fixed-polarization scan is preserved, and a separate coherent
-incoming-polarization scan varies ``theta_e`` and ``theta_p`` over one physical
-period. Outputs are written below ``Output/EpCMEntanglementScan``.
+The fixed prepared-state scan and coherent incoming-polarization scan are
+first-class outputs. The coherent scan varies ``theta_e`` and ``theta_p`` over
+one physical period. Outputs are written below ``Output/EpCMEntanglementScan``.
 """
 
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
@@ -31,7 +31,7 @@ from AlignmentScan import (
     spatial_opening_angle,
 )
 from FormFactors import yahl_dirac_pauli_from_t
-from Kinematics import invariant_q2_xb_t
+from Kinematics import invariant_q2_xb_t, spatial_angles
 from PlotUtils import print_console_text, require_matplotlib
 from SpinDensityMat import (
     SPIN_CASES,
@@ -154,7 +154,7 @@ def ep_cm_spin_case_display_label(spin_case):
 
 
 def observable_column(spin_case, observable):
-    """Return an AlignmentScan-compatible observable column name."""
+    """Return the shared observable column name."""
     return (
         f"{polarization_prefix(spin_case)}_"
         f"{species_observable_name(observable, LEPTON_NAME)}"
@@ -311,6 +311,9 @@ def _evaluate_point_data(task):
     process_rho = process_density_matrix_from_amplitudes(amplitudes)
     mom = kin["momenta"]
     derived = invariant_q2_xb_t(mom, PROTON_MASS_GEV)
+    theta_p_out, phi_p_out = spatial_angles(mom["pp"])
+    theta_gamma_out, phi_gamma_out = spatial_angles(mom["qout"])
+    theta_lepton_out, phi_lepton_out = spatial_angles(mom["kp"])
     lepton_photon_angle = spatial_opening_angle(mom["kp"], mom["qout"])
     k_dot_qout = real_mdot(mom["k"], mom["qout"])
     kp_dot_qout = real_mdot(mom["kp"], mom["qout"])
@@ -320,7 +323,7 @@ def _evaluate_point_data(task):
             f"ep_cm_z_{z:.8g}_theta_cm_{theta_cm:.8g}_theta_p_{theta_p:.8g}"
         ),
         "s_regime": "reference_low_energy_ep_cm",
-        "theta_in_regime": "collinear",
+        "theta_out_regime": "independent_ep_cm_final_angles",
         "qOut_regime": "high_energy_transfer_slow_recoil_proton",
         "lepton_mass": LEPTON_MASS_GEV,
         "z_index": z_index,
@@ -338,15 +341,23 @@ def _evaluate_point_data(task):
         "sqrt_s": kin["sqrt_s"],
         "pIn": BEAM_MOMENTUM_GEV,
         "pOut": kin["recoil_momentum"],
+        "theta_p_in": 0.0,
+        "phi_p_in": 0.0,
+        "theta_lepton_in": np.pi,
+        "phi_lepton_in": 0.0,
         "final_proton_momentum_GeV": kin["recoil_momentum"],
         "final_proton_energy_GeV": kin["recoil_energy"],
         "proton_energy_loss_GeV": kin["proton_energy_loss"],
         "proton_energy_loss_fraction": kin["proton_energy_loss_fraction"],
         "qOut": mom["qout"][0],
-        "theta_in": 0.0,
-        "phi_in": 0.0,
-        "phi_in_lepton": np.pi,
-        "phiOut": float(np.arctan2(mom["qout"][2], mom["qout"][1]) % (2.0 * np.pi)),
+        "theta_out": np.nan,
+        "theta_p_out": theta_p_out,
+        "phi_p_out": phi_p_out,
+        "theta_gamma_out": theta_gamma_out,
+        "phi_gamma_out": phi_gamma_out,
+        "theta_lepton_out": theta_lepton_out,
+        "phi_lepton_out": phi_lepton_out,
+        "common_theta_out": False,
         "Q2": derived["Q2"],
         "xB": derived["xB"],
         "t": kin["t"],
@@ -403,13 +414,13 @@ def _store_spin_result(row, spin_case, result):
 
 
 def evaluate_point(task):
-    """Evaluate every legacy fixed polarization at one kinematic point."""
+    """Evaluate every fixed prepared state at one kinematic point."""
     row, amplitudes, process_rho = _evaluate_point_data(task)
     return _evaluate_fixed_polarizations(row, amplitudes, process_rho)
 
 
 def _evaluate_fixed_polarizations(row, amplitudes, process_rho):
-    """Evaluate legacy cases from already-computed kinematic amplitudes."""
+    """Evaluate fixed prepared states from already-computed amplitudes."""
     row = dict(row)
     for spin_case in EP_CM_FIXED_SPIN_CASES:
         result = spin_density_observables_from_amplitudes(

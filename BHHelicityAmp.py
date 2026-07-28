@@ -37,7 +37,7 @@ from Algebra import (
     slash,
     spinor_bar,
 )
-from Kinematics import kinematics_user_from_independent
+from Kinematics import kinematics_cm_from_independent
 from FormFactors import sachs_from_dirac_pauli
 
 OUTPUT_LOG_PATH = Path("Output") / "BHHelicityAmp.log"
@@ -51,7 +51,7 @@ OUTPUT_LOG_PATH = Path("Output") / "BHHelicityAmp.log"
 # + gamma^nu (slash(k-q') + m_e) gamma^mu / ((k-q')^2-m_e^2)
 # ============================================================
 
-def lepton_kernel(mu, nu, k, kp, qout, electron_mass=0.0):
+def lepton_kernel(mu, nu, k, kp, qout, electron_mass):
     """Return the leptonic Bethe-Heitler kernel ``L^{mu nu}``.
 
     Parameters
@@ -63,8 +63,9 @@ def lepton_kernel(mu, nu, k, kp, qout, electron_mass=0.0):
     k, kp, qout : array-like
         Incoming electron, outgoing electron, and outgoing real-photon
         four-momenta.
-    electron_mass : float, optional
-        Electron mass in the same units as the momenta. The default is zero.
+    electron_mass : float
+        Lepton mass in the same units as the momenta. Pass ``0.0`` for the
+        massless limit.
 
     Returns
     -------
@@ -248,7 +249,7 @@ def bh_amplitude_core(
     hIn, hOut,
     sIn, sOut,
     m, F1, F2,
-    electron_mass=0.0,
+    electron_mass,
 ):
     """Evaluate a fixed-helicity Bethe-Heitler amplitude.
 
@@ -262,8 +263,7 @@ def bh_amplitude_core(
     Parameters are validated for four-vector shape, finite entries, positive
     proton mass, non-negative electron mass, and helicity labels ``+/-1``.
     Singular propagator or momentum-transfer denominators raise
-    ``ZeroDivisionError``. Pass ``electron_mass=ELECTRON_MASS_GEV`` (imported
-    from :mod:`Algebra`) to enable the physical electron mass.
+    ``ZeroDivisionError``. The lepton mass is always explicit.
     """
     hIn = _validate_helicity(hIn, "hIn")
     hOut = _validate_helicity(hOut, "hOut")
@@ -308,8 +308,8 @@ def bh_unpolarized_squared_amplitude_core(
     k, kp, qout,
     p, pp,
     m, F1, F2,
+    electron_mass,
     average_initial=True,
-    electron_mass=0.0,
 ):
     """
     Return the unpolarized Bethe-Heitler squared amplitude.
@@ -346,9 +346,9 @@ def bh_amplitude_table(
     m,
     F1,
     F2,
+    electron_mass,
     initial_states=None,
     outgoing_states=None,
-    electron_mass=0.0,
 ):
     """Return the full Bethe-Heitler helicity-amplitude table.
 
@@ -393,7 +393,7 @@ def bh_amplitude_table(
 def main():
     """Run the analytic benchmark sweep and write ``Output/BHHelicityAmp.log``.
 
-    The benchmark constructs several independent user-frame kinematic points
+    The benchmark constructs several independent initial-CM kinematic points
     and compares numerical spinor sums with analytic Bethe-Heitler expressions
     for multiple ``(F1, F2)`` form-factor choices.
     """
@@ -452,6 +452,7 @@ def main():
                 hIn, hOut,
                 sIn, sOut,
                 m, F1, F2,
+                0.0,
             )
             total += abs(amp) ** 2
         return float(total)
@@ -547,7 +548,10 @@ def main():
             )
         return value / t
 
-    input_keys = ("case", "s", "theta_in", "phi_in", "qOut", "phiOut", "m")
+    input_keys = (
+        "case", "s", "theta_out", "phi_p_out",
+        "qOut", "phi_gamma_out", "m",
+    )
     kinematic_inputs = [
         dict(zip(input_keys, row))
         for row in (
@@ -565,13 +569,14 @@ def main():
     pol_h_analytic = 0.5 * pol_h_in
 
     def build_case(inputs):
-        kin = kinematics_user_from_independent(
+        kin = kinematics_cm_from_independent(
             inputs["s"],
-            inputs["theta_in"],
-            inputs["phi_in"],
             inputs["qOut"],
-            inputs["phiOut"],
+            inputs["theta_out"],
+            inputs["phi_p_out"],
+            inputs["phi_gamma_out"],
             inputs["m"],
+            0.0,
             label=inputs["case"],
         )
         mom = kin["momenta"]
@@ -595,7 +600,13 @@ def main():
     def solved_row(case):
         return [
             case["id"],
-            *values_from(case["kin"], ("pIn", "pOut", "qOut", "theta_in", "phi_in", "phiOut")),
+            *values_from(
+                case["kin"],
+                (
+                    "pIn", "pOut", "qOut", "theta_out",
+                    "phi_p_out", "phi_gamma_out",
+                ),
+            ),
             fmt(case["kin"]["energy_residual"]),
         ]
 
@@ -630,7 +641,14 @@ def main():
         ]
 
     independent_rows = [
-        row_from(case, "input", ("s", "theta_in", "phi_in", "qOut", "phiOut", "m"))
+        row_from(
+            case,
+            "input",
+            (
+                "s", "theta_out", "phi_p_out",
+                "qOut", "phi_gamma_out", "m",
+            ),
+        )
         for case in cases
     ]
     derived_rows = [
@@ -661,6 +679,7 @@ def main():
             ref_photon_pols[lam],
             hIn, hOut, sIn, sOut,
             ref_case["kin"]["m"], ref_F1, ref_F2,
+            0.0,
         )
         helicity_rows.append([
             hIn, hOut, sIn, sOut, lam,
@@ -681,6 +700,7 @@ def main():
                 case["mom"]["k"], case["mom"]["kp"], case["mom"]["qout"],
                 case["mom"]["p"], case["mom"]["pp"],
                 case["kin"]["m"], F1, F2,
+                0.0,
             )
             analytic_amp2 = analytic_bh_m2(
                 F1, F2, terms, case["kin"]["m"],
@@ -713,8 +733,8 @@ def main():
 
     table_specs = {
         "independent": (
-            ["case", "s [GeV^2]", "theta_in [rad]", "phi_in [rad]",
-             "qOut [GeV]", "phiOut [rad]", "m [GeV]"],
+            ["case", "s [GeV^2]", "theta_out [rad]", "phi_p_out [rad]",
+             "qOut [GeV]", "phi_gamma_out [rad]", "m [GeV]"],
             independent_rows,
         ),
         "derived": (
@@ -723,8 +743,9 @@ def main():
             derived_rows,
         ),
         "solved": (
-            ["case", "pIn [GeV]", "pOut [GeV]", "qOut [GeV]", "theta_in [rad]",
-             "phi_in [rad]", "phiOut [rad]", "energy residual [GeV]"],
+            ["case", "pIn [GeV]", "pOut [GeV]", "qOut [GeV]",
+             "theta_out [rad]", "phi_p_out [rad]", "phi_gamma_out [rad]",
+             "energy residual [GeV]"],
             solved_rows,
         ),
         "momenta": (
@@ -761,19 +782,22 @@ def main():
         BH helicity-amplitude benchmark
 
         Kinematics and variables
-          Each K row is one independent user-frame COM input point.
+          Each K row is one independent initial-CM input point.
           s: total incoming e+p invariant mass squared in GeV^2.
-          theta_in, phi_in: incoming proton direction in the user frame.
+          Initial proton/lepton directions are fixed at +z/-z.
+          theta_out: common final-proton and photon polar angle.
+          phi_p_out: outgoing proton azimuth.
           qOut: outgoing real-photon energy/momentum magnitude in GeV.
-          phiOut: outgoing real-photon azimuth in the user frame.
+          phi_gamma_out: outgoing real-photon azimuth.
           pOut is solved from energy conservation for each row.
           Q2, xB, t, W2, and y are derived diagnostics.
           m: proton mass in GeV.
           Independent inputs are converted to pIn and pOut, then built with
-          momenta_user.
-          Four-momenta are reported in the user-kinematics COM frame as
-          [E, px, py, pz] in GeV, with pp=(E,0,pOut,0) and
-          qout=qOut(1,cos(phiOut),sin(phiOut),0).
+          momenta_cm.
+          Four-momenta are reported in the initial proton-lepton CM frame as
+          [E, px, py, pz] in GeV, with p along +z and k along -z.
+          The final proton and photon share theta_out; kp follows from
+          three-momentum conservation.
           phi_xy: atan2(py, px) in radians, shown for k, p, and qout.
           k, kp: incoming and outgoing electron momenta.
           p, pp: incoming and outgoing proton momenta.
@@ -811,16 +835,16 @@ def main():
     lines = [
         intro,
         "",
-        "Independent user-frame inputs",
+        "Independent initial-CM inputs",
         tables["independent"],
         "",
         "Derived invariant diagnostics",
         tables["derived"],
         "",
-        "Solved user-kinematics variables",
+        "Solved initial-CM kinematic variables",
         tables["solved"],
         "",
-        "Four-momenta from momenta_user",
+        "Four-momenta from momenta_cm",
         tables["momenta"],
         "",
         "Four-momentum checks",

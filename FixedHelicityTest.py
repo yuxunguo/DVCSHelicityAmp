@@ -13,7 +13,7 @@ import numpy as np
 from Algebra import HELICITIES
 from config import ELECTRON_MASS_GEV, PROTON_MASS_GEV
 from FormFactors import yahl_dirac_pauli_from_t
-from Kinematics import kinematics_user_from_independent
+from Kinematics import kinematics_cm_from_independent
 from PlotUtils import require_matplotlib
 from SpinDensityMat import (
     amplitude_table,
@@ -29,13 +29,12 @@ from SpinDensityMat import (
 # Each state may be -1, +1, "U", "L", "Tx", "-Tx", "Ty", or "-Ty".
 # "U" (or "unpolarized") is the equal incoherent average over helicities.
 # ---------------------------------------------------------------------------
-# Near-maximal proton-photon concurrence from the transverse-proton scan:
-# C_p_gamma = 0.9999305343 at phi_in = pi/2.
+# Editable initial-CM point. The final proton and photon share THETA_OUT.
 S = 21.515844
-THETA_IN = 1.570795
-PHI_IN = np.pi / 2.0
+THETA_OUT = 1.570795
+PHI_P_OUT = np.pi / 2.0
 QOUT = 0.50
-PHIOUT = np.pi / 2.0
+PHI_GAMMA_OUT = np.pi / 2.0
 ELECTRON_STATE = "U"
 PROTON_STATE = "Tx"
 
@@ -66,10 +65,10 @@ def _state_ensemble(state, particle):
 
 def evaluate_prepared_spin_configuration(
     s,
-    theta_in,
-    phi_in,
+    theta_out,
+    phi_p_out,
     qOut,
-    phiOut,
+    phi_gamma_out,
     electron_state,
     proton_state,
 ):
@@ -77,12 +76,12 @@ def evaluate_prepared_spin_configuration(
     electron_ensemble = _state_ensemble(electron_state, "electron")
     proton_ensemble = _state_ensemble(proton_state, "proton")
 
-    kin = kinematics_user_from_independent(
+    kin = kinematics_cm_from_independent(
         s,
-        theta_in,
-        phi_in,
         qOut,
-        phiOut,
+        theta_out,
+        phi_p_out,
+        phi_gamma_out,
         PROTON_MASS_GEV,
         electron_mass=ELECTRON_MASS_GEV,
         label=f"electron {electron_state}, proton {proton_state}",
@@ -254,8 +253,14 @@ def write_summary_pdf(result, output_dir=OUTPUT_DIR):
             f"m_e={ELECTRON_MASS_GEV:.9g} GeV, m_p={PROTON_MASS_GEV:.6g} GeV",
             "",
             f"s={kin['s']:.6g} GeV^2, sqrt(s)={kin['sqrt_s']:.6g} GeV",
-            f"theta_in={kin['theta_in']:.6g}, phi_in={kin['phi_in']:.6g}",
-            f"E_gamma={kin['qOut']:.6g} GeV, phi_gamma={kin['phiOut']:.6g}",
+            (
+                f"theta_out={kin['theta_out']:.6g}, "
+                f"phi_p_out={kin['phi_p_out']:.6g}"
+            ),
+            (
+                f"E_gamma={kin['qOut']:.6g} GeV, "
+                f"phi_gamma_out={kin['phi_gamma_out']:.6g}"
+            ),
             f"Q2={kin['Q2']:.6g}, xB={kin['xB']:.6g}, t={kin['t']:.6g}",
             f"F1={result['F1']:.6g}, F2={result['F2']:.6g}",
             f"|M|^2={result['squared_amplitude']:.6g}",
@@ -311,10 +316,10 @@ def main():
     """Evaluate the editable test point and write CSV and PDF summaries."""
     result = evaluate_prepared_spin_configuration(
         S,
-        THETA_IN,
-        PHI_IN,
+        THETA_OUT,
+        PHI_P_OUT,
         QOUT,
-        PHIOUT,
+        PHI_GAMMA_OUT,
         ELECTRON_STATE,
         PROTON_STATE,
     )

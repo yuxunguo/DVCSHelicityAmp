@@ -92,7 +92,7 @@ def polarization_prefix(spin_case):
 
 
 def observable_column(spin_case, observable):
-    """Return the focused scan's AlignmentScan-compatible observable column."""
+    """Return the focused scan's shared observable column."""
     return (
         f"{polarization_prefix(spin_case)}_"
         f"{species_observable_name(observable, LEPTON_NAME)}"
@@ -124,7 +124,7 @@ def read_scan_rows(path=SCAN_CSV, spin_cases=EP_CM_FIXED_SPIN_CASES):
         preview = ", ".join(missing[:3])
         raise ValueError(
             "The focused scan CSV uses an obsolete or incomplete schema; "
-            f"missing {len(missing)} AlignmentScan-compatible columns "
+            f"missing {len(missing)} required observable columns "
             f"(for example: {preview}). Rerun python3 EpCMEntanglementScan.py "
             "before running EpCMConfigGen.py."
         )

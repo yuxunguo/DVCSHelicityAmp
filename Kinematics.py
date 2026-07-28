@@ -1,14 +1,18 @@
-"""User-frame kinematic builders and validation checks.
+"""Initial proton--lepton CM-frame kinematic builders and checks.
 
-The repository uses a direct COM-frame parameterization specified by ``pIn``,
-``pOut``, ``qOut``, ``theta_in``, ``phi_in``, and ``phiOut``. Scan scripts use
-the independent user-frame set ``(s, theta_in, phi_in, qOut, phiOut)`` and
-solve ``pOut`` from energy conservation.
+The frame fixes the incoming proton along ``+z`` and the incoming lepton
+along ``-z``.  The independent variables are
+
+``(s, qOut, theta_out, phi_p_out, phi_gamma_out)``.
+
+The final proton and real photon share the production-plane polar angle
+``theta_out`` and have separate azimuths.  The outgoing-lepton momentum
+follows from three-momentum conservation, while the final-proton magnitude
+``pOut`` is solved from energy conservation.
 
 All four-vectors are contravariant arrays in ``[E, px, py, pz]`` order. The
-external electron and photon are placed on shell by construction. The electron
-is massless by default and can be made massive with ``electron_mass``; the
-proton mass is supplied explicitly as ``m``.
+external lepton and photon are placed on shell by construction. Both lepton
+and proton masses are explicit inputs.
 """
 
 import numpy as np
@@ -23,101 +27,136 @@ from Algebra import (
 
 
 # ============================================================
-# User kinematics
+# Initial proton--lepton CM kinematics
 #
-# p' = (sqrt(pOut^2+m^2), 0, pOut, 0)
-# q' = qOut (1, cos phiOut, sin phiOut, 0)
-# k' = (sqrt(pOut^2+qOut^2+2 pOut qOut sin phiOut),
-#       -qOut cos phiOut, -pOut - qOut sin phiOut, 0)
-#
-# p = (sqrt(pIn^2+m^2),
-#      pIn sin theta_in cos phi_in, pIn sin theta_in sin phi_in, pIn cos theta_in)
-# k = pIn (1, -sin theta_in cos phi_in, -sin theta_in sin phi_in, -cos theta_in)
+# p  = (sqrt(pIn^2+m^2), 0, 0, +pIn)
+# k  = (sqrt(pIn^2+me^2), 0, 0, -pIn)
+# p' = (sqrt(pOut^2+m^2), pOut n(theta_out, phi_p_out))
+# q' = qOut (1, n(theta_out, phi_gamma_out))
+# k' = (sqrt(|-p' - q'|^2+me^2), -p' - q')
 # ============================================================
 
-def k_user(pIn, theta_in, phi_in, electron_mass=0.0):
-    """Return the incoming electron four-momentum in the user frame.
+def direction_from_angles(theta, phi):
+    """Return the unit vector with standard polar and azimuthal angles."""
+    theta = _validate_scalar(theta, "theta")
+    phi = _validate_scalar(phi, "phi")
+    return np.array([
+        np.sin(theta) * np.cos(phi),
+        np.sin(theta) * np.sin(phi),
+        np.cos(theta),
+    ])
 
-    ``pIn`` is the common incoming three-momentum magnitude in the COM frame.
-    The electron points opposite to the incoming proton direction defined by
-    polar angle ``theta_in`` and azimuth ``phi_in``. Its mass defaults to zero.
+
+def spatial_angles(four_vector):
+    """Return standard ``(theta, phi)`` angles for a nonzero four-vector."""
+    spatial = np.asarray(four_vector, dtype=float)[1:4]
+    magnitude = float(np.linalg.norm(spatial))
+    if magnitude <= DEFAULT_TOL:
+        return np.nan, np.nan
+    theta = float(np.arccos(np.clip(spatial[2] / magnitude, -1.0, 1.0)))
+    phi = _normalize_angle(np.arctan2(spatial[1], spatial[0]))
+    return theta, phi
+
+
+def k_cm(pIn, electron_mass):
+    """Return the incoming lepton four-momentum in the initial CM frame.
+
+    The lepton points along ``-z``.
     """
     pIn = _validate_nonnegative_scalar(pIn, "pIn")
     electron_mass = _validate_nonnegative_scalar(electron_mass, "electron_mass")
     return np.array([
         np.sqrt(pIn**2 + electron_mass**2),
-        -pIn * np.sin(theta_in) * np.cos(phi_in),
-        -pIn * np.sin(theta_in) * np.sin(phi_in),
-        -pIn * np.cos(theta_in),
+        0.0,
+        0.0,
+        -pIn,
     ])
 
 
-def p_user(pIn, theta_in, phi_in, m):
-    """Return the incoming proton four-momentum in the user frame."""
+def p_cm(pIn, m):
+    """Return the incoming proton four-momentum along ``+z``."""
     pIn = _validate_nonnegative_scalar(pIn, "pIn")
     m = _validate_positive_scalar(m, "m")
     return np.array([
         np.sqrt(pIn**2 + m**2),
-        pIn * np.sin(theta_in) * np.cos(phi_in),
-        pIn * np.sin(theta_in) * np.sin(phi_in),
-        pIn * np.cos(theta_in),
+        0.0,
+        0.0,
+        pIn,
     ])
 
 
-def pp_user(pOut, m):
-    """Return the outgoing proton four-momentum in the user frame.
+def pp_cm(pOut, theta_p_out, phi_p_out, m):
+    """Return the outgoing proton four-momentum in the initial CM frame.
 
-    The user frame fixes the outgoing proton spatial momentum along the
-    positive y axis, ``pp = (E, 0, pOut, 0)``.
+    ``theta_p_out`` and ``phi_p_out`` specify its direction.
     """
     pOut = _validate_nonnegative_scalar(pOut, "pOut")
     m = _validate_positive_scalar(m, "m")
-    return np.array([
-        np.sqrt(pOut**2 + m**2),
-        0.0,
-        pOut,
-        0.0,
-    ])
+    direction = direction_from_angles(theta_p_out, phi_p_out)
+    return np.concatenate(([np.sqrt(pOut**2 + m**2)], pOut * direction))
 
 
-def qout_user(qOut, phiOut):
-    """Return the outgoing real-photon four-momentum in the user frame."""
+def qout_cm(qOut, theta_gamma_out, phi_gamma_out):
+    """Return the outgoing real-photon four-momentum in the initial CM frame."""
     qOut = _validate_nonnegative_scalar(qOut, "qOut")
-    return qOut * np.array([1.0, np.cos(phiOut), np.sin(phiOut), 0.0])
+    direction = direction_from_angles(theta_gamma_out, phi_gamma_out)
+    return np.concatenate(([qOut], qOut * direction))
 
 
-def kp_user(pOut, qOut, phiOut, electron_mass=0.0):
+def kp_cm(
+    pOut,
+    qOut,
+    theta_p_out,
+    phi_p_out,
+    theta_gamma_out,
+    phi_gamma_out,
+    electron_mass,
+):
     """Return the outgoing electron four-momentum from momentum conservation.
 
-    The spatial momentum is fixed by ``k + p = kp + pp + qout`` in the user
-    frame, and its on-shell energy includes the optional electron mass.
+    The spatial momentum is fixed by ``k + p = kp + pp + qout`` in the CM
+    frame, and its on-shell energy includes the explicit lepton mass.
     """
     pOut = _validate_nonnegative_scalar(pOut, "pOut")
     qOut = _validate_nonnegative_scalar(qOut, "qOut")
     electron_mass = _validate_nonnegative_scalar(electron_mass, "electron_mass")
-    kp3 = np.array([
-        -qOut * np.cos(phiOut),
-        -pOut - qOut * np.sin(phiOut),
-        0.0,
-    ])
+    proton3 = pOut * direction_from_angles(theta_p_out, phi_p_out)
+    photon3 = qOut * direction_from_angles(theta_gamma_out, phi_gamma_out)
+    kp3 = -proton3 - photon3
     return np.concatenate([[np.sqrt(np.dot(kp3, kp3) + electron_mass**2)], kp3])
 
 
-def momenta_user(
-    pIn, pOut, qOut, theta_in, phi_in, phiOut, m, electron_mass=0.0
+def momenta_cm(
+    pIn,
+    pOut,
+    qOut,
+    theta_p_out,
+    phi_p_out,
+    theta_gamma_out,
+    phi_gamma_out,
+    m,
+    electron_mass,
 ):
-    """Return all user-frame external momenta as a dictionary.
+    """Return all initial-CM external momenta as a dictionary.
 
     The returned keys are ``k`` (incoming electron), ``p`` (incoming proton),
     ``kp`` (outgoing electron), ``pp`` (outgoing proton), and ``qout``
     (outgoing real photon).
     """
     return {
-        "k": k_user(pIn, theta_in, phi_in, electron_mass=electron_mass),
-        "p": p_user(pIn, theta_in, phi_in, m),
-        "kp": kp_user(pOut, qOut, phiOut, electron_mass=electron_mass),
-        "pp": pp_user(pOut, m),
-        "qout": qout_user(qOut, phiOut),
+        "k": k_cm(pIn, electron_mass),
+        "p": p_cm(pIn, m),
+        "kp": kp_cm(
+            pOut,
+            qOut,
+            theta_p_out,
+            phi_p_out,
+            theta_gamma_out,
+            phi_gamma_out,
+            electron_mass=electron_mass,
+        ),
+        "pp": pp_cm(pOut, theta_p_out, phi_p_out, m),
+        "qout": qout_cm(qOut, theta_gamma_out, phi_gamma_out),
     }
 
 
@@ -126,7 +165,7 @@ def _normalize_angle(angle):
     return float(angle % (2.0 * np.pi))
 
 
-def p_in_from_s(s, m, electron_mass=0.0):
+def p_in_from_s(s, m, electron_mass):
     """Return the incoming COM momentum magnitude from invariant ``s``."""
     s = _validate_positive_scalar(s, "s")
     m = _validate_positive_scalar(m, "m")
@@ -137,62 +176,70 @@ def p_in_from_s(s, m, electron_mass=0.0):
     return np.sqrt(max(0.0, kallen)) / (2.0 * np.sqrt(s))
 
 
-def _user_energy_residual_for_pout(
-    pOut, sqrt_s, qOut, phiOut, m, electron_mass=0.0
+def _cm_energy_residual_for_pout(
+    pOut, sqrt_s, qOut, opening_cosine, m, electron_mass
 ):
-    """Return final energy minus ``sqrt_s`` for a user-frame ``pOut`` trial."""
+    """Return final energy minus ``sqrt_s`` for a CM-frame ``pOut`` trial."""
     proton_energy = np.sqrt(pOut**2 + m**2)
     electron_energy = np.sqrt(
-        pOut**2 + qOut**2 + 2.0 * pOut * qOut * np.sin(phiOut)
+        pOut**2 + qOut**2 + 2.0 * pOut * qOut * opening_cosine
         + electron_mass**2
     )
     return proton_energy + electron_energy + qOut - sqrt_s
 
 
-def solve_pout_from_user_independent(
-    s, qOut, phiOut, m, tol=1.0e-12, electron_mass=0.0
+def solve_pout_from_cm_independent(
+    s,
+    qOut,
+    theta_out,
+    phi_p_out,
+    phi_gamma_out,
+    m,
+    electron_mass,
+    tol=1.0e-12,
 ):
-    """Solve outgoing proton momentum from ``s``, photon energy and ``phiOut``.
+    """Solve the outgoing proton magnitude from energy conservation.
 
-    The direct user frame conserves three-momentum by construction.  Energy
-    conservation then fixes ``pOut`` for the independent set
-    ``(s, theta_in, phi_in, qOut, phiOut)``.
+    The angular dependence enters through the opening angle between the final
+    proton and photon.
     """
     s = _validate_positive_scalar(s, "s")
     qOut = _validate_nonnegative_scalar(qOut, "qOut")
-    phiOut = _validate_scalar(phiOut, "phiOut")
+    proton_direction = direction_from_angles(theta_out, phi_p_out)
+    photon_direction = direction_from_angles(theta_out, phi_gamma_out)
+    opening_cosine = float(np.dot(proton_direction, photon_direction))
     m = _validate_positive_scalar(m, "m")
     electron_mass = _validate_nonnegative_scalar(electron_mass, "electron_mass")
     sqrt_s = np.sqrt(s)
 
     low = 0.0
-    low_value = _user_energy_residual_for_pout(
-        low, sqrt_s, qOut, phiOut, m, electron_mass
+    low_value = _cm_energy_residual_for_pout(
+        low, sqrt_s, qOut, opening_cosine, m, electron_mass
     )
     if abs(low_value) <= tol:
         return 0.0
 
-    # For backward photon emission the energy residual can initially decrease,
+    # For photon emission with a negative opening cosine, the energy residual can
+    # initially decrease,
     # producing two positive roots even when its value at pOut=0 is positive.
     # Locate the unique convex minimum and choose the first physical root.
     if low_value > tol:
-        sine = np.sin(phiOut)
-
         def derivative(momentum):
             lepton_energy = np.sqrt(
                 momentum**2
                 + qOut**2
-                + 2.0 * momentum * qOut * sine
+                + 2.0 * momentum * qOut * opening_cosine
                 + electron_mass**2
             )
             return (
                 momentum / np.sqrt(momentum**2 + m**2)
-                + (momentum + qOut * sine) / lepton_energy
+                + (momentum + qOut * opening_cosine) / lepton_energy
             )
 
         if derivative(0.0) >= 0.0:
             raise ValueError(
-                "No physical pOut: photon energy is too large for this s and phiOut."
+                "No physical pOut: photon energy is too large for these "
+                "initial-CM angles."
             )
         minimum_high = max(1.0, sqrt_s)
         while derivative(minimum_high) <= 0.0:
@@ -205,12 +252,13 @@ def solve_pout_from_user_independent(
             else:
                 minimum_low = midpoint
         minimum = 0.5 * (minimum_low + minimum_high)
-        minimum_value = _user_energy_residual_for_pout(
-            minimum, sqrt_s, qOut, phiOut, m, electron_mass
+        minimum_value = _cm_energy_residual_for_pout(
+            minimum, sqrt_s, qOut, opening_cosine, m, electron_mass
         )
         if minimum_value > tol:
             raise ValueError(
-                "No physical pOut: photon energy is too large for this s and phiOut."
+                "No physical pOut: photon energy is too large for these "
+                "initial-CM angles."
             )
         if abs(minimum_value) <= tol:
             return minimum
@@ -218,8 +266,8 @@ def solve_pout_from_user_independent(
         high, high_value = minimum, minimum_value
         for _iteration in range(100):
             mid = 0.5 * (low + high)
-            mid_value = _user_energy_residual_for_pout(
-                mid, sqrt_s, qOut, phiOut, m, electron_mass
+            mid_value = _cm_energy_residual_for_pout(
+                mid, sqrt_s, qOut, opening_cosine, m, electron_mass
             )
             if abs(mid_value) <= tol:
                 return mid
@@ -230,23 +278,23 @@ def solve_pout_from_user_independent(
         return 0.5 * (low + high)
 
     high = max(1.0, sqrt_s)
-    high_value = _user_energy_residual_for_pout(
-        high, sqrt_s, qOut, phiOut, m, electron_mass
+    high_value = _cm_energy_residual_for_pout(
+        high, sqrt_s, qOut, opening_cosine, m, electron_mass
     )
     for _iteration in range(80):
         if high_value > 0.0:
             break
         high *= 2.0
-        high_value = _user_energy_residual_for_pout(
-            high, sqrt_s, qOut, phiOut, m, electron_mass
+        high_value = _cm_energy_residual_for_pout(
+            high, sqrt_s, qOut, opening_cosine, m, electron_mass
         )
     else:
         raise ValueError("Could not bracket a physical pOut solution.")
 
     for _iteration in range(100):
         mid = 0.5 * (low + high)
-        mid_value = _user_energy_residual_for_pout(
-            mid, sqrt_s, qOut, phiOut, m, electron_mass
+        mid_value = _cm_energy_residual_for_pout(
+            mid, sqrt_s, qOut, opening_cosine, m, electron_mass
         )
         if abs(mid_value) <= tol:
             return mid
@@ -285,36 +333,64 @@ def invariant_q2_xb_t(mom, m):
     }
 
 
-def kinematics_user_from_independent(
-    s, theta_in, phi_in, qOut, phiOut, m, label=None, electron_mass=0.0
+def kinematics_cm_from_independent(
+    s,
+    qOut,
+    theta_out,
+    phi_p_out,
+    phi_gamma_out,
+    m,
+    electron_mass,
+    label=None,
 ):
-    """Build user-frame COM kinematics from independent user variables.
+    """Build initial proton--lepton CM kinematics from independent variables.
 
-    Independent variables are ``s``, the incoming proton direction
-    ``theta_in``/``phi_in``, the outgoing photon energy ``qOut``, and the
-    outgoing photon azimuth ``phiOut``.  The outgoing proton momentum ``pOut``
-    is solved from energy conservation.
+    The incoming proton/lepton axes are fixed at ``+z``/``-z``.  Both final
+    proton and photon share ``theta_out`` and have independent azimuths;
+    ``pOut`` is solved.
     """
     s = _validate_positive_scalar(s, "s")
-    theta_in = _validate_scalar(theta_in, "theta_in")
-    phi_in = _normalize_angle(_validate_scalar(phi_in, "phi_in"))
     qOut = _validate_nonnegative_scalar(qOut, "qOut")
-    phiOut = _normalize_angle(_validate_scalar(phiOut, "phiOut"))
+    theta_out = _validate_scalar(theta_out, "theta_out")
+    if not 0.0 <= theta_out <= np.pi:
+        raise ValueError("theta_out must lie in [0, pi].")
+    phi_p_out = _normalize_angle(_validate_scalar(phi_p_out, "phi_p_out"))
+    phi_gamma_out = _normalize_angle(
+        _validate_scalar(phi_gamma_out, "phi_gamma_out")
+    )
     m = _validate_positive_scalar(m, "m")
     electron_mass = _validate_nonnegative_scalar(electron_mass, "electron_mass")
 
     pIn = p_in_from_s(s, m, electron_mass=electron_mass)
-    pOut = solve_pout_from_user_independent(
-        s, qOut, phiOut, m, electron_mass=electron_mass
+    pOut = solve_pout_from_cm_independent(
+        s,
+        qOut,
+        theta_out,
+        phi_p_out,
+        phi_gamma_out,
+        m,
+        electron_mass,
     )
-    mom = momenta_user(
-        pIn, pOut, qOut, theta_in, phi_in, phiOut, m,
-        electron_mass=electron_mass,
+    mom = momenta_cm(
+        pIn,
+        pOut,
+        qOut,
+        theta_out,
+        phi_p_out,
+        theta_out,
+        phi_gamma_out,
+        m,
+        electron_mass,
     )
     mom["q"] = mom["k"] - mom["kp"]
+    theta_lepton_out, phi_lepton_out = spatial_angles(mom["kp"])
+    opening_cosine = float(np.dot(
+        direction_from_angles(theta_out, phi_p_out),
+        direction_from_angles(theta_out, phi_gamma_out),
+    ))
     derived = invariant_q2_xb_t(mom, m)
     return {
-        "frame": "user_kinematics_com",
+        "frame": "initial_proton_lepton_com",
         "label": label,
         "m": m,
         "electron_mass": electron_mass,
@@ -322,14 +398,23 @@ def kinematics_user_from_independent(
         "pIn": pIn,
         "pOut": pOut,
         "s": s,
-        "theta_in": _normalize_angle(theta_in),
-        "phi_in": phi_in,
+        "theta_p_in": 0.0,
+        "phi_p_in": 0.0,
+        "theta_lepton_in": float(np.pi),
+        "phi_lepton_in": 0.0,
         "qOut": qOut,
-        "phiOut": phiOut,
+        "theta_out": float(theta_out),
+        "theta_p_out": float(theta_out),
+        "phi_p_out": phi_p_out,
+        "theta_gamma_out": float(theta_out),
+        "phi_gamma_out": phi_gamma_out,
+        "theta_lepton_out": theta_lepton_out,
+        "phi_lepton_out": phi_lepton_out,
+        "cos_p_gamma_out": opening_cosine,
         **{key: value for key, value in derived.items() if key not in {"q", "s"}},
         "energy_residual": abs(
-            _user_energy_residual_for_pout(
-                pOut, np.sqrt(s), qOut, phiOut, m, electron_mass
+            _cm_energy_residual_for_pout(
+                pOut, np.sqrt(s), qOut, opening_cosine, m, electron_mass
             )
         ),
     }

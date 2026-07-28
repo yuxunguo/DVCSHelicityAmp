@@ -29,7 +29,7 @@ from AlignmentScan import (
 )
 from config import PROTON_MASS_GEV as M, SCAN_WORKERS
 from FormFactors import yahl_dirac_pauli_from_t
-from Kinematics import kinematics_user_from_independent
+from Kinematics import kinematics_cm_from_independent
 from SpinDensityMat import (
     amplitude_table,
     final_state_ensemble,
@@ -111,18 +111,26 @@ KINEMATIC_COLUMNS = (
     "lepton",
     "kinematic_point",
     "s_regime",
-    "theta_in_regime",
+    "theta_out_regime",
     "qOut_regime",
     "lepton_mass",
     "s",
     "sqrt_s",
     "pIn",
     "pOut",
-    "theta_in",
-    "phi_in_lepton",
-    "phi_in",
+    "theta_p_in",
+    "phi_p_in",
+    "theta_lepton_in",
+    "phi_lepton_in",
+    "theta_out",
+    "theta_p_out",
+    "phi_p_out",
+    "theta_gamma_out",
+    "phi_gamma_out",
+    "theta_lepton_out",
+    "phi_lepton_out",
+    "cos_p_gamma_out",
     "qOut",
-    "phiOut",
     "Q2",
     "xB",
     "t",
@@ -232,7 +240,7 @@ def alignment_input_path():
 
 def target_paths(file_tag):
     """Return output paths for one requested entanglement target."""
-    prefix = f"{'min' if file_tag == 'dw' else 'max'}_{file_tag}"
+    prefix = f"{'min' if file_tag in {'dw', 'dghz'} else 'max'}_{file_tag}"
     combined_dir = DATA_DIR / file_tag / "combined"
     return {
         "examples": combined_dir / f"{prefix}_configuration_examples.csv",
@@ -298,7 +306,7 @@ def validate_config_target_columns(rows):
 
 def observable_is_minimized(observable):
     """Return whether configuration selection seeks the smallest value."""
-    return observable == "D_W"
+    return observable in {"D_W", "dGHZ"}
 
 
 def observable_optimum_word(observable):
@@ -310,6 +318,8 @@ def observable_plot_style(observable):
     """Return colormap and fixed limits for one configuration target."""
     if observable == "D_W":
         return "viridis_r", 0.0, 2.0 / np.sqrt(3.0)
+    if observable == "dGHZ":
+        return "viridis_r", 0.0, 2.0
     if observable == "M2_magic":
         return "viridis", 0.0, np.log(9.0 / 2.0)
     return "viridis", 0.0, 1.0
@@ -360,16 +370,16 @@ def vector_phi_xy(vector):
 
 
 def kinematics_from_config_row(row):
-    """Rebuild full user-frame kinematics for a ConfigGen row."""
+    """Rebuild full initial-CM kinematics for a ConfigGen row."""
     lepton_mass = parse_float(row.get("lepton_mass"))
     if not np.isfinite(lepton_mass):
-        lepton_mass = LEPTON_MASS_GEV
-    return kinematics_user_from_independent(
+        raise ValueError("ConfigGen rows require a finite lepton_mass column.")
+    return kinematics_cm_from_independent(
         parse_float(row.get("s")),
-        parse_float(row.get("theta_in")),
-        parse_float(row.get("phi_in")),
         parse_float(row.get("qOut")),
-        parse_float(row.get("phiOut")),
+        parse_float(row.get("theta_out")),
+        parse_float(row.get("phi_p_out")),
+        parse_float(row.get("phi_gamma_out")),
         M,
         label=row.get("detail_id") or row.get("kinematic_point"),
         electron_mass=lepton_mass,
@@ -401,18 +411,14 @@ def selected_row(row, key, observable, value):
     output_prefix = explicit_polarization_name(spin_case, LEPTON_NAME)
     item["selected_purity"] = parse_float(row.get(f"{output_prefix}_purity"))
     item["pair_delta_xy"] = target_pair_delta(item, observable)
-    item["scan_phi_lepton_in"] = parse_float(row.get("phi_in_lepton"))
-    item["scan_phi_p_in"] = parse_float(row.get("phi_in"))
-    item["scan_phi_gamma"] = parse_float(row.get("phiOut"))
+    item["scan_phi_p_out"] = parse_float(row.get("phi_p_out"))
+    item["scan_phi_gamma_out"] = parse_float(row.get("phi_gamma_out"))
     return item
 
 
 def scan_x_phi(row):
-    """Return the proton incoming azimuth used as the scan-map x coordinate."""
-    value = parse_float(row.get("phi_in"))
-    if np.isfinite(value):
-        return value
-    return parse_float(row.get("phi_in_lepton"))
+    """Return the final-proton azimuth used as the scan-map x coordinate."""
+    return parse_float(row.get("phi_p_out"))
 
 
 def candidate_rows(rows, key, observable):
@@ -436,15 +442,18 @@ def candidate_rows(rows, key, observable):
 
 
 def row_distance(a, b):
-    """Return a normalized distance between two user-frame configurations."""
+    """Return a normalized distance between two initial-CM configurations."""
     s_scale = max(abs(parse_float(a.get("s"))), abs(parse_float(b.get("s"))), 1.0)
     q_scale = max(abs(parse_float(a.get("qOut"))), abs(parse_float(b.get("qOut"))), 1.0)
     pieces = [
         (parse_float(a.get("s")) - parse_float(b.get("s"))) / s_scale,
-        (parse_float(a.get("theta_in")) - parse_float(b.get("theta_in"))) / math.pi,
+        (parse_float(a.get("theta_out")) - parse_float(b.get("theta_out"))) / math.pi,
         circular_distance(scan_x_phi(a), scan_x_phi(b)) / math.pi,
         (parse_float(a.get("qOut")) - parse_float(b.get("qOut"))) / q_scale,
-        circular_distance(parse_float(a.get("phiOut")), parse_float(b.get("phiOut"))) / math.pi,
+        circular_distance(
+            parse_float(a.get("phi_gamma_out")),
+            parse_float(b.get("phi_gamma_out")),
+        ) / math.pi,
     ]
     return float(np.sqrt(np.sum(np.asarray(pieces, dtype=float) ** 2)))
 
@@ -531,10 +540,10 @@ def cluster_summary_rows(target, grouped_clusters):
             }
             for name in (
                 "s",
-                "theta_in",
-                "phi_in_lepton",
+                "theta_out",
+                "phi_p_out",
                 "qOut",
-                "phiOut",
+                "phi_gamma_out",
                 "Q2",
                 "xB",
                 "t",
@@ -741,8 +750,18 @@ def momentum_configuration_rows(detail_rows):
                 "phi_xy": f"{vector_phi_xy(vector):.16e}",
                 "s": f"{kin['s']:.16e}", "sqrt_s": f"{kin['sqrt_s']:.16e}",
                 "pIn": f"{kin['pIn']:.16e}", "pOut": f"{kin['pOut']:.16e}",
-                "theta_in": f"{kin['theta_in']:.16e}", "phi_in": f"{kin['phi_in']:.16e}",
-                "qOut": f"{kin['qOut']:.16e}", "phiOut": f"{kin['phiOut']:.16e}",
+                "theta_p_in": f"{kin['theta_p_in']:.16e}",
+                "phi_p_in": f"{kin['phi_p_in']:.16e}",
+                "theta_lepton_in": f"{kin['theta_lepton_in']:.16e}",
+                "phi_lepton_in": f"{kin['phi_lepton_in']:.16e}",
+                "theta_out": f"{kin['theta_out']:.16e}",
+                "theta_p_out": f"{kin['theta_p_out']:.16e}",
+                "phi_p_out": f"{kin['phi_p_out']:.16e}",
+                "theta_gamma_out": f"{kin['theta_gamma_out']:.16e}",
+                "phi_gamma_out": f"{kin['phi_gamma_out']:.16e}",
+                "theta_lepton_out": f"{kin['theta_lepton_out']:.16e}",
+                "phi_lepton_out": f"{kin['phi_lepton_out']:.16e}",
+                "qOut": f"{kin['qOut']:.16e}",
                 "Q2": f"{kin['Q2']:.16e}", "xB": f"{kin['xB']:.16e}",
                 "t": f"{kin['t']:.16e}", "W2": f"{kin['W2']:.16e}", "y": f"{kin['y']:.16e}",
             })
@@ -937,7 +956,7 @@ def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, spin_case, k
         if not np.isfinite(value):
             continue
         x_values.append(scan_x_phi(row))
-        y_values.append(parse_float(row.get("phiOut")))
+        y_values.append(parse_float(row.get("phi_gamma_out")))
         z_values.append(value)
     x = np.asarray(x_values, dtype=float)
     y = np.asarray(y_values, dtype=float)
@@ -974,7 +993,7 @@ def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, spin_case, k
         best = cluster["best"]
         ax.scatter(
             [scan_x_phi(best)],
-            [parse_float(best.get("phiOut"))],
+            [parse_float(best.get("phi_gamma_out"))],
             marker="x",
             s=90,
             color="black",
@@ -982,7 +1001,7 @@ def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, spin_case, k
         )
         ax.text(
             scan_x_phi(best),
-            parse_float(best.get("phiOut")),
+            parse_float(best.get("phi_gamma_out")),
             f" region {cluster['cluster_id']} "
             f"({spin_display_label(best['selected_spin_case'])})",
             fontsize=8,
@@ -995,7 +1014,7 @@ def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, spin_case, k
         fontsize=14,
     )
     add_pi_over_two_reference_lines(ax)
-    ax.set_xlabel(r"$\phi_{P,\rm in}$ [rad]", fontsize=12)
+    ax.set_xlabel(r"$\phi_{p'}$ [rad]", fontsize=12)
     ax.set_ylabel(r"$\phi_{\gamma}$ [rad]", fontsize=12)
     ax.set_xlim(0.0, 2.0 * math.pi)
     ax.set_ylim(0.0, 2.0 * math.pi)
@@ -1183,11 +1202,15 @@ def plot_configuration_text(ax, row, kin):
             rf"$|\vec{{P}}|$={kin['pIn']:.6g}, $|\vec{{P}}^{{\,\prime}}|$={kin['pOut']:.6g}"
         ),
         (
-            rf"$\theta_{{\rm in}}$={kin['theta_in']:.6g}, "
-            rf"$\phi_\ell$={parse_float(row.get('phi_in_lepton')):.6g}, "
-            rf"$\phi_P$={kin['phi_in']:.6g}"
+            rf"$\theta_{{\rm out}}$={kin['theta_out']:.6g}, "
+            rf"$\phi_{{p'}}$={kin['phi_p_out']:.6g}, "
+            rf"$\phi_\gamma$={kin['phi_gamma_out']:.6g}"
         ),
-        rf"$E_\gamma$={kin['qOut']:.6g}, $\phi_\gamma$={kin['phiOut']:.6g}",
+        (
+            rf"$E_\gamma$={kin['qOut']:.6g}, "
+            rf"$\theta_{{\ell'}}$={kin['theta_lepton_out']:.6g}, "
+            rf"$\phi_{{\ell'}}$={kin['phi_lepton_out']:.6g}"
+        ),
         (
             rf"$Q^2$={kin['Q2']:.6g}, $x_B$={kin['xB']:.6g}, "
             rf"$t$={kin['t']:.6g}, $W^2$={kin['W2']:.6g}, $y$={kin['y']:.6g}"
@@ -1537,8 +1560,9 @@ def build_report(
                     f"region {cluster['cluster_id']}: "
                     f"size={len(rows)}, {observable_optimum_word(observable)}_"
                     f"{label}={best['selected_concurrence']:.6g}, "
-                    f"phi_p_in={format_range(rows, 'phi_in')}, "
-                    f"phi_gamma={format_range(rows, 'phiOut')}, "
+                    f"theta_out={format_range(rows, 'theta_out')}, "
+                    f"phi_p_out={format_range(rows, 'phi_p_out')}, "
+                    f"phi_gamma_out={format_range(rows, 'phi_gamma_out')}, "
                     f"purity={format_range(rows, 'selected_purity')}, "
                     f"{pair_range}"
                     f"Q2={format_range(rows, 'Q2')}, "
@@ -1548,11 +1572,10 @@ def build_report(
                 lines.append(
                     "      best: "
                     f"s={parse_float(best.get('s')):.6g}, "
-                    f"theta_in={parse_float(best.get('theta_in')):.6g}, "
-                    f"phi_lepton_in={parse_float(best.get('phi_in_lepton')):.6g}, "
-                    f"phi_p_in={parse_float(best.get('phi_in')):.6g}, "
+                    f"theta_out={parse_float(best.get('theta_out')):.6g}, "
+                    f"phi_p_out={parse_float(best.get('phi_p_out')):.6g}, "
                     f"qOut={parse_float(best.get('qOut')):.6g}, "
-                    f"phi_gamma={parse_float(best.get('phiOut')):.6g}, "
+                    f"phi_gamma_out={parse_float(best.get('phi_gamma_out')):.6g}, "
                     f"purity={best['selected_purity']:.6g}, "
                     f"{best_pair}"
                     f"Q2={parse_float(best.get('Q2')):.6g}, "

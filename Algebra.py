@@ -4,8 +4,8 @@ This module centralizes the numerical conventions used throughout the
 repository. Four-vectors are contravariant arrays ordered as
 ``[E, px, py, pz]`` and are contracted with the mostly-minus metric
 ``diag(1, -1, -1, -1)``. Helicity labels are integer doubled-helicity values
-``+1`` and ``-1``. Electron spinors are massless by default but accept an
-explicit mass, while proton spinors always carry a mass argument.
+``+1`` and ``-1``. Lepton and proton spinors both require explicit masses;
+pass ``0.0`` only when the massless-lepton limit is intended.
 
 The functions are intentionally small and validation-heavy because they form
 the lowest layer used by both the Bethe-Heitler amplitude and spin-density
@@ -254,7 +254,7 @@ def chi_helicity(p3, h, patch="auto", tol=DEFAULT_TOL):
 # External spinors
 # ============================================================
 
-def electron_spinor(k, h, patch="auto", electron_mass=0.0):
+def electron_spinor(k, h, electron_mass, patch="auto"):
     """Return a Dirac spinor for an external electron.
 
     Parameters
@@ -263,10 +263,10 @@ def electron_spinor(k, h, patch="auto", electron_mass=0.0):
         Electron four-momentum. The energy must be positive.
     h : int
         Electron doubled-helicity label, ``+1`` or ``-1``.
+    electron_mass : float
+        Explicit lepton mass. Pass ``0.0`` for the massless limit.
     patch : str
         Patch selector passed to :func:`chi_helicity`.
-    electron_mass : float, optional
-        Electron mass. The default ``0.0`` preserves the massless convention.
     """
     h = _validate_helicity(h, "h")
     electron_mass = _validate_nonnegative_scalar(electron_mass, "electron_mass")

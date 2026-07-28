@@ -229,20 +229,20 @@ def _mixing_row_distance(a, b):
     pieces = (
         (config.parse_float(a.get("s")) - config.parse_float(b.get("s"))) / s_scale,
         (
-            config.parse_float(a.get("theta_in"))
-            - config.parse_float(b.get("theta_in"))
+            config.parse_float(a.get("theta_out"))
+            - config.parse_float(b.get("theta_out"))
         ) / math.pi,
         config.circular_distance(
-            config.parse_float(a.get("phi_in")),
-            config.parse_float(b.get("phi_in")),
+            config.parse_float(a.get("phi_p_out")),
+            config.parse_float(b.get("phi_p_out")),
         ) / math.pi,
         (
             config.parse_float(a.get("qOut"))
             - config.parse_float(b.get("qOut"))
         ) / q_scale,
         config.circular_distance(
-            config.parse_float(a.get("phiOut")),
-            config.parse_float(b.get("phiOut")),
+            config.parse_float(a.get("phi_gamma_out")),
+            config.parse_float(b.get("phi_gamma_out")),
         ) / math.pi,
         (
             config.parse_float(a.get("theta_e"))
@@ -285,9 +285,10 @@ def _annotated_mixing_candidates(rows, lepton_name, observable):
             "selected_concurrence": value,
             "selected_purity": config.parse_float(row.get(f"{prefix}_purity")),
             "pair_delta_xy": config.target_pair_delta(item, observable),
-            "scan_phi_lepton_in": config.parse_float(row.get("phi_in_lepton")),
-            "scan_phi_p_in": config.parse_float(row.get("phi_in")),
-            "scan_phi_gamma": config.parse_float(row.get("phiOut")),
+            "scan_phi_p_out": config.parse_float(row.get("phi_p_out")),
+            "scan_phi_gamma_out": config.parse_float(
+                row.get("phi_gamma_out")
+            ),
         })
         candidates.append(item)
     candidates.sort(
@@ -347,10 +348,10 @@ def _mixing_cluster_rows(detail_rows):
         "theta_e": f"{config.parse_float(row['theta_e']):.16e}",
         "theta_p": f"{config.parse_float(row['theta_p']):.16e}",
         "sqrt_s": row.get("sqrt_s", ""),
-        "theta_in": row.get("theta_in", ""),
-        "phi_in": row.get("phi_in", ""),
+        "theta_out": row.get("theta_out", ""),
+        "phi_p_out": row.get("phi_p_out", ""),
         "qOut": row.get("qOut", ""),
-        "phiOut": row.get("phiOut", ""),
+        "phi_gamma_out": row.get("phi_gamma_out", ""),
     } for row in detail_rows]
 
 
@@ -378,10 +379,14 @@ def _mixing_momentum_rows(detail_rows):
                 "sqrt_s": f"{kin['sqrt_s']:.16e}",
                 "pIn": f"{kin['pIn']:.16e}",
                 "pOut": f"{kin['pOut']:.16e}",
-                "theta_in": f"{kin['theta_in']:.16e}",
-                "phi_in": f"{kin['phi_in']:.16e}",
+                "theta_p_in": f"{kin['theta_p_in']:.16e}",
+                "phi_p_in": f"{kin['phi_p_in']:.16e}",
+                "theta_lepton_in": f"{kin['theta_lepton_in']:.16e}",
+                "phi_lepton_in": f"{kin['phi_lepton_in']:.16e}",
+                "theta_out": f"{kin['theta_out']:.16e}",
+                "phi_p_out": f"{kin['phi_p_out']:.16e}",
                 "qOut": f"{kin['qOut']:.16e}",
-                "phiOut": f"{kin['phiOut']:.16e}",
+                "phi_gamma_out": f"{kin['phi_gamma_out']:.16e}",
             })
     return records
 
@@ -614,7 +619,10 @@ def _format_local_rotation(label, rotation):
 
 def _gradient_w_diagnostic_lines(row):
     """Calculate W diagnostics and, when appropriate, an LU rotation."""
-    if row.get("detail_source") != "random_start_gradient_search":
+    if (
+        row.get("detail_source") != "random_start_gradient_search"
+        or row.get("selected_observable") != "D_W"
+    ):
         return []
     state = _normalized_mixed_final_state(row)
     measures = entanglement_measures_from_state(state)
@@ -668,6 +676,33 @@ def _gradient_w_diagnostic_lines(row):
     return lines
 
 
+def _gradient_ghz_diagnostic_lines(row):
+    """Report the local-unitary invariants used by the dGHZ objective."""
+    if (
+        row.get("detail_source") != "random_start_gradient_search"
+        or row.get("selected_observable") != "dGHZ"
+    ):
+        return []
+    state = _normalized_mixed_final_state(row)
+    measures = entanglement_measures_from_state(state)
+    return [
+        "",
+        (
+            "GHZ invariant test: "
+            f"dGHZ={measures['dGHZ']:.3e}"
+        ),
+        (
+            f"C_l,p={measures['C_e_p']:.3e}, "
+            f"C_l,gamma={measures['C_e_gamma']:.3e}, "
+            f"C_p,gamma={measures['C_p_gamma']:.3e}"
+        ),
+        (
+            f"F3={measures['F3']:.10f}; "
+            "dGHZ=0 identifies the maximal pure GHZ LU orbit"
+        ),
+    ]
+
+
 def _plot_mixing_configuration_text(ax, row, kin):
     """Draw the old ConfigGen kinematic summary with coherent-angle metadata."""
     ax.axis("off")
@@ -706,12 +741,15 @@ def _plot_mixing_configuration_text(ax, row, kin):
             rf"$|\vec{{P}}^{{\,\prime}}|$={kin['pOut']:.6g}"
         ),
         (
-            rf"$\theta_{{\rm in}}$={kin['theta_in']:.6g}, "
-            rf"$\phi_\ell$="
-            f"{config.parse_float(row.get('phi_in_lepton')):.6g}, "
-            rf"$\phi_P$={kin['phi_in']:.6g}"
+            rf"$\theta_{{\rm out}}$={kin['theta_out']:.6g}, "
+            rf"$\phi_{{p'}}$={kin['phi_p_out']:.6g}, "
+            rf"$\phi_\gamma$={kin['phi_gamma_out']:.6g}"
         ),
-        rf"$E_\gamma$={kin['qOut']:.6g}, $\phi_\gamma$={kin['phiOut']:.6g}",
+        (
+            rf"$E_\gamma$={kin['qOut']:.6g}, "
+            rf"$\theta_{{\ell'}}$={kin['theta_lepton_out']:.6g}, "
+            rf"$\phi_{{\ell'}}$={kin['phi_lepton_out']:.6g}"
+        ),
         (
             rf"$Q^2$={kin['Q2']:.6g}, $x_B$={kin['xB']:.6g}, "
             rf"$t$={kin['t']:.6g}, $W^2$={kin['W2']:.6g}, "
@@ -725,6 +763,7 @@ def _plot_mixing_configuration_text(ax, row, kin):
         for name in config.DISPLAY_MOMENTA
     )
     lines.extend(_gradient_w_diagnostic_lines(row))
+    lines.extend(_gradient_ghz_diagnostic_lines(row))
     ax.text(
         0.0, 1.0, "\n".join(lines),
         va="top", ha="left", family="monospace", fontsize=10.2,
@@ -810,9 +849,9 @@ def _write_mixing_target_plot(rows, detail_rows, lepton_name, observable, path):
     prefix = mixing_prefix(lepton_name)
     key = f"{prefix}_{observable}"
     panels = (
-        ("theta_in", "qOut", r"$\theta_{in}$", r"$E_\gamma$ [GeV]"),
+        ("theta_out", "qOut", r"$\theta_{\rm out}$", r"$E_\gamma$ [GeV]"),
         ("sqrt_s", "qOut", r"$\sqrt{s}$ [GeV]", r"$E_\gamma$ [GeV]"),
-        ("phi_in", "phiOut", r"$\phi_{P,in}$", r"$\phi_\gamma$"),
+        ("phi_p_out", "phi_gamma_out", r"$\phi_{p'}$", r"$\phi_\gamma$"),
         ("theta_e", "theta_p", r"$\theta_e$", r"$\theta_p$"),
         ("sqrt_s", "theta_e", r"$\sqrt{s}$ [GeV]", r"$\theta_e$"),
         ("sqrt_s", "theta_p", r"$\sqrt{s}$ [GeV]", r"$\theta_p$"),
@@ -903,7 +942,8 @@ def run_mixing_species(lepton_name, rows, input_path, bands, prepared_path):
             f"{scan_settings.PHASE_SPACE_CONFIG_THRESHOLD:g} "
             f"of each target optimum"
         ),
-        "  scan dimensions: s, theta_in, phi_in, qOut, phiOut, theta_e, theta_p",
+        "  scan dimensions: s, theta_out, phi_p_out, qOut, "
+        "phi_gamma_out, theta_e, theta_p",
         f"  polarization prefix: {mixing_prefix(lepton_name)}",
     ])
     for observable, count, paths, plot_path in outputs:
