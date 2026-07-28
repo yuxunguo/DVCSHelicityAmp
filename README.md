@@ -26,8 +26,7 @@ python3 AlignmentScan.py     # angular alignment and entanglement scan
 python3 ConfigGen.py         # selected configurations from AlignmentScan
 python3 PhaseSpaceScan.py    # adaptive all-observable/all-lepton phase-space scan
 python3 PhaseSpaceConfigScan.py  # ConfigGen packages from PhaseSpaceScan results
-python3 GradientPhaseSpaceScan.py # random-start local D_W minimization and configs
-python3 GradientGHZPhaseSpaceScan.py # random-start local dGHZ minimization and configs
+python3 GradientPhaseSpaceScan.py # globally selected W/GHZ scans and configs
 python3 EpCMEntanglementScan.py   # reference-centered electron ep-CM scan
 python3 EpCMConfigGen.py          # config packages from the focused ep-CM scan
 python3 ProtonVirtualPhotonAmp.py # proton-current virtual-photon decomposition
@@ -48,8 +47,8 @@ AlignmentScan.py      Fine angular scan at characteristic kinematics
 ConfigGen.py          Ranked-region configuration and plot generator
 PhaseSpaceScan.py      Adaptive seven-dimensional kinematic/polarization scan
 PhaseSpaceConfigScan.py ConfigGen-style packages from PhaseSpaceScan results
-GradientPhaseSpaceScan.py Random-start gradient search for local D_W minima
-GradientGHZPhaseSpaceScan.py Random-start gradient search for local dGHZ minima
+GradientPhaseSpaceScan.py W/GHZ scan-selection and execution interface
+GradientPhaseSpaceScanTool.py Generic gradient search/config/contour engine
 EpCMEntanglementScan.py Exact ep-CM scan with a slow final proton
 EpCMConfigGen.py      ConfigGen packages for the focused ep-CM scan
 ProtonVirtualPhotonAmp.py Proton helicity/current decomposition into T-/T+/L virtual photons
@@ -342,79 +341,98 @@ and high `E_gamma` bands before configuration selection. Outputs are written und
 Because it inherits the same ConfigGen targets, it also writes maximum-magic
 packages under `Data/m2_magic/`.
 
-`GradientPhaseSpaceScan.py` provides a local-optimization alternative to the
-dense phase-space scan. Its hybrid start design combines randomized
-Latin-hypercube points, low-`D_W` spatially separated candidates selected from
-a larger Sobol screening set, and deterministic physics anchors. Each start
-runs bounded L-BFGS-B minimization of `D_W` followed by a periodic-aware
-multiscale coordinate poll. The poll follows every improving neighbor and
-shrinks its mesh until no direction improves at the configured precision,
-including when L-BFGS-B stopped early on a branch-sensitive surface. The
-screening pool size, optimized screened-start count, and separation are set by
-`ENTANGLEMENT_GRADIENT_SCREENING_SAMPLES`,
+`GradientPhaseSpaceScanTool.py` is the objective-neutral local-optimization
+engine. It combines randomized Latin-hypercube starts, low-objective
+spatially separated candidates selected from a larger Sobol screening set,
+and objective-specific physics anchors. Every promoted start runs bounded
+L-BFGS-B followed by a periodic-aware multiscale coordinate poll. The tool
+then verifies and deduplicates local minima, generates configuration/momentum/
+amplitude CSVs, and samples the requested seven-dimensional objective contour.
+
+`GradientPhaseSpaceScan.py` is the only execution interface. Its
+`SCAN_DEFINITIONS` registry supplies the W and GHZ objective names, anchors,
+output roots, labels, and logs to the generic tool. All run options are
+explicit global variables at the top of the interface:
+
+```python
+SCANS_TO_RUN = ("W", "GHZ")
+LEPTONS_TO_OPTIMIZE = ("electron", "muon", "heavy", "massless")
+GRADIENT_WORKERS = SCAN_WORKERS
+REGENERATE_PLOTS_FROM_CSV = False
+SAVE_CONTOUR_DATA = True
+GRADIENT_OUTPUT_ROOT = Path("Output") / "GradientPhaseSpaceScan"
+```
+
+Set `SCANS_TO_RUN = ("W",)` for W only, `("GHZ",)` for GHZ only, or order
+both entries as needed. After editing the globals, run
+`python3 GradientPhaseSpaceScan.py`. No command-line arguments are accepted.
+A failed scan stops the sequence before the next definition runs.
+
+The screening pool size, optimized screened-start count, and separation are
+set by `ENTANGLEMENT_GRADIENT_SCREENING_SAMPLES`,
 `ENTANGLEMENT_GRADIENT_SCREENED_STARTS`, and
 `ENTANGLEMENT_GRADIENT_SCREENING_SEPARATION` in `config.py`;
 `optimization_runs.csv` records the source and screening value of every start.
-The deterministic electron anchors currently include the ep-CM W-state point
-mapped into the gradient scan's initial-CM coordinates, preventing its narrow
-high-photon-fraction basin from depending on a chance random start.
-For each species, all independent starts share one process pool controlled by
-`SCAN_WORKERS`; species and their configuration outputs remain sequential.
+The normalized gradient and local-verification resolution is controlled by
+`ENTANGLEMENT_GRADIENT_SCAN_PRECISION`; the other
+`ENTANGLEMENT_GRADIENT_*` and `ENTANGLEMENT_LOCAL_SEARCH_*` settings control
+starts, convergence, basin separation, and multiscale polishing.
+
 The seven coordinates are `sqrt(s)`, `theta_out`, the physical `E_gamma`
 fraction, the final-proton and photon azimuths, `theta_e`, and `theta_p`.
-This workflow requires `SCAN_INITIAL_MIXING_ANGLES = True`. Distinct local
-minima and an all-minima PDF are saved under
-`Output/GradientPhaseSpaceScan/<lepton>/`. Minima within
-`PHASE_SPACE_CONFIG_THRESHOLD` of the global minimum are identified in a second
-plot; only those points receive reconstructed configuration, momentum,
-coherent final-state amplitude CSVs, and PDF detail pages under
-`Output/GradientPhaseSpaceConfig/<lepton>/`. Configure the normalized gradient
-and local-verification resolution with
-`ENTANGLEMENT_GRADIENT_SCAN_PRECISION`; the other
-`ENTANGLEMENT_GRADIENT_*` settings control random starts, iterations,
-tolerance, basin separation, and the random seed. The
-`ENTANGLEMENT_LOCAL_SEARCH_*` settings control the initial polishing mesh,
-its reduction rate, maximum polls, exploratory direction pairs, and the
-independent objective-improvement tolerance.
-Each selected minimum receives a separate configuration page containing only
-that minimum and pairwise projections of its sampled seven-dimensional
-`D_W = D_W(local minimum) + PHASE_SPACE_CONFIG_CONTOUR_DELTA` hypersurface.
-The first configuration page summarizes every selected minimum and overlays
-all of their projected contours. Each selected minimum then has its
-configuration/momentum-amplitude page followed by its contour-projection page.
-The contour delta and number of sampled seven-dimensional radial directions
-are controlled by `PHASE_SPACE_CONFIG_CONTOUR_DELTA` and
-`PHASE_SPACE_CONFIG_CONTOUR_SAMPLES` in `config.py`. Every projection uses the
-full configured phase-space range; periodic contours are split at the physical
-plot boundary instead of drawing a false line across the panel.
-Set `REGENERATE_PLOTS_FROM_CSV = True` in `GradientPhaseSpaceScan.py` to
-rebuild both gradient PDFs from the existing per-species `local_minima.csv`
-files without rerunning the optimization.
-Each selected gradient configuration page also recalculates the three CKW
-residuals `M_l`, `M_p`, and `M_gamma`. When both `D_W` and all residuals pass
-the `W_DW_SMALL_THRESHOLD` and `W_MONOGAMY_SMALL_THRESHOLD` controls in
+This workflow requires `SCAN_INITIAL_MIXING_ANGLES = True`. Minima within
+`PHASE_SPACE_CONFIG_THRESHOLD` of the global minimum receive reconstructed
+configuration, momentum, coherent final-state amplitude, and PDF outputs.
+The contour level and number of sampled radial directions are controlled by
+`PHASE_SPACE_CONFIG_CONTOUR_DELTA` and
+`PHASE_SPACE_CONFIG_CONTOUR_SAMPLES`.
+With `SAVE_CONTOUR_DATA = True`, each scan saves the sampled 7D contour to
+`min_<objective>_contour_samples.csv`. When
+`REGENERATE_PLOTS_FROM_CSV = True`, the configuration PDF loads that saved
+contour instead of evaluating the objective again. The saved objective,
+contour settings, minimum IDs, and minimum centers are validated before use.
+Set `SAVE_CONTOUR_DATA = False` only when contour persistence is not wanted;
+plot regeneration then recalculates the contours.
+
+W and GHZ outputs share one main root and use a lepton-first,
+artifact-type-first hierarchy:
+
+```text
+Output/GradientPhaseSpaceScan/
+  electron/
+    Data/
+      W/
+        scan/
+        dw/combined/
+      GHZ/
+        scan/
+        dghz/combined/
+    Plots/
+      W/
+      GHZ/
+  muon/
+    Data/W/
+    Data/GHZ/
+    Plots/W/
+    Plots/GHZ/
+  Logs/
+```
+
+The other configured lepton species follow the same structure. Scan CSVs are
+grouped under `Data/<state>/scan/`, configuration CSVs under the observable's
+`combined/` subfolder, and every PDF under `Plots/<state>/`. Each selected
+minimum receives configuration pages and pairwise projections of
+`objective = objective(local minimum) + PHASE_SPACE_CONFIG_CONTOUR_DELTA`.
+Periodic contours are split at the physical plot boundary.
+
+The W configuration pages additionally recalculate the three CKW residuals
+`M_l`, `M_p`, and `M_gamma`. When both `D_W` and all residuals pass the
+`W_DW_SMALL_THRESHOLD` and `W_MONOGAMY_SMALL_THRESHOLD` controls in
 `PhaseSpaceConfigScan.py`, a deterministic multistart search maximizes the
-fidelity with canonical W over three local SU(2) rotations. The page reports
-the optimized fidelity and the three rotation matrices in the `(-,+)` basis.
-
-`GradientGHZPhaseSpaceScan.py` runs the same seven-dimensional hybrid search
-and configuration/contour generation with `dGHZ` as its objective. It writes
-scan results under `Output/GradientGHZPhaseSpaceScan/` and configuration
-packages under `Output/GradientGHZPhaseSpaceConfig/`. The numerical controls
-remain the shared `ENTANGLEMENT_GRADIENT_*` and
-`ENTANGLEMENT_LOCAL_SEARCH_*` settings in `config.py`; the GHZ script uses
-independent output folders and replaces the W-specific anchor with a
-deterministic electron hard-photon endpoint seed.
-The shared phase-space photon-energy fraction extends to `0.999999` (while
-excluding the singular exact endpoint), so the search can resolve the
-canonical-GHZ `z -> 1` region. Set its
-`REGENERATE_PLOTS_FROM_CSV = True` control to rebuild PDFs without rerunning
-the minimization.
-
-The final W and GHZ configuration PDFs share the corresponding species folder
-under `Output/GradientPhaseSpaceConfig/` and use distinct state-specific names,
-for example `W_State_Search_and_Config_Electron.pdf` and
-`GHZ_State_Search_and_Config_Electron.pdf`.
+fidelity with canonical W over three local SU(2) rotations. The GHZ definition
+uses its deterministic electron hard-photon endpoint anchor, and the shared
+photon-energy fraction reaches `0.999999` while excluding the singular exact
+endpoint.
 
 ## Reference-centered electron ep-CM scan
 

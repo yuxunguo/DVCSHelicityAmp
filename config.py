@@ -48,7 +48,7 @@ SCAN_INITIAL_MIXING_ANGLES = True
 # than this absolute threshold from that observable's scanned minimum/maximum.
 PHASE_SPACE_CONFIG_THRESHOLD = 0.05
 
-# GradientPhaseSpaceScan samples this objective-level contour around every
+# The generic gradient tool samples this objective-level contour around every
 # selected local minimum in the full seven-dimensional phase space.
 PHASE_SPACE_CONFIG_CONTOUR_DELTA = 0.05
 # Total seven-dimensional radial directions sampled for each contour.
