@@ -2461,11 +2461,11 @@ def _validate_config_settings():
     if (
         not isinstance(PHASE_SPACE_CONFIG_CONTOUR_SAMPLES, (int, np.integer))
         or isinstance(PHASE_SPACE_CONFIG_CONTOUR_SAMPLES, (bool, np.bool_))
-        or PHASE_SPACE_CONFIG_CONTOUR_SAMPLES < 14
+        or PHASE_SPACE_CONFIG_CONTOUR_SAMPLES < 2 * SCAN_DIMENSION
     ):
         raise ValueError(
             "PHASE_SPACE_CONFIG_CONTOUR_SAMPLES must be an integer "
-            "of at least 14."
+            f"of at least {2 * SCAN_DIMENSION}."
         )
     if CONFIG_CONTOUR_BISECTION_ITERATIONS < 1:
         raise ValueError(

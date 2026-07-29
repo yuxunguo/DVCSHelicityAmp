@@ -419,7 +419,8 @@ assigned to a polarization cluster receives reconstructed configuration,
 momentum, coherent final-state amplitude, contour data, and PDF pages.
 The contour level and number of sampled radial directions are controlled by
 `PHASE_SPACE_CONFIG_CONTOUR_DELTA` and
-`PHASE_SPACE_CONFIG_CONTOUR_SAMPLES`.
+`PHASE_SPACE_CONFIG_CONTOUR_SAMPLES`; the production default is `3 ** 8`
+directions per minimum.
 Stage 3 exposes `SAVE_CONTOUR_DATA` and `USE_SAVED_CONTOUR_DATA`.
 The first saves newly calculated samples to
 `min_<objective>_contour_samples.csv`; the second rebuilds the configuration
@@ -429,6 +430,8 @@ Stage 3 uses all `CONFIG_WORKERS` through `GradientContourWorker.py`. That
 lightweight process entrypoint intentionally avoids SciPy imports, preventing
 Windows process-spawn duplication of the optimizer DLLs while allowing
 `CONFIG_WORKERS = SCAN_WORKERS`.
+Set `POLARIZATION_CLUSTERS_TO_CONFIGURE` to `None` for every cluster or to a
+tuple of one-based cluster numbers, such as `(1, 4)`, for isolated runs.
 All angular scan and configuration plots use the shared `PlotUtils.py`
 formatting: polar axes span `0` to `pi` with quarter-pi ticks, azimuthal axes
 span `0` to `2*pi` with half-pi ticks, and major grid lines coincide with

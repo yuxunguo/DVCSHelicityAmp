@@ -11,10 +11,8 @@ import GradientPhaseSpaceDefinitions as definitions
 import GradientPhaseSpaceScanTool as gradient_tool
 
 
-#SCANS_TO_RUN = ("W", "GHZ")
-#LEPTONS_TO_CLUSTER = ("electron", "muon", "heavy", "massless")
-SCANS_TO_RUN = ("W",)
-LEPTONS_TO_CLUSTER = ("electron",)
+SCANS_TO_RUN = ("W", "GHZ")
+LEPTONS_TO_CLUSTER = ("electron", "muon")
 # The objective cut is measured above the global minimum. Polarization is
 # clustered first with alpha_e/alpha_p treated as pi-periodic coordinates.
 # The cluster assignment is the complete selection used by the configuration
