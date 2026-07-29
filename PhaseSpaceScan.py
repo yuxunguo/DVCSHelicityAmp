@@ -44,7 +44,11 @@ from config import (
     SCAN_INITIAL_MIXING_ANGLES,
     SCAN_WORKERS,
 )
-from PlotUtils import print_console_text, require_matplotlib
+from PlotUtils import (
+    configure_named_angle_axes,
+    print_console_text,
+    require_matplotlib,
+)
 from SpinDensityMat import (
     ghz_observables_from_density_matrix,
     mixed_angle_spin_density_observables,
@@ -78,7 +82,7 @@ REFERENCE_THETA_P_MIX_RAD = 3.056 % np.pi
 REFERENCE_THETA_OUT_RAD = 0.5 * np.pi
 REFERENCE_PHI_P_OUT_RAD = 0.0
 REFERENCE_PHI_GAMMA_OUT_RAD = float((3.429 - 1.298) % (2.0 * np.pi))
-OUTPUT_ROOT = Path("Output") / "PhaseSpaceScan"
+OUTPUT_ROOT = Path("Output_local") / "PhaseSpaceScan"
 LOG_PATH = OUTPUT_ROOT / "PhaseSpaceScan.log"
 
 LEPTON_SETTINGS = {
@@ -310,7 +314,7 @@ def _select_mixing_refinement_centers(rows, count=REFINEMENT_CENTERS):
 
 def _alignment_seed_path():
     return (
-        Path("Output") / "AlignmentScan" / LEPTON_NAME
+        Path("Output_local") / "AlignmentScan" / LEPTON_NAME
         / f"{LEPTON_SETTINGS[LEPTON_NAME]['file_stem']}_concurrence_top.csv"
     )
 
@@ -744,6 +748,7 @@ def write_mixing_plot(rows):
                 )
                 ax.set_xlabel(x_label)
                 ax.set_ylabel(y_label)
+                configure_named_angle_axes(ax, x_name, y_name)
             axes[2, 2].hist(
                 finite_values,
                 bins=60,
@@ -836,6 +841,7 @@ def _write_polarization_plot(rows, prefix, spin_label, lepton_name, plot_dir):
                 )
                 ax.set_xlabel(x_label)
                 ax.set_ylabel(y_label)
+                configure_named_angle_axes(ax, x_name, y_name)
             observable_label = observable_latex_label(observable, lepton_name)
             axes[1, 1].hist(finite_values, bins=60, color="tab:blue", alpha=0.8)
             axes[1, 1].set_xlabel(observable_label)

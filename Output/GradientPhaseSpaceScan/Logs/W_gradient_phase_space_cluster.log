@@ -1,0 +1,11 @@
+Gradient D_W polarization clustering (electron)
+  source minima: Output\GradientPhaseSpaceScan\electron\Data\W\scan\local_minima.csv
+  local minima loaded: 765
+  polarization cut: D_W - D_W_min <= 0.05
+  minima passing polarization cut: 737
+  pi-periodic polarization clusters: 6
+  one best-objective representative selected per polarization cluster
+  clustering time: 1.176 s
+  clustered minima: Output\GradientPhaseSpaceScan\electron\Data\W\cluster\clustered_minima.csv
+  polarization cluster summary: Output\GradientPhaseSpaceScan\electron\Data\W\cluster\polarization_clusters.csv
+  polarization phase-space plot: Output\GradientPhaseSpaceScan\electron\Plots\W\polarization_cluster_phase_space.pdf

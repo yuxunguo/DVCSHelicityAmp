@@ -15,13 +15,16 @@ from concurrent.futures.process import BrokenProcessPool
 import csv
 from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 
 import numpy as np
 from scipy.optimize import minimize
+from scipy.cluster.vq import kmeans2
 from scipy.spatial import ConvexHull, QhullError
 from scipy.stats import qmc
 
 import ConfigGen as config_gen
+from GradientContourWorker import configuration_contour_task
 import PhaseSpaceConfigScan as config_scan
 import PhaseSpaceScan as phase_scan
 from AlignmentScan import LEPTON_SPECS
@@ -42,20 +45,16 @@ from config import (
     ENTANGLEMENT_LOCAL_SEARCH_STEP_REDUCTION,
     PHASE_SPACE_CONFIG_CONTOUR_DELTA,
     PHASE_SPACE_CONFIG_CONTOUR_SAMPLES,
-    PHASE_SPACE_CONFIG_THRESHOLD,
     SCAN_INITIAL_MIXING_ANGLES,
     SCAN_WORKERS,
 )
-from PlotUtils import print_console_text
+from PlotUtils import configure_named_angle_axes, print_console_text
 
 
 # Runtime state is populated only through :func:`configure_scan`.
-LEPTONS_TO_OPTIMIZE = ()
+LEPTONS_TO_PROCESS = ()
 GRADIENT_WORKERS = SCAN_WORKERS
-REGENERATE_PLOTS_FROM_CSV = False
-SAVE_CONTOUR_DATA = True
 OUTPUT_ROOT = None
-LOG_PATH = None
 OBJECTIVE_NAME = ""
 OBJECTIVE_FILE_TAG = ""
 OBJECTIVE_LATEX = ""
@@ -83,6 +82,14 @@ PLOT_PERIODS = {
     "theta_e": np.pi,
     "theta_p": np.pi,
 }
+POLARIZATION_CLUSTER_STYLES = (
+    ("#0057B8", "o"),
+    ("#FF8C00", "s"),
+    ("#008A45", "^"),
+    ("#E60026", "D"),
+    ("#7A1FA2", "v"),
+    ("#00A6A6", "X"),
+)
 
 
 @dataclass(frozen=True)
@@ -101,10 +108,8 @@ class GradientScanDefinition:
 def configure_scan(
     definition,
     *,
-    leptons_to_optimize,
+    leptons_to_process,
     gradient_workers,
-    regenerate_plots_from_csv=False,
-    save_contour_data=True,
 ):
     """Configure the tool from one explicit scan definition."""
     if not isinstance(definition, GradientScanDefinition):
@@ -112,10 +117,9 @@ def configure_scan(
 
     global OBJECTIVE_NAME, OBJECTIVE_FILE_TAG, OBJECTIVE_LATEX
     global OBJECTIVE_STATE_FILE_LABEL, SCAN_KEY
-    global OUTPUT_ROOT, LOG_PATH
+    global OUTPUT_ROOT
     global PHYSICS_ANCHOR_STARTS
-    global LEPTONS_TO_OPTIMIZE, GRADIENT_WORKERS, REGENERATE_PLOTS_FROM_CSV
-    global SAVE_CONTOUR_DATA
+    global LEPTONS_TO_PROCESS, GRADIENT_WORKERS
 
     OBJECTIVE_NAME = str(definition.objective_name)
     OBJECTIVE_FILE_TAG = str(definition.file_tag)
@@ -123,19 +127,21 @@ def configure_scan(
     OBJECTIVE_STATE_FILE_LABEL = str(definition.state_file_label)
     SCAN_KEY = str(definition.key)
     OUTPUT_ROOT = Path(definition.output_root)
-    LOG_PATH = (
-        OUTPUT_ROOT
-        / "Logs"
-        / f"{SCAN_KEY}_gradient_phase_space_scan.log"
-    )
     PHYSICS_ANCHOR_STARTS = {
         str(lepton_name): tuple(dict(anchor) for anchor in anchors)
         for lepton_name, anchors in definition.physics_anchor_starts.items()
     }
-    LEPTONS_TO_OPTIMIZE = tuple(leptons_to_optimize)
+    LEPTONS_TO_PROCESS = tuple(leptons_to_process)
     GRADIENT_WORKERS = int(gradient_workers)
-    REGENERATE_PLOTS_FROM_CSV = bool(regenerate_plots_from_csv)
-    SAVE_CONTOUR_DATA = bool(save_contour_data)
+
+
+def stage_log_path(stage):
+    """Return the active state's log path for one independent stage."""
+    return (
+        OUTPUT_ROOT
+        / "Logs"
+        / f"{SCAN_KEY}_gradient_phase_space_{stage}.log"
+    )
 
 
 def _objective_key(lepton_name, objective_name=None):
@@ -144,14 +150,19 @@ def _objective_key(lepton_name, objective_name=None):
     return f"{config_scan.mixing_prefix(lepton_name)}_{name}"
 
 
-def _configuration_plot_path(lepton_name):
-    """Return the state/lepton configuration PDF path."""
+def _configuration_plot_path(lepton_name, polarization_cluster_id):
+    """Return one parent-polarization configuration PDF path."""
     species_label = LEPTON_SPECS[lepton_name]["label"].title().replace(" ", "_")
+    parent_label = f"Polarization_Cluster_{polarization_cluster_id + 1:02d}"
     filename = (
         f"{OBJECTIVE_STATE_FILE_LABEL}_State_Search_and_Config_"
-        f"{species_label}.pdf"
+        f"{species_label}_{parent_label}.pdf"
     )
-    return species_output_dirs(lepton_name)["plots"] / filename
+    return (
+        species_output_dirs(lepton_name)["plots"]
+        / f"polarization_cluster_{polarization_cluster_id + 1:02d}"
+        / filename
+    )
 
 
 def species_output_dirs(lepton_name):
@@ -166,19 +177,23 @@ def species_output_dirs(lepton_name):
         "root": root,
         "data": root / "Data" / SCAN_KEY,
         "scan_data": root / "Data" / SCAN_KEY / "scan",
+        "cluster_data": root / "Data" / SCAN_KEY / "cluster",
         "plots": root / "Plots" / SCAN_KEY,
     }
 
 
-def configuration_data_paths(lepton_name):
-    """Return organized configuration CSV paths for the active objective."""
-    prefix = f"min_{OBJECTIVE_FILE_TAG}"
+def configuration_data_paths(lepton_name, polarization_cluster_id):
+    """Return one parent-polarization configuration data package."""
+    parent_tag = f"polarization_cluster_{polarization_cluster_id + 1:02d}"
+    prefix = f"min_{OBJECTIVE_FILE_TAG}_{parent_tag}"
     combined_dir = (
         species_output_dirs(lepton_name)["data"]
         / OBJECTIVE_FILE_TAG
+        / parent_tag
         / "combined"
     )
     return {
+        "selected": combined_dir / f"{prefix}_selected_minima.csv",
         "examples": (
             combined_dir / f"{prefix}_configuration_examples.csv"
         ),
@@ -516,15 +531,27 @@ def _read_csv(path):
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(
-            f"Cannot regenerate gradient plots; missing saved data: {path}"
+            f"Required gradient-stage data is missing: {path}"
         )
     with path.open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
     if not rows:
         raise ValueError(
-            f"Cannot regenerate gradient plots; {path} contains no data rows."
+            f"Required gradient-stage data contains no rows: {path}"
         )
     return rows
+
+
+def _as_bool(value):
+    """Parse one bool or CSV bool field without truthy-string ambiguity."""
+    if isinstance(value, (bool, np.bool_)):
+        return bool(value)
+    normalized = str(value).strip().lower()
+    if normalized in {"true", "1", "yes"}:
+        return True
+    if normalized in {"false", "0", "no", ""}:
+        return False
+    raise ValueError(f"Cannot interpret {value!r} as a boolean value.")
 
 
 def _objective_values(rows, lepton_name):
@@ -552,21 +579,6 @@ def _plot_coordinate_values(unit_point):
     }
 
 
-def _maximum_contour_radius(center, direction):
-    """Return the non-repeating radial extent along one unit-box direction."""
-    limits = []
-    for index, component in enumerate(direction):
-        if abs(component) <= 1.0e-15:
-            continue
-        if index in PERIODIC_UNIT_COORDINATES:
-            limits.append(0.5 / abs(component))
-        elif component > 0.0:
-            limits.append((1.0 - center[index]) / component)
-        else:
-            limits.append(center[index] / -component)
-    return max(0.0, float(min(limits, default=0.0)))
-
-
 def _contour_directions(seed):
     """Return deterministic directions spanning the seven-dimensional sphere."""
     axes = np.vstack((np.eye(7), -np.eye(7)))
@@ -582,101 +594,20 @@ def _contour_directions(seed):
     return np.vstack((axes, random_directions))
 
 
-def _trace_high_dimensional_contour(
-    evaluate,
-    center,
-    base_value,
-    directions,
-):
-    """Sample the local objective isosurface along seven-dimensional rays."""
-    target = float(base_value) + PHASE_SPACE_CONFIG_CONTOUR_DELTA
-    boundary_points = []
-    for direction in directions:
-        maximum_radius = _maximum_contour_radius(center, direction)
-        if maximum_radius <= 1.0e-14:
-            continue
-
-        low_radius = 0.0
-        high_radius = min(CONFIG_CONTOUR_INITIAL_RADIUS, maximum_radius)
-        high_point = _move_unit_point(center, high_radius * direction)
-        high_value = float(evaluate(high_point))
-        while high_value < target and high_radius < maximum_radius:
-            low_radius = high_radius
-            high_radius = min(2.0 * high_radius, maximum_radius)
-            high_point = _move_unit_point(center, high_radius * direction)
-            high_value = float(evaluate(high_point))
-
-        if high_value < target:
-            continue
-
-        for _iteration in range(CONFIG_CONTOUR_BISECTION_ITERATIONS):
-            middle_radius = 0.5 * (low_radius + high_radius)
-            middle_point = _move_unit_point(
-                center,
-                middle_radius * direction,
-            )
-            if float(evaluate(middle_point)) < target:
-                low_radius = middle_radius
-            else:
-                high_radius = middle_radius
-
-        boundary_points.append(
-            _move_unit_point(center, high_radius * direction)
-        )
-    return np.asarray(boundary_points, dtype=float).reshape(
-        (-1, center.size)
-    )
-
-
-def _configuration_contour_task(task):
-    """Compute one direction chunk of a local contour in a worker."""
-    (
-        row_index,
-        chunk_index,
-        row,
-        lepton_name,
-        objective_name,
-        directions,
-    ) = task
-    phase_scan._configure_lepton(lepton_name)
-    center = _unit_point_from_minimum_row(row)
-    base_value = float(
-        row[_objective_key(lepton_name, objective_name)]
-    )
-    evaluation_id = row_index * 10_000_000 + chunk_index * 100_000
-    evaluation_count = 0
-
-    def evaluate(unit_point):
-        nonlocal evaluation_count
-        value, _row = _objective_evaluation(
-            unit_point,
-            lepton_name,
-            evaluation_id + evaluation_count,
-            objective_name=objective_name,
-        )
-        evaluation_count += 1
-        return value
-
-    boundary_points = _trace_high_dimensional_contour(
-        evaluate,
-        center,
-        base_value,
-        directions,
-    )
-    return row_index, chunk_index, boundary_points
-
-
 def _configuration_contours(rows, lepton_name):
     """Evaluate one high-dimensional contour for each selected minimum."""
+    worker_count = max(1, int(GRADIENT_WORKERS))
+    row_count = max(1, len(rows))
     chunks_per_minimum = min(
-        8,
-        max(1, PHASE_SPACE_CONFIG_CONTOUR_SAMPLES // 64),
+        max(1, (worker_count + row_count - 1) // row_count),
+        PHASE_SPACE_CONFIG_CONTOUR_SAMPLES,
     )
     tasks = []
     for row_index, row in enumerate(rows):
         direction_chunks = np.array_split(
             _contour_directions(
-                ENTANGLEMENT_GRADIENT_RANDOM_SEED + row_index
+                ENTANGLEMENT_GRADIENT_RANDOM_SEED
+                + int(row.get("local_minimum_id", row_index))
             ),
             chunks_per_minimum,
         )
@@ -686,27 +617,31 @@ def _configuration_contours(rows, lepton_name):
                 chunk_index,
                 row,
                 lepton_name,
+                LEPTON_SPECS[lepton_name]["mass"],
                 OBJECTIVE_NAME,
                 directions,
+                PHASE_SPACE_CONFIG_CONTOUR_DELTA,
+                CONFIG_CONTOUR_INITIAL_RADIUS,
+                CONFIG_CONTOUR_BISECTION_ITERATIONS,
             )
             for chunk_index, directions in enumerate(direction_chunks)
             if len(directions)
         )
     workers = min(max(1, int(GRADIENT_WORKERS)), len(tasks))
     if workers <= 1:
-        results = [_configuration_contour_task(task) for task in tasks]
+        results = [configuration_contour_task(task) for task in tasks]
     else:
         try:
             with ProcessPoolExecutor(max_workers=workers) as executor:
                 results = list(
                     executor.map(
-                        _configuration_contour_task,
+                        configuration_contour_task,
                         tasks,
                         chunksize=1,
                     )
                 )
         except (OSError, PermissionError, BrokenProcessPool):
-            results = [_configuration_contour_task(task) for task in tasks]
+            results = [configuration_contour_task(task) for task in tasks]
     grouped = {row_index: [] for row_index in range(len(rows))}
     for row_index, chunk_index, boundary_points in sorted(
         results,
@@ -770,12 +705,11 @@ def _write_contour_data(path, selected_rows, contours):
 
 
 def _load_contour_data(path, selected_rows):
-    """Load and validate saved contours for the active scan definition."""
+    """Load selected minima from saved contours, allowing unused extra rows."""
     saved_rows = _read_csv(path)
-    expected_indices = set(range(len(selected_rows)))
     metadata = {}
-    samples = {index: [] for index in expected_indices}
-    sample_ids = {index: [] for index in expected_indices}
+    samples = {}
+    sample_ids = {}
     for saved in saved_rows:
         if saved["objective_name"] != OBJECTIVE_NAME:
             raise ValueError(
@@ -806,11 +740,8 @@ def _load_contour_data(path, selected_rows):
                 f"PHASE_SPACE_CONFIG_CONTOUR_SAMPLES: {path}"
             )
         row_index = int(saved["local_minimum_index"])
-        if row_index not in expected_indices:
-            raise ValueError(
-                f"Saved contour has unexpected local-minimum index "
-                f"{row_index}: {path}"
-            )
+        samples.setdefault(row_index, [])
+        sample_ids.setdefault(row_index, [])
         if saved["record_type"] == "minimum":
             if row_index in metadata:
                 raise ValueError(
@@ -832,19 +763,25 @@ def _load_contour_data(path, selected_rows):
                 f"{saved['record_type']!r}: {path}"
             )
 
-    if set(metadata) != expected_indices:
-        missing = sorted(expected_indices - set(metadata))
-        raise ValueError(
-            f"Saved contour data is missing minima {missing}: {path}"
-        )
-    for row_index, row in enumerate(selected_rows):
-        saved = metadata[row_index]
-        expected_id = str(row.get("local_minimum_id", row_index))
-        if saved["local_minimum_id"] != expected_id:
+    saved_index_by_id = {}
+    for saved_index, saved in metadata.items():
+        saved_id = saved["local_minimum_id"]
+        if saved_id in saved_index_by_id:
             raise ValueError(
-                f"Saved contour minimum ID {saved['local_minimum_id']!r} "
-                f"does not match {expected_id!r}: {path}"
+                f"Saved contour repeats local-minimum ID {saved_id!r}: {path}"
             )
+        saved_index_by_id[saved_id] = saved_index
+
+    loaded = {}
+    for output_index, row in enumerate(selected_rows):
+        expected_id = str(row.get("local_minimum_id", output_index))
+        if expected_id not in saved_index_by_id:
+            raise ValueError(
+                f"Saved contour data is missing local-minimum ID "
+                f"{expected_id!r}: {path}"
+            )
+        saved_index = saved_index_by_id[expected_id]
+        saved = metadata[saved_index]
         saved_center = np.asarray(
             [
                 float(saved[f"center_u{coordinate}"])
@@ -863,15 +800,16 @@ def _load_contour_data(path, selected_rows):
                 f"{expected_id}: {path}"
             )
         expected_count = int(saved["contour_point_count"])
-        if sample_ids[row_index] != list(range(expected_count)):
+        if sample_ids[saved_index] != list(range(expected_count)):
             raise ValueError(
                 f"Saved contour samples for minimum {expected_id} are "
                 f"incomplete or out of order: {path}"
             )
-    return {
-        row_index: np.asarray(points, dtype=float).reshape((-1, 7))
-        for row_index, points in samples.items()
-    }
+        loaded[output_index] = np.asarray(
+            samples[saved_index],
+            dtype=float,
+        ).reshape((-1, 7))
+    return loaded
 
 
 def _unwrap_about_center(values, center, period):
@@ -989,22 +927,6 @@ def _full_phase_space_plot_limits(lepton_name):
     }
 
 
-def _annotate_minimum_ids(ax, x, y, rows):
-    """Label phase-space points with their persistent local-minimum IDs."""
-    for x_value, y_value, row in zip(x, y, rows):
-        minimum_id = row.get("local_minimum_id")
-        if minimum_id is None:
-            continue
-        ax.annotate(
-            f"ID {minimum_id}",
-            (x_value, y_value),
-            xytext=(4, 4),
-            textcoords="offset points",
-            fontsize=8,
-            color="black",
-        )
-
-
 def _plot_all_local_minima(rows, lepton_name, path):
     """Plot every distinct local minimum before configuration selection."""
     plt, PdfPages = config_gen._require_matplotlib()
@@ -1030,9 +952,9 @@ def _plot_all_local_minima(rows, lepton_name, path):
                 x[best_index], y[best_index], marker="*", s=180,
                 c="red", edgecolors="black", label="global minimum",
             )
-            _annotate_minimum_ids(ax, x, y, rows)
             ax.set_xlabel(x_label, fontsize=11)
             ax.set_ylabel(y_label, fontsize=11)
+            configure_named_angle_axes(ax, x_name, y_name)
             ax.tick_params(labelsize=10)
         axes[0, 0].legend()
         axes[2, 2].hist(values, bins=min(60, max(5, len(values))))
@@ -1061,32 +983,336 @@ def _plot_all_local_minima(rows, lepton_name, path):
     return path
 
 
-def _mark_configuration_minima(rows, lepton_name):
-    """Mark minima no farther than the threshold above the global minimum."""
+def _pi_quarter_label(angle):
+    """Return the nearest named quarter-pi direction."""
+    labels = ("0", "pi/4", "pi/2", "3pi/4", "pi")
+    index = int(np.clip(np.rint(4.0 * float(angle) / np.pi), 0, 4))
+    return labels[index]
+
+
+def _pi_quarter_math_label(angle):
+    """Return the nearest quarter-pi direction as matplotlib math text."""
+    labels = ("0", r"\pi/4", r"\pi/2", r"3\pi/4", r"\pi")
+    index = int(np.clip(np.rint(4.0 * float(angle) / np.pi), 0, 4))
+    return labels[index]
+
+
+def _circular_mixing_center(angles):
+    """Return the pi-periodic circular center of theta_e and theta_p."""
+    return np.mod(
+        0.5
+        * np.arctan2(
+            np.mean(np.sin(2.0 * angles), axis=0),
+            np.mean(np.cos(2.0 * angles), axis=0),
+        ),
+        np.pi,
+    )
+
+
+def _mixing_distance(angle, center):
+    """Return normalized distance on the theta_e/theta_p pi-periodic torus."""
+    difference = np.abs(np.asarray(angle) - np.asarray(center))
+    wrapped = np.minimum(difference, np.pi - difference) / np.pi
+    return float(np.linalg.norm(wrapped))
+
+
+def _cluster_polarization_minima(
+    rows,
+    lepton_name,
+    *,
+    objective_cut,
+    cluster_count,
+    random_seed,
+):
+    """Classify low-objective minima in periodic mixing-angle space."""
     values = _objective_values(rows, lepton_name)
     optimum = float(np.min(values))
-    marked = []
-    selected = []
-    for row, value in zip(rows, values):
-        item = dict(row)
-        delta = float(value - optimum)
-        eligible = delta <= PHASE_SPACE_CONFIG_THRESHOLD + 1.0e-12
-        item[f"{OBJECTIVE_NAME}_above_global_minimum"] = delta
-        item["within_config_threshold"] = eligible
-        marked.append(item)
-        if eligible:
-            selected.append(item)
-    return marked, selected, optimum
+    eligible_indices = np.flatnonzero(
+        values - optimum <= objective_cut + 1.0e-12
+    )
+    if len(eligible_indices) < cluster_count:
+        raise RuntimeError(
+            f"The {OBJECTIVE_NAME} polarization cut retained "
+            f"{len(eligible_indices)} minima, fewer than the requested "
+            f"{cluster_count} clusters."
+        )
+
+    angles = np.asarray(
+        [
+            (float(rows[index]["theta_e"]), float(rows[index]["theta_p"]))
+            for index in eligible_indices
+        ],
+        dtype=float,
+    )
+    embedded = np.column_stack(
+        (
+            np.cos(2.0 * angles[:, 0]),
+            np.sin(2.0 * angles[:, 0]),
+            np.cos(2.0 * angles[:, 1]),
+            np.sin(2.0 * angles[:, 1]),
+        )
+    )
+    _embedded_centers, raw_labels = kmeans2(
+        embedded,
+        cluster_count,
+        iter=100,
+        minit="++",
+        seed=random_seed,
+    )
+    raw_cluster_ids = sorted(set(int(label) for label in raw_labels))
+    if len(raw_cluster_ids) != cluster_count:
+        raise RuntimeError(
+            f"Periodic mixing-angle clustering produced "
+            f"{len(raw_cluster_ids)} nonempty groups instead of "
+            f"{cluster_count}; change the seed or cut."
+        )
+
+    raw_centers = {
+        cluster_id: _circular_mixing_center(
+            angles[raw_labels == cluster_id]
+        )
+        for cluster_id in raw_cluster_ids
+    }
+    ordered_raw_ids = sorted(
+        raw_cluster_ids,
+        key=lambda cluster_id: (
+            int(np.rint(4.0 * raw_centers[cluster_id][0] / np.pi)),
+            int(np.rint(4.0 * raw_centers[cluster_id][1] / np.pi)),
+            raw_centers[cluster_id][0],
+            raw_centers[cluster_id][1],
+        ),
+    )
+    stable_id = {
+        raw_id: output_id
+        for output_id, raw_id in enumerate(ordered_raw_ids)
+    }
+    assignments = {
+        int(row_index): stable_id[int(raw_label)]
+        for row_index, raw_label in zip(eligible_indices, raw_labels)
+    }
+
+    members_by_cluster = {
+        cluster_id: [
+            row_index
+            for row_index, assigned_id in assignments.items()
+            if assigned_id == cluster_id
+        ]
+        for cluster_id in range(cluster_count)
+    }
+    centers = {
+        stable_id[raw_id]: raw_centers[raw_id]
+        for raw_id in ordered_raw_ids
+    }
+    representatives = {
+        cluster_id: min(
+            members,
+            key=lambda row_index: values[row_index],
+        )
+        for cluster_id, members in members_by_cluster.items()
+    }
+
+    annotated = []
+    objective_delta_key = f"{OBJECTIVE_NAME}_above_global_minimum"
+    for row_index, source in enumerate(rows):
+        item = dict(source)
+        cluster_id = assignments.get(row_index)
+        item[objective_delta_key] = float(values[row_index] - optimum)
+        item["within_polarization_cluster_cut"] = cluster_id is not None
+        if cluster_id is None:
+            item.update(
+                {
+                    "polarization_cluster_id": "",
+                    "polarization_cluster_size": "",
+                    "polarization_cluster_distance": "",
+                    "polarization_cluster_representative": False,
+                    "polarization_configuration": "",
+                }
+            )
+        else:
+            center = centers[cluster_id]
+            configuration = (
+                f"theta_e~{_pi_quarter_label(center[0])},"
+                f"theta_p~{_pi_quarter_label(center[1])}"
+            )
+            item.update(
+                {
+                    "polarization_cluster_id": cluster_id,
+                    "polarization_cluster_size": len(
+                        members_by_cluster[cluster_id]
+                    ),
+                    "polarization_cluster_distance": _mixing_distance(
+                        (float(source["theta_e"]), float(source["theta_p"])),
+                        center,
+                    ),
+                    "polarization_cluster_representative": (
+                        row_index == representatives[cluster_id]
+                    ),
+                    "polarization_configuration": configuration,
+                }
+            )
+        annotated.append(item)
+
+    summary = []
+    objective_key = _objective_key(lepton_name)
+    for cluster_id in range(cluster_count):
+        members = members_by_cluster[cluster_id]
+        center = centers[cluster_id]
+        representative = rows[representatives[cluster_id]]
+        color, marker = POLARIZATION_CLUSTER_STYLES[cluster_id]
+        summary.append(
+            {
+                "polarization_cluster_id": cluster_id,
+                "polarization_configuration": (
+                    f"theta_e~{_pi_quarter_label(center[0])},"
+                    f"theta_p~{_pi_quarter_label(center[1])}"
+                ),
+                "member_count": len(members),
+                "representative_local_minimum_id": representative.get(
+                    "local_minimum_id",
+                    representatives[cluster_id],
+                ),
+                "objective_name": OBJECTIVE_NAME,
+                "objective_cut_above_global_minimum": objective_cut,
+                "global_minimum": optimum,
+                "best_objective": float(values[members].min()),
+                "mean_objective": float(values[members].mean()),
+                "theta_e_center": float(center[0]),
+                "theta_p_center": float(center[1]),
+                "theta_e_center_over_pi": float(center[0] / np.pi),
+                "theta_p_center_over_pi": float(center[1] / np.pi),
+                "color": color,
+                "marker": marker,
+                "random_seed": random_seed,
+                "distance_coordinates": "theta_e,theta_p (pi-periodic)",
+                objective_key: float(representative[objective_key]),
+            }
+        )
+    return annotated, summary, optimum
+
+
+def _polarization_cluster_plot(
+    rows,
+    polarization_clusters,
+    lepton_name,
+    objective_cut,
+    optimum,
+    path,
+):
+    """Plot low-objective phase space using six polarization styles."""
+    plt, PdfPages = config_gen._require_matplotlib()
+    selected_rows = [
+        row for row in rows
+        if _as_bool(row["within_polarization_cluster_cut"])
+    ]
+    if not selected_rows:
+        raise RuntimeError("No rows passed the polarization-cluster cut.")
+    objective_key = _objective_key(lepton_name)
+    best_row = min(selected_rows, key=lambda row: float(row[objective_key]))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with PdfPages(path) as pdf:
+        fig, axes = plt.subplots(
+            3, 3, figsize=(14.0, 11.5), constrained_layout=True
+        )
+        legend_handles = {}
+        legend_labels = {}
+        plot_order = sorted(
+            polarization_clusters,
+            key=lambda cluster: int(cluster["member_count"]),
+            reverse=True,
+        )
+        for ax, (x_name, y_name, x_label, y_label) in zip(
+            axes.ravel()[:8],
+            PLOT_PANELS,
+        ):
+            for draw_index, cluster in enumerate(plot_order):
+                cluster_id = int(cluster["polarization_cluster_id"])
+                cluster_rows = [
+                    row for row in selected_rows
+                    if int(row["polarization_cluster_id"]) == cluster_id
+                ]
+                color, marker = POLARIZATION_CLUSTER_STYLES[cluster_id]
+                artist = ax.scatter(
+                    [float(row[x_name]) for row in cluster_rows],
+                    [float(row[y_name]) for row in cluster_rows],
+                    s=42,
+                    marker=marker,
+                    color=color,
+                    edgecolors="black",
+                    linewidths=0.45,
+                    alpha=0.72 if len(cluster_rows) > 100 else 0.95,
+                    rasterized=True,
+                    zorder=2 + draw_index,
+                )
+                if ax is axes.ravel()[0]:
+                    legend_handles[cluster_id] = artist
+                    legend_labels[cluster_id] = (
+                        rf"$P_{{{cluster_id + 1}}}: "
+                        rf"(\theta_e,\theta_p)\approx"
+                        rf"({_pi_quarter_math_label(float(cluster['theta_e_center']))},"
+                        rf"{_pi_quarter_math_label(float(cluster['theta_p_center']))})$ "
+                        f"(n={cluster['member_count']})"
+                    )
+            ax.scatter(
+                [float(best_row[x_name])],
+                [float(best_row[y_name])],
+                marker="*",
+                s=190,
+                color="gold",
+                edgecolors="black",
+                linewidths=0.8,
+                zorder=20,
+            )
+            ax.set_xlabel(x_label, fontsize=11)
+            ax.set_ylabel(y_label, fontsize=11)
+            configure_named_angle_axes(ax, x_name, y_name)
+            ax.tick_params(labelsize=10)
+
+        summary_ax = axes[2, 2]
+        summary_ax.axis("off")
+        legend_order = sorted(legend_handles)
+        summary_ax.legend(
+            [legend_handles[cluster_id] for cluster_id in legend_order],
+            [legend_labels[cluster_id] for cluster_id in legend_order],
+            loc="upper left",
+            frameon=False,
+            fontsize=9,
+            handletextpad=0.8,
+        )
+        summary_ax.text(
+            0.0,
+            0.03,
+            (
+                rf"$D_W-(D_W)_{{\min}}\leq {objective_cut:g}$"
+                "\n"
+                rf"$(D_W)_{{\min}}={optimum:.7g}$"
+                "\n"
+                f"{len(selected_rows)}/{len(rows)} minima retained"
+                "\n"
+                r"$\theta_e,\theta_p$ clustered with period $\pi$"
+            ),
+            transform=summary_ax.transAxes,
+            va="bottom",
+            fontsize=10,
+        )
+        fig.suptitle(
+            f"{lepton_name}: low-$D_W$ phase space colored by six "
+            "major polarization configurations"
+        )
+        pdf.savefig(fig)
+        plt.close(fig)
+    return path
 
 
 def _configuration_rows(minimum_rows, lepton_name):
-    """Annotate every distinct minimum for the coherent ConfigGen helpers."""
+    """Annotate every polarization-cluster member for ConfigGen."""
     prefix = config_scan.mixing_prefix(lepton_name)
     key = _objective_key(lepton_name)
     details = []
     for index, source in enumerate(minimum_rows):
         row = dict(source)
         value = float(row[key])
+        parent_id = int(row["polarization_cluster_id"])
+        minimum_id = int(row.get("local_minimum_id", index))
         row.update(
             {
                 "selected_observable": OBJECTIVE_NAME,
@@ -1106,11 +1332,16 @@ def _configuration_rows(minimum_rows, lepton_name):
                 "scan_phi_gamma_out": float(row["phi_gamma_out"]),
                 "cluster_id": index,
                 "energy_band_cluster_id": index,
-                "selected_region": f"local_minimum_{index}",
-                "detail_id": (
-                    f"{OBJECTIVE_FILE_TAG}_mixing_angles_local_minimum_{index}"
+                "selected_region": (
+                    f"polarization_cluster_{parent_id + 1:02d}_"
+                    f"local_minimum_{minimum_id}"
                 ),
-                "detail_source": "random_start_gradient_search",
+                "detail_id": (
+                    f"{OBJECTIVE_FILE_TAG}_mixing_angles_"
+                    f"polarization_{parent_id + 1:02d}_"
+                    f"local_minimum_{minimum_id}"
+                ),
+                "detail_source": "polarization_cluster_member",
                 "qOut_regime": "gradient_local_minimum",
             }
         )
@@ -1119,7 +1350,7 @@ def _configuration_rows(minimum_rows, lepton_name):
 
 
 def _write_configuration_plot(
-    all_rows,
+    selected_rows,
     detail_rows,
     lepton_name,
     optimum,
@@ -1128,16 +1359,22 @@ def _write_configuration_plot(
 ):
     """Write configuration pages from supplied 7D contour samples."""
     plt, PdfPages = config_gen._require_matplotlib()
-    selected_rows = [
-        row for row in all_rows
-        if bool(row["within_config_threshold"])
-    ]
+    selected_rows = list(selected_rows)
     if len(selected_rows) != len(detail_rows):
         raise ValueError(
             "Selected local-minimum rows and configuration details disagree."
         )
     full_limits = _full_phase_space_plot_limits(lepton_name)
     objective_key = _objective_key(lepton_name)
+    parent_id = int(selected_rows[0]["polarization_cluster_id"])
+    parent_configuration = selected_rows[0]["polarization_configuration"]
+    if any(
+        int(row["polarization_cluster_id"]) != parent_id
+        for row in selected_rows
+    ):
+        raise ValueError(
+            "One configuration PDF cannot mix parent polarization clusters."
+        )
     path.parent.mkdir(parents=True, exist_ok=True)
     with PdfPages(path) as pdf:
         overview_fig, overview_axes = plt.subplots(
@@ -1183,10 +1420,6 @@ def _write_configuration_plot(
                         alpha=0.9,
                         zorder=1,
                     )
-                minimum_id = row.get(
-                    "local_minimum_id",
-                    selected_index,
-                )
                 ax.scatter(
                     [center_x],
                     [center_y],
@@ -1197,46 +1430,41 @@ def _write_configuration_plot(
                     linewidths=0.5,
                     zorder=2,
                 )
-                ax.annotate(
-                    f"ID {minimum_id}",
-                    (center_x, center_y),
-                    xytext=(3, 3),
-                    textcoords="offset points",
-                    fontsize=7,
-                    color=color,
-                )
             ax.set_xlim(*full_limits[x_name])
             ax.set_ylim(*full_limits[y_name])
             ax.set_xlabel(x_label, fontsize=11)
             ax.set_ylabel(y_label, fontsize=11)
+            configure_named_angle_axes(ax, x_name, y_name)
             ax.tick_params(labelsize=10)
 
         overview_summary = overview_axes[2, 2]
         overview_summary.axis("off")
         overview_lines = [
-            f"{len(selected_rows)} selected local minima",
             (
-                f"Threshold={PHASE_SPACE_CONFIG_THRESHOLD:g}, "
+                f"polarization cluster P{parent_id + 1}: "
+                f"{parent_configuration}"
+            ),
+            f"{len(selected_rows)} local minima in this polarization cluster",
+            (
                 f"contour delta={PHASE_SPACE_CONFIG_CONTOUR_DELTA:g}"
             ),
             (
                 f"configured 7D samples/minimum="
                 f"{PHASE_SPACE_CONFIG_CONTOUR_SAMPLES}"
             ),
-            "",
             (
-                f" ID       {OBJECTIVE_NAME}(local)    "
-                "above global   contour pts"
+                f"{OBJECTIVE_NAME} range="
+                f"{min(float(row[objective_key]) for row in selected_rows):.7g}"
+                " to "
+                f"{max(float(row[objective_key]) for row in selected_rows):.7g}"
+            ),
+            (
+                "global-minimum offsets="
+                f"{min(float(row[objective_key]) - optimum for row in selected_rows):.7g}"
+                " to "
+                f"{max(float(row[objective_key]) - optimum for row in selected_rows):.7g}"
             ),
         ]
-        for selected_index, row in enumerate(selected_rows):
-            minimum_id = row.get("local_minimum_id", selected_index)
-            local_value = float(row[objective_key])
-            overview_lines.append(
-                f"{str(minimum_id):>3s}  {local_value:14.7g}  "
-                f"{local_value - optimum:12.6g}  "
-                f"{len(contours[selected_index]):11d}"
-            )
         overview_summary.text(
             0.01,
             0.99,
@@ -1248,8 +1476,9 @@ def _write_configuration_plot(
             family="monospace",
         )
         overview_fig.suptitle(
-            f"{lepton_name}: summary of all selected local minima and "
-            "pairwise projections of their 7D contours"
+            f"{lepton_name}: polarization cluster P{parent_id + 1}; "
+            "all local-minimum configurations and pairwise projections "
+            "of their 7D contours"
         )
         pdf.savefig(overview_fig)
         plt.close(overview_fig)
@@ -1259,10 +1488,11 @@ def _write_configuration_plot(
         ):
             # For each minimum, present the reconstructed configuration before
             # its high-dimensional contour projections.
-            config_scan._save_mixing_detail_pages(pdf, plt, [detail_row])
+            display_detail = dict(detail_row)
+            display_detail["kinematic_point"] = "gradient_local_minimum"
+            config_scan._save_mixing_detail_pages(pdf, plt, [display_detail])
             center = _unit_point_from_minimum_row(row)
             boundary_points = contours[selected_index]
-            minimum_id = row.get("local_minimum_id", selected_index)
             local_value = float(row[objective_key])
             fig, axes = plt.subplots(
                 3, 3, figsize=(14.0, 11.5), constrained_layout=True
@@ -1301,7 +1531,6 @@ def _write_configuration_plot(
                     color="tab:red",
                     alpha=0.18,
                     linewidths=0.0,
-                    rasterized=True,
                     label=(
                         "projected 7D contour samples"
                         if panel_index == 0 else None
@@ -1330,7 +1559,7 @@ def _write_configuration_plot(
                     c="gold",
                     edgecolors="black",
                     label=(
-                        f"selected minimum ID {minimum_id}"
+                        "selected minimum"
                         if panel_index == 0 else None
                     ),
                     zorder=3,
@@ -1339,6 +1568,7 @@ def _write_configuration_plot(
                 ax.set_ylim(*full_limits[y_name])
                 ax.set_xlabel(x_label, fontsize=11)
                 ax.set_ylabel(y_label, fontsize=11)
+                configure_named_angle_axes(ax, x_name, y_name)
                 ax.tick_params(labelsize=10)
 
             axes[0, 0].legend(fontsize=8)
@@ -1346,7 +1576,7 @@ def _write_configuration_plot(
             summary_ax.axis("off")
             coordinates = _plot_coordinate_values(center)
             summary_lines = [
-                f"selected local minimum ID {minimum_id}",
+                "selected local minimum",
                 "",
                 f"{OBJECTIVE_NAME}(local) = {local_value:.8g}",
                 (
@@ -1356,10 +1586,6 @@ def _write_configuration_plot(
                 (
                     f"above global minimum = "
                     f"{local_value - optimum:.8g}"
-                ),
-                (
-                    f"selection Threshold = "
-                    f"{PHASE_SPACE_CONFIG_THRESHOLD:g}"
                 ),
                 f"7D contour samples = {len(boundary_points)}",
                 "",
@@ -1388,7 +1614,8 @@ def _write_configuration_plot(
                 family="monospace",
             )
             fig.suptitle(
-                f"{lepton_name}: selected local minimum ID {minimum_id}; "
+                f"{lepton_name}: polarization cluster P{parent_id + 1}, "
+                f"local minimum {row.get('local_minimum_id', selected_index)}; "
                 "pairwise projections of the 7D "
                 rf"${OBJECTIVE_LATEX}="
                 rf"({OBJECTIVE_LATEX})_{{\mathrm{{local}}}}"
@@ -1401,18 +1628,24 @@ def _write_configuration_plot(
 
 def _write_configurations(
     lepton_name,
-    selected_path,
-    all_minimum_rows,
+    polarization_cluster_id,
     selected_minimum_rows,
     optimum,
+    *,
+    save_contour_data,
+    use_saved_contour_data,
 ):
-    """Generate configuration, momentum, amplitude, and PDF outputs."""
+    """Generate one parent polarization's data and PDF package."""
+    paths = configuration_data_paths(
+        lepton_name,
+        polarization_cluster_id,
+    )
+    selected_path = _write_csv(paths["selected"], selected_minimum_rows)
     config_gen.configure_lepton(
         lepton_name,
         input_path=selected_path,
     )
     details = _configuration_rows(selected_minimum_rows, lepton_name)
-    paths = configuration_data_paths(lepton_name)
     config_scan._plain_write_csv(paths["examples"], details)
     config_scan._plain_write_csv(
         paths["clusters"], config_scan._mixing_cluster_rows(details)
@@ -1423,26 +1656,49 @@ def _write_configurations(
     config_scan._plain_write_csv(
         paths["amplitudes"], config_scan._mixing_amplitude_rows(details)
     )
-    contours = _configuration_contours(
-        selected_minimum_rows,
-        lepton_name,
-    )
-    if SAVE_CONTOUR_DATA:
-        _write_contour_data(
+    contour_started = perf_counter()
+    if use_saved_contour_data:
+        contours = _load_contour_data(
             paths["contours"],
             selected_minimum_rows,
-            contours,
         )
-    plot_path = _configuration_plot_path(lepton_name)
+        contour_source = f"loaded saved contour samples: {paths['contours']}"
+        contour_timing_label = "contour data load time"
+    else:
+        contours = _configuration_contours(
+            selected_minimum_rows,
+            lepton_name,
+        )
+        if save_contour_data:
+            _write_contour_data(
+                paths["contours"],
+                selected_minimum_rows,
+                contours,
+            )
+            contour_source = f"saved contour samples: {paths['contours']}"
+        else:
+            contour_source = "saved contour samples: disabled"
+        contour_timing_label = "contour generation time"
+    contour_seconds = perf_counter() - contour_started
+    plot_path = _configuration_plot_path(
+        lepton_name,
+        polarization_cluster_id,
+    )
     _write_configuration_plot(
-        all_minimum_rows,
+        selected_minimum_rows,
         details,
         lepton_name,
         optimum,
         plot_path,
         contours,
     )
-    return paths, plot_path
+    return (
+        paths,
+        plot_path,
+        contour_seconds,
+        contour_timing_label,
+        contour_source,
+    )
 
 
 def _physical_start_to_unit_point(start):
@@ -1598,13 +1854,15 @@ def _species_tasks(lepton_name):
     ]
 
 
-def run_species(lepton_name, results=None):
-    """Find or consume minima, then write one species' outputs safely."""
+def scan_species_minima(lepton_name, results=None):
+    """Find and save every distinct verified minimum for one species."""
     phase_scan._configure_lepton(lepton_name)
+    minimum_scan_started = perf_counter()
     tasks = _species_tasks(lepton_name)
     if results is None:
         results = _run_tasks(tasks)
     minima = _deduplicate_minima(results)
+    minimum_scan_seconds = perf_counter() - minimum_scan_started
     if not minima:
         raise RuntimeError(
             f"No converged, locally verified {OBJECTIVE_NAME} minimum was "
@@ -1626,9 +1884,7 @@ def run_species(lepton_name, results=None):
         item["local_minimum_id"] = minimum_index
         item["kinematic_point"] = f"gradient_local_minimum_{minimum_index:04d}"
         minimum_rows.append(item)
-    minimum_rows, selected_rows, optimum = _mark_configuration_minima(
-        minimum_rows, lepton_name
-    )
+    optimum = float(np.min(_objective_values(minimum_rows, lepton_name)))
     minima_path = _write_csv(
         scan_data_dir / "local_minima.csv",
         minimum_rows,
@@ -1637,17 +1893,6 @@ def run_species(lepton_name, results=None):
         minimum_rows,
         lepton_name,
         plot_dir / "all_local_minima.pdf",
-    )
-    selected_path = _write_csv(
-        scan_data_dir / "config_selected_minima.csv",
-        selected_rows,
-    )
-    paths, plot_path = _write_configurations(
-        lepton_name,
-        selected_path,
-        minimum_rows,
-        selected_rows,
-        optimum,
     )
     lbfgs_converged = sum(
         bool(result[0]["lbfgs_success"]) for result in results
@@ -1667,114 +1912,260 @@ def run_species(lepton_name, results=None):
         for task in tasks
         if task[3] == "sobol_screened" and np.isfinite(task[4])
     ]
-    objective_key = _objective_key(lepton_name)
-    return "\n".join(
+    report_lines = [
+        f"Hybrid global gradient {OBJECTIVE_NAME} search ({lepton_name})",
+        f"  optimization starts: {len(tasks)}",
+        f"  Latin-hypercube starts: {latin_count}",
         (
-            f"Hybrid global gradient {OBJECTIVE_NAME} search ({lepton_name})",
-            f"  optimization starts: {len(tasks)}",
-            f"  Latin-hypercube starts: {latin_count}",
-            (
-                f"  Sobol screening: "
-                f"{ENTANGLEMENT_GRADIENT_SCREENING_SAMPLES} "
-                f"candidates -> {screened_count} optimized starts"
-            ),
-            (
-                f"  best screened {OBJECTIVE_NAME}: "
-                f"{min(screened_values):.10g}"
-                if screened_values
-                else f"  best screened {OBJECTIVE_NAME}: unavailable"
-            ),
-            f"  deterministic physics anchors: {anchor_count}",
-            f"  shared optimization workers: {GRADIENT_WORKERS}",
-            f"  L-BFGS-B-converged runs: {lbfgs_converged}/{len(tasks)}",
-            f"  multiscale-verified runs: {verified}/{len(tasks)}",
-            f"  distinct finite minima: {len(minima)}",
-            (
-                f"  minima within Threshold={PHASE_SPACE_CONFIG_THRESHOLD:g}: "
-                f"{len(selected_rows)}/{len(minimum_rows)}"
-            ),
-            (
-                f"  best {OBJECTIVE_NAME}: "
-                f"{minimum_rows[0][objective_key]:.10g}"
-            ),
-            f"  optimization runs: {run_path}",
-            f"  local minima: {minima_path}",
-            f"  all-local-minima plot: {minima_plot}",
-            (
-                f"  local-minimum contour delta: "
-                f"{PHASE_SPACE_CONFIG_CONTOUR_DELTA:g}"
-            ),
-            f"  configuration-selected minima: {selected_path}",
-            f"  configuration examples: {paths['examples']}",
-            f"  momentum configurations: {paths['momenta']}",
-            f"  amplitude decomposition: {paths['amplitudes']}",
-            (
-                f"  saved contour samples: {paths['contours']}"
-                if SAVE_CONTOUR_DATA
-                else "  saved contour samples: disabled"
-            ),
-            f"  configuration PDF: {plot_path}",
-        )
-    )
+            f"  Sobol screening: "
+            f"{ENTANGLEMENT_GRADIENT_SCREENING_SAMPLES} "
+            f"candidates -> {screened_count} optimized starts"
+        ),
+        (
+            f"  best screened {OBJECTIVE_NAME}: "
+            f"{min(screened_values):.10g}"
+            if screened_values
+            else f"  best screened {OBJECTIVE_NAME}: unavailable"
+        ),
+        f"  deterministic physics anchors: {anchor_count}",
+        f"  shared optimization workers: {GRADIENT_WORKERS}",
+        f"  L-BFGS-B-converged runs: {lbfgs_converged}/{len(tasks)}",
+        f"  multiscale-verified runs: {verified}/{len(tasks)}",
+        f"  distinct finite minima: {len(minima)}",
+        f"  minimum scan time: {minimum_scan_seconds:.3f} s",
+        f"  best {OBJECTIVE_NAME}: {optimum:.10g}",
+        f"  optimization runs: {run_path}",
+        f"  local minima: {minima_path}",
+        f"  all-local-minima plot: {minima_plot}",
+    ]
+    return "\n".join(report_lines)
 
 
-def regenerate_species_plots(lepton_name):
-    """Rebuild one species' PDFs from its saved local-minimum CSV."""
+def remake_species_minima_plot(lepton_name):
+    """Rebuild the minima plot from stage-1 CSV data without searching."""
     output_dirs = species_output_dirs(lepton_name)
     minima_path = output_dirs["scan_data"] / "local_minima.csv"
     minimum_rows = _read_csv(minima_path)
-    minimum_rows, selected_rows, optimum = _mark_configuration_minima(
-        minimum_rows, lepton_name
-    )
+    plot_started = perf_counter()
     minima_plot = _plot_all_local_minima(
         minimum_rows,
         lepton_name,
         output_dirs["plots"] / "all_local_minima.pdf",
     )
-    config_gen.configure_lepton(
-        lepton_name,
-        input_path=minima_path,
-    )
-    detail_rows = _configuration_rows(selected_rows, lepton_name)
-    contour_path = configuration_data_paths(lepton_name)["contours"]
-    if SAVE_CONTOUR_DATA:
-        contours = _load_contour_data(contour_path, selected_rows)
-        contour_source = f"saved contour samples: {contour_path}"
-    else:
-        contours = _configuration_contours(selected_rows, lepton_name)
-        contour_source = "saved contour samples: disabled; recalculated"
-    config_plot = _configuration_plot_path(lepton_name)
-    _write_configuration_plot(
-        minimum_rows,
-        detail_rows,
-        lepton_name,
-        optimum,
-        config_plot,
-        contours,
-    )
+    plot_seconds = perf_counter() - plot_started
     return "\n".join(
         (
-            f"Regenerated gradient {OBJECTIVE_NAME} plots ({lepton_name})",
-            f"  source data: {minima_path}",
+            f"Remade gradient {OBJECTIVE_NAME} minima plot ({lepton_name})",
+            f"  source minima: {minima_path}",
             f"  local minima loaded: {len(minimum_rows)}",
-            (
-                f"  minima within Threshold={PHASE_SPACE_CONFIG_THRESHOLD:g}: "
-                f"{len(selected_rows)}/{len(minimum_rows)}"
-            ),
+            f"  plot generation time: {plot_seconds:.3f} s",
             f"  all-local-minima plot: {minima_plot}",
-            (
-                f"  local-minimum contour delta: "
-                f"{PHASE_SPACE_CONFIG_CONTOUR_DELTA:g}"
-            ),
-            f"  {contour_source}",
-            f"  configuration PDF: {config_plot}",
-            "  gradient optimization was not rerun",
+            "  screening and gradient optimization were not rerun",
         )
     )
 
 
-def validate_settings():
-    """Validate controls before starting expensive optimization work."""
+def cluster_species_minima(
+    lepton_name,
+    *,
+    polarization_objective_cut,
+    polarization_cluster_count,
+    polarization_cluster_seed,
+):
+    """Cluster low-objective minima only in polarization space."""
+    output_dirs = species_output_dirs(lepton_name)
+    minima_path = output_dirs["scan_data"] / "local_minima.csv"
+    cluster_started = perf_counter()
+    minimum_rows = _read_csv(minima_path)
+    clustered_rows, polarization_clusters, optimum = _cluster_polarization_minima(
+        minimum_rows,
+        lepton_name,
+        objective_cut=polarization_objective_cut,
+        cluster_count=polarization_cluster_count,
+        random_seed=polarization_cluster_seed,
+    )
+    polarization_path = _write_csv(
+        output_dirs["cluster_data"] / "polarization_clusters.csv",
+        polarization_clusters,
+    )
+    polarization_plot = _polarization_cluster_plot(
+        clustered_rows,
+        polarization_clusters,
+        lepton_name,
+        polarization_objective_cut,
+        optimum,
+        output_dirs["plots"] / "polarization_cluster_phase_space.pdf",
+    )
+    retained = sum(
+        _as_bool(row["within_polarization_cluster_cut"])
+        for row in clustered_rows
+    )
+    clustered_path = _write_csv(
+        output_dirs["cluster_data"] / "clustered_minima.csv",
+        clustered_rows,
+    )
+    cluster_seconds = perf_counter() - cluster_started
+    return "\n".join(
+        (
+            (
+                f"Gradient {OBJECTIVE_NAME} polarization clustering "
+                f"({lepton_name})"
+            ),
+            f"  source minima: {minima_path}",
+            f"  local minima loaded: {len(minimum_rows)}",
+            (
+                f"  polarization cut: {OBJECTIVE_NAME} - "
+                f"{OBJECTIVE_NAME}_min <= {polarization_objective_cut:g}"
+            ),
+            f"  minima passing polarization cut: {retained}",
+            (
+                f"  pi-periodic polarization clusters: "
+                f"{len(polarization_clusters)}"
+            ),
+            (
+                "  one best-objective representative selected per "
+                "polarization cluster"
+            ),
+            f"  clustering time: {cluster_seconds:.3f} s",
+            f"  clustered minima: {clustered_path}",
+            f"  polarization cluster summary: {polarization_path}",
+            f"  polarization phase-space plot: {polarization_plot}",
+        )
+    )
+
+
+def configure_species_clusters(
+    lepton_name,
+    *,
+    polarization_clusters_to_configure,
+    save_contour_data,
+    use_saved_contour_data,
+):
+    """Configure every member of every polarization cluster."""
+    output_dirs = species_output_dirs(lepton_name)
+    clustered_path = output_dirs["cluster_data"] / "clustered_minima.csv"
+    clustered_rows = _read_csv(clustered_path)
+    required = {
+        "polarization_cluster_id",
+        "polarization_configuration",
+        "polarization_cluster_representative",
+    }
+    missing = required - set(clustered_rows[0])
+    if missing:
+        raise ValueError(
+            f"Clustered minima are missing required columns "
+            f"{sorted(missing)}; rerun GradientPhaseSpaceCluster.py."
+        )
+    objective_values = _objective_values(clustered_rows, lepton_name)
+    optimum = float(np.min(objective_values))
+    parent_ids = sorted(
+        {
+            int(row["polarization_cluster_id"])
+            for row in clustered_rows
+            if row["polarization_cluster_id"] not in ("", None)
+        }
+    )
+    if not parent_ids:
+        raise RuntimeError(
+            f"No parent polarization clusters are available for "
+            f"{lepton_name}; rerun GradientPhaseSpaceCluster.py."
+        )
+    if polarization_clusters_to_configure is not None:
+        requested_ids = {
+            int(cluster_number) - 1
+            for cluster_number in polarization_clusters_to_configure
+        }
+        invalid_ids = requested_ids - set(parent_ids)
+        if invalid_ids:
+            invalid_numbers = sorted(cluster_id + 1 for cluster_id in invalid_ids)
+            raise ValueError(
+                f"Requested polarization clusters {invalid_numbers} are "
+                f"not available for {lepton_name}."
+            )
+        parent_ids = [
+            parent_id for parent_id in parent_ids
+            if parent_id in requested_ids
+        ]
+
+    package_reports = []
+    total_selected = 0
+    total_contour_seconds = 0.0
+    for parent_id in parent_ids:
+        parent_rows = [
+            row for row in clustered_rows
+            if (
+                row["polarization_cluster_id"] not in ("", None)
+                and int(row["polarization_cluster_id"]) == parent_id
+            )
+        ]
+        selected_rows = list(parent_rows)
+        if not selected_rows:
+            raise RuntimeError(
+                f"Polarization cluster P{parent_id + 1} has no minima "
+                f"for {lepton_name}."
+            )
+        (
+            paths,
+            config_plot,
+            contour_seconds,
+            contour_timing_label,
+            contour_source,
+        ) = _write_configurations(
+            lepton_name,
+            parent_id,
+            selected_rows,
+            optimum,
+            save_contour_data=save_contour_data,
+            use_saved_contour_data=use_saved_contour_data,
+        )
+        total_selected += len(selected_rows)
+        total_contour_seconds += contour_seconds
+        package_reports.extend(
+            (
+                (
+                    f"  P{parent_id + 1}: "
+                    f"{selected_rows[0]['polarization_configuration']}"
+                ),
+                f"    retained minima: {len(parent_rows)}",
+                (
+                    "    configured local minima: "
+                    f"{len(selected_rows)}"
+                ),
+                f"    selected minima: {paths['selected']}",
+                f"    {contour_source}",
+                (
+                    f"    {contour_timing_label}: "
+                    f"{contour_seconds:.3f} s"
+                ),
+                f"    configuration examples: {paths['examples']}",
+                f"    cluster summary: {paths['clusters']}",
+                f"    momentum configurations: {paths['momenta']}",
+                f"    amplitude decomposition: {paths['amplitudes']}",
+                f"    configuration PDF: {config_plot}",
+            )
+        )
+    return "\n".join(
+        (
+            f"Gradient {OBJECTIVE_NAME} cluster ConfigGen ({lepton_name})",
+            f"  source clustered minima: {clustered_path}",
+            f"  local minima loaded: {len(clustered_rows)}",
+            f"  parent polarization PDFs: {len(parent_ids)}",
+            f"  configured polarization-cluster minima: {total_selected}",
+            (
+                f"  local-minimum contour delta: "
+                f"{PHASE_SPACE_CONFIG_CONTOUR_DELTA:g}"
+            ),
+            (
+                f"  total contour processing time: "
+                f"{total_contour_seconds:.3f} s"
+            ),
+            *package_reports,
+        )
+    )
+
+
+def _validate_scan_settings():
+    """Validate controls used by the local-minimum search stage."""
     if not all(
         (
             OBJECTIVE_NAME,
@@ -1788,22 +2179,20 @@ def validate_settings():
             "The gradient tool must be configured with a complete scan "
             "definition before validation."
         )
-    if OUTPUT_ROOT is None or LOG_PATH is None:
+    if OUTPUT_ROOT is None:
         raise ValueError("The scan definition must provide an output root.")
     if not SCAN_INITIAL_MIXING_ANGLES:
         raise ValueError(
             "The gradient phase-space tool requires "
             "SCAN_INITIAL_MIXING_ANGLES=True."
         )
-    unknown = set(LEPTONS_TO_OPTIMIZE) - set(LEPTON_SPECS)
+    unknown = set(LEPTONS_TO_PROCESS) - set(LEPTON_SPECS)
     if unknown:
         raise ValueError(f"Unknown lepton species: {sorted(unknown)}")
-    if not LEPTONS_TO_OPTIMIZE:
-        raise ValueError("LEPTONS_TO_OPTIMIZE must not be empty.")
+    if not LEPTONS_TO_PROCESS:
+        raise ValueError("The active lepton selection must not be empty.")
     if GRADIENT_WORKERS < 1:
         raise ValueError("GRADIENT_WORKERS must be positive.")
-    if not isinstance(SAVE_CONTOUR_DATA, bool):
-        raise TypeError("SAVE_CONTOUR_DATA must be a bool.")
     if ENTANGLEMENT_GRADIENT_RANDOM_STARTS < 1:
         raise ValueError(
             "ENTANGLEMENT_GRADIENT_RANDOM_STARTS must be positive."
@@ -1909,13 +2298,63 @@ def validate_settings():
             "ENTANGLEMENT_LOCAL_SEARCH_RANDOM_DIRECTIONS must be "
             "non-negative."
         )
-    if (
-        not np.isfinite(PHASE_SPACE_CONFIG_THRESHOLD)
-        or PHASE_SPACE_CONFIG_THRESHOLD < 0.0
+    for lepton_name, anchors in PHYSICS_ANCHOR_STARTS.items():
+        if lepton_name not in LEPTON_SPECS:
+            raise ValueError(
+                f"Unknown physics-anchor lepton species: {lepton_name!r}"
+            )
+        phase_scan._configure_lepton(lepton_name)
+        for anchor in anchors:
+            point = _physical_start_to_unit_point(anchor)
+            if (
+                not np.all(np.isfinite(point))
+                or np.any(point < 0.0)
+                or np.any(point > 1.0)
+            ):
+                raise ValueError(
+                    f"Physics anchor {anchor.get('name')!r} for "
+                    f"{lepton_name} lies outside the configured scan box."
+                )
+
+
+def _validate_stage_runtime():
+    """Validate definition, lepton selection, and worker state."""
+    if not all(
+        (
+            OBJECTIVE_NAME,
+            OBJECTIVE_FILE_TAG,
+            OBJECTIVE_LATEX,
+            OBJECTIVE_STATE_FILE_LABEL,
+            SCAN_KEY,
+        )
     ):
         raise ValueError(
-            "PHASE_SPACE_CONFIG_THRESHOLD must be finite and non-negative."
+            "The gradient tool requires a complete scan definition."
         )
+    if OUTPUT_ROOT is None:
+        raise ValueError("The scan definition must provide an output root.")
+    if not SCAN_INITIAL_MIXING_ANGLES:
+        raise ValueError(
+            "The gradient workflow requires "
+            "SCAN_INITIAL_MIXING_ANGLES=True."
+        )
+    unknown = set(LEPTONS_TO_PROCESS) - set(LEPTON_SPECS)
+    if unknown:
+        raise ValueError(f"Unknown lepton species: {sorted(unknown)}")
+    if not LEPTONS_TO_PROCESS:
+        raise ValueError("The active lepton selection must not be empty.")
+    if GRADIENT_WORKERS < 1:
+        raise ValueError("The worker count must be positive.")
+
+
+def _validate_cluster_settings():
+    """Validate only settings consumed by the clustering stage."""
+    _validate_stage_runtime()
+
+
+def _validate_config_settings():
+    """Validate only settings consumed by ConfigGen and contour plotting."""
+    _validate_stage_runtime()
     if (
         not np.isfinite(PHASE_SPACE_CONFIG_CONTOUR_DELTA)
         or PHASE_SPACE_CONFIG_CONTOUR_DELTA <= 0.0
@@ -1943,59 +2382,123 @@ def validate_settings():
         raise ValueError(
             "CONFIG_CONTOUR_INITIAL_RADIUS must be finite and positive."
         )
-    for lepton_name, anchors in PHYSICS_ANCHOR_STARTS.items():
-        if lepton_name not in LEPTON_SPECS:
-            raise ValueError(
-                f"Unknown physics-anchor lepton species: {lepton_name!r}"
-            )
-        phase_scan._configure_lepton(lepton_name)
-        for anchor in anchors:
-            point = _physical_start_to_unit_point(anchor)
-            if (
-                not np.all(np.isfinite(point))
-                or np.any(point < 0.0)
-                or np.any(point > 1.0)
-            ):
-                raise ValueError(
-                    f"Physics anchor {anchor.get('name')!r} for "
-                    f"{lepton_name} lies outside the configured scan box."
-                )
 
 
-def run_configured_scan():
-    """Run the configured objective and generate minima, configs, and contours."""
-    if REGENERATE_PLOTS_FROM_CSV:
-        reports = [
-            regenerate_species_plots(lepton_name)
-            for lepton_name in LEPTONS_TO_OPTIMIZE
-        ]
-    else:
-        validate_settings()
-        reports = [
-            run_species(lepton_name)
-            for lepton_name in LEPTONS_TO_OPTIMIZE
-        ]
+def _write_stage_report(stage, reports):
+    """Write and print one independent stage report."""
     report = "\n\n".join(reports) + "\n"
-    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    LOG_PATH.write_text(report, encoding="utf-8")
+    log_path = stage_log_path(stage)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text(report, encoding="utf-8")
     print_console_text(report)
     return report
 
 
-def run_scan(
+def run_minima_scan(
     definition,
     *,
-    leptons_to_optimize,
+    leptons_to_scan,
     gradient_workers,
-    regenerate_plots_from_csv=False,
-    save_contour_data=True,
+    remake_plot_from_csv=False,
 ):
-    """Configure and run one gradient scan definition."""
+    """Search for minima, or rebuild their plot from the saved stage-1 CSV."""
+    if not isinstance(remake_plot_from_csv, bool):
+        raise TypeError("remake_plot_from_csv must be a bool.")
     configure_scan(
         definition,
-        leptons_to_optimize=leptons_to_optimize,
+        leptons_to_process=leptons_to_scan,
         gradient_workers=gradient_workers,
-        regenerate_plots_from_csv=regenerate_plots_from_csv,
-        save_contour_data=save_contour_data,
     )
-    return run_configured_scan()
+    if remake_plot_from_csv:
+        _validate_stage_runtime()
+        reports = [
+            remake_species_minima_plot(lepton_name)
+            for lepton_name in LEPTONS_TO_PROCESS
+        ]
+    else:
+        _validate_scan_settings()
+        reports = [
+            scan_species_minima(lepton_name)
+            for lepton_name in LEPTONS_TO_PROCESS
+        ]
+    return _write_stage_report("scan", reports)
+
+
+def run_phase_space_clustering(
+    definition,
+    *,
+    leptons_to_cluster,
+    polarization_objective_cut,
+    polarization_cluster_count,
+    polarization_cluster_seed,
+):
+    """Cluster phase space and optionally classify low-objective polarization."""
+    if not isinstance(polarization_cluster_count, int):
+        raise TypeError("polarization_cluster_count must be an int.")
+    if polarization_cluster_count < 1:
+        raise ValueError("polarization_cluster_count must be positive.")
+    if polarization_cluster_count > len(POLARIZATION_CLUSTER_STYLES):
+        raise ValueError(
+            f"At most {len(POLARIZATION_CLUSTER_STYLES)} distinct "
+            "polarization marker/color styles are available."
+        )
+    if (
+        polarization_objective_cut is None
+        or not np.isfinite(polarization_objective_cut)
+        or polarization_objective_cut < 0.0
+    ):
+        raise ValueError(
+            "polarization_objective_cut must be finite and non-negative."
+        )
+    if not isinstance(polarization_cluster_seed, int):
+        raise TypeError("polarization_cluster_seed must be an int.")
+    configure_scan(
+        definition,
+        leptons_to_process=leptons_to_cluster,
+        gradient_workers=1,
+    )
+    _validate_cluster_settings()
+    reports = [
+        cluster_species_minima(
+            lepton_name,
+            polarization_objective_cut=polarization_objective_cut,
+            polarization_cluster_count=polarization_cluster_count,
+            polarization_cluster_seed=polarization_cluster_seed,
+        )
+        for lepton_name in LEPTONS_TO_PROCESS
+    ]
+    return _write_stage_report("cluster", reports)
+
+
+def run_cluster_configgen(
+    definition,
+    *,
+    leptons_to_configure,
+    config_workers,
+    polarization_clusters_to_configure,
+    save_contour_data,
+    use_saved_contour_data,
+):
+    """Run only ConfigGen and contour plotting from clustered minima."""
+    if not isinstance(save_contour_data, bool):
+        raise TypeError("save_contour_data must be a bool.")
+    if not isinstance(use_saved_contour_data, bool):
+        raise TypeError("use_saved_contour_data must be a bool.")
+    configure_scan(
+        definition,
+        leptons_to_process=leptons_to_configure,
+        gradient_workers=config_workers,
+    )
+    _validate_config_settings()
+    reports = [
+        configure_species_clusters(
+            lepton_name,
+            polarization_clusters_to_configure=(
+                polarization_clusters_to_configure
+            ),
+            save_contour_data=save_contour_data,
+            use_saved_contour_data=use_saved_contour_data,
+        )
+        for lepton_name in LEPTONS_TO_PROCESS
+    ]
+    return _write_stage_report("config", reports)

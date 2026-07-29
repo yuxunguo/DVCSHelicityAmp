@@ -1,0 +1,18 @@
+Gradient D_W cluster ConfigGen (electron)
+  source clustered minima: Output\GradientPhaseSpaceScan\electron\Data\W\cluster\clustered_minima.csv
+  local minima loaded: 765
+  parent polarization PDFs: 1
+  configured polarization-cluster minima: 43
+  local-minimum contour delta: 0.05
+  total contour processing time: 82.376 s
+  P3: theta_e~pi/4,theta_p~pi/2
+    retained minima: 43
+    configured local minima: 43
+    selected minima: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_03\combined\min_dw_polarization_cluster_03_selected_minima.csv
+    saved contour samples: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_03\combined\min_dw_polarization_cluster_03_contour_samples.csv
+    contour generation time: 82.376 s
+    configuration examples: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_03\combined\min_dw_polarization_cluster_03_configuration_examples.csv
+    cluster summary: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_03\combined\min_dw_polarization_cluster_03_cluster_summary.csv
+    momentum configurations: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_03\combined\min_dw_polarization_cluster_03_momentum_configurations.csv
+    amplitude decomposition: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_03\combined\min_dw_polarization_cluster_03_final_state_amplitude_decomposition.csv
+    configuration PDF: Output\GradientPhaseSpaceScan\electron\Plots\W\polarization_cluster_03\W_State_Search_and_Config_Electron_Polarization_Cluster_03.pdf

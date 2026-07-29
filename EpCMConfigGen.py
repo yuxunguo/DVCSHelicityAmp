@@ -34,7 +34,11 @@ from EpCMEntanglementScan import (
     mixed_angle_final_state,
 )
 from FormFactors import yahl_dirac_pauli_from_t
-from PlotUtils import print_console_text, require_matplotlib
+from PlotUtils import (
+    configure_polar_angle_axis,
+    print_console_text,
+    require_matplotlib,
+)
 from SpinDensityMat import (
     amplitude_table,
     contract_initial_state,
@@ -73,7 +77,7 @@ AMPLITUDE_MAX_COMPONENTS = 8
 CONFIGGEN_KINEMATIC_WORKERS = SCAN_WORKERS
 CONFIGGEN_PLOT_WORKERS = max(1, min(SCAN_WORKERS, len(CONFIG_TARGETS)))
 
-OUTPUT_DIR = Path("Output") / "EpCMConfigGen"
+OUTPUT_DIR = Path("Output_local") / "EpCMConfigGen"
 DATA_DIR = OUTPUT_DIR / "Data"
 PLOT_DIR = OUTPUT_DIR / "Plots"
 LOG_PATH = OUTPUT_DIR / "EpCMConfigGen.log"
@@ -814,6 +818,8 @@ def save_polarization_target_plot(
                 ax.annotate(str(region), point, color="red")
             ax.set_xlabel(r"$\theta_e$ [rad]")
             ax.set_ylabel(r"$\theta_p$ [rad]")
+            configure_polar_angle_axis(ax, "x")
+            configure_polar_angle_axis(ax, "y")
             reduction_label = "optimized over all kinematic axes"
         else:
             theta_values, recoil_values, grid = scan_grid(rows, key, minimized)
@@ -835,6 +841,7 @@ def save_polarization_target_plot(
             ax.axhline(1.0, color="white", linestyle="--", linewidth=0.8)
             ax.set_xlabel(r"$\theta_{\gamma\ell}^{(q\ell\,\mathrm{CM})}$ [rad]")
             ax.set_ylabel(r"$|\mathbf{p}'_p|$ [GeV]")
+            configure_polar_angle_axis(ax, "x")
             reduction_label = "optimized over proton recoil angle"
         ax.set_title(
             f"|{species_observable_name(observable, LEPTON_NAME)}|: "

@@ -26,14 +26,18 @@ python3 AlignmentScan.py     # angular alignment and entanglement scan
 python3 ConfigGen.py         # selected configurations from AlignmentScan
 python3 PhaseSpaceScan.py    # adaptive all-observable/all-lepton phase-space scan
 python3 PhaseSpaceConfigScan.py  # ConfigGen packages from PhaseSpaceScan results
-python3 GradientPhaseSpaceScan.py # globally selected W/GHZ scans and configs
+python3 GradientPhaseSpaceScan.py # stage 1: W/GHZ local-minimum searches
+python3 GradientPhaseSpaceCluster.py # stage 2: cluster saved minima
+python3 GradientPhaseSpaceConfig.py # stage 3: configs/contours from clusters
 python3 EpCMEntanglementScan.py   # reference-centered electron ep-CM scan
 python3 EpCMConfigGen.py          # config packages from the focused ep-CM scan
 python3 ProtonVirtualPhotonAmp.py # proton-current virtual-photon decomposition
 python3 QuasiRealComptonHelicity.py  # gamma* lepton CM helicity components
 ```
 
-Generated data, plots, and logs are written under `Output/`.
+Versioned gradient-search artifacts are written under
+`Output/GradientPhaseSpaceScan/`. All other generated data, plots, and logs
+are written under the ignored `Output_local/` tree.
 
 ## Main files
 
@@ -47,8 +51,11 @@ AlignmentScan.py      Fine angular scan at characteristic kinematics
 ConfigGen.py          Ranked-region configuration and plot generator
 PhaseSpaceScan.py      Adaptive seven-dimensional kinematic/polarization scan
 PhaseSpaceConfigScan.py ConfigGen-style packages from PhaseSpaceScan results
-GradientPhaseSpaceScan.py W/GHZ scan-selection and execution interface
-GradientPhaseSpaceScanTool.py Generic gradient search/config/contour engine
+GradientPhaseSpaceDefinitions.py Shared W/GHZ objectives, anchors, and root
+GradientPhaseSpaceScan.py Stage 1 local-minimum search interface
+GradientPhaseSpaceCluster.py Stage 2 phase-space clustering interface
+GradientPhaseSpaceConfig.py Stage 3 cluster ConfigGen/contour interface
+GradientPhaseSpaceScanTool.py Shared implementation for all three stages
 EpCMEntanglementScan.py Exact ep-CM scan with a slow final proton
 EpCMConfigGen.py      ConfigGen packages for the focused ep-CM scan
 ProtonVirtualPhotonAmp.py Proton helicity/current decomposition into T-/T+/L virtual photons
@@ -163,7 +170,7 @@ amplitudes = bh_amplitude_table(
 ```
 
 Running `BHHelicityAmp.py` writes the analytic comparison to
-`Output/BHHelicityAmp.log`. The analytic benchmark remains a massless-electron
+`Output_local/BHHelicityAmp.log`. The analytic benchmark remains a massless-electron
 check.
 
 ## Density matrices and entanglement
@@ -237,8 +244,8 @@ lepton–photon opening angle and writes full, aligned-only, and ranked tables
 directly in each species directory:
 
 ```text
-Output/AlignmentScan/<lepton>/
-Output/AlignmentScan/<lepton>/concurrence_scan_lepton_<species>_<polarization>_proton_<polarization>.pdf
+Output_local/AlignmentScan/<lepton>/
+Output_local/AlignmentScan/<lepton>/concurrence_scan_lepton_<species>_<polarization>_proton_<polarization>.pdf
 ```
 
 The physical mass of each configured lepton regulates exactly collinear
@@ -253,8 +260,8 @@ polarization. Magic heatmaps use the pure-state theoretical maximum `ln(9/2)`
 as their upper color limit, and outputs are written under `Data/m2_magic/`.
 
 ```text
-Output/ConfigGen/<lepton>/Data/<target>/lepton_<species>_<polarization>_proton_<polarization>/...
-Output/ConfigGen/<lepton>/lepton_<species>_<polarization>_proton_<polarization>/<E_gamma>_<target>_regions.pdf
+Output_local/ConfigGen/<lepton>/Data/<target>/lepton_<species>_<polarization>_proton_<polarization>/...
+Output_local/ConfigGen/<lepton>/lepton_<species>_<polarization>_proton_<polarization>/<E_gamma>_<target>_regions.pdf
 ```
 
 Every polarization folder names both incoming states explicitly, for example
@@ -301,7 +308,7 @@ spatial rotation to the reference point `pIn=0.130 GeV`, `pOut=0.028 GeV`,
 The script runs electron, muon, heavy-lepton, and massless-lepton species by
 default, and writes independent full, aligned,
 ranked, and plotted fixed-polarization results under
-`Output/PhaseSpaceScan/<lepton>/`. Each species additionally receives
+`Output_local/PhaseSpaceScan/<lepton>/`. Each species additionally receives
 `<stem>_mixing_angle_phase_space.csv`, `<stem>_mixing_angle_top.csv`, and
 `phase_space_scan_lepton_<species>_theta_mix_proton_theta_p_mix.pdf`. The
 mixed-angle PDF retains all three original kinematic projections and the
@@ -336,37 +343,52 @@ distance no larger than the threshold from each observable's scanned maximum
 (or its minimum for `D_W`); its default is `0.05`. Because `PhaseSpaceScan` uses a
 continuous photon energy, valid rows are divided into balanced low, middle,
 and high `E_gamma` bands before configuration selection. Outputs are written under
-`Output/PhaseSpaceConfigScan/<lepton>/`, with a combined report at
-`Output/PhaseSpaceConfigScan.log`.
+`Output_local/PhaseSpaceConfigScan/<lepton>/`, with a combined report at
+`Output_local/PhaseSpaceConfigScan.log`.
 Because it inherits the same ConfigGen targets, it also writes maximum-magic
 packages under `Data/m2_magic/`.
 
-`GradientPhaseSpaceScanTool.py` is the objective-neutral local-optimization
-engine. It combines randomized Latin-hypercube starts, low-objective
-spatially separated candidates selected from a larger Sobol screening set,
-and objective-specific physics anchors. Every promoted start runs bounded
-L-BFGS-B followed by a periodic-aware multiscale coordinate poll. The tool
-then verifies and deduplicates local minima, generates configuration/momentum/
-amplitude CSVs, and samples the requested seven-dimensional objective contour.
+The gradient workflow has three independent, sequential stages. Every stage
+uses explicit globals and accepts no command-line arguments.
 
-`GradientPhaseSpaceScan.py` is the only execution interface. Its
-`SCAN_DEFINITIONS` registry supplies the W and GHZ objective names, anchors,
-output roots, labels, and logs to the generic tool. All run options are
-explicit global variables at the top of the interface:
+1. `GradientPhaseSpaceScan.py` performs the expensive search. Randomized
+   Latin-hypercube starts, screened Sobol starts, and physics anchors are
+   optimized with bounded L-BFGS-B and multiscale local polling. It writes
+   `optimization_runs.csv`, raw `local_minima.csv`, and
+   `all_local_minima.pdf`; it does not cluster or call ConfigGen.
+2. `GradientPhaseSpaceCluster.py` reads `local_minima.csv`, applies the
+   objective cut, and finds six pi-periodic mixing-angle polarization
+   clusters. The minimum with the best objective in each cluster is marked as
+   that polarization cluster's configuration representative. It writes the
+   assignments and polarization summary without performing optimization or
+   ConfigGen work. Every assigned minimum is passed to the configuration stage.
+3. `GradientPhaseSpaceConfig.py` reads `clustered_minima.csv` and generates a
+   separate data package and configuration PDF for every parent polarization
+   cluster. Each PDF starts with a summary plot containing every member's
+   contour, followed by a reconstructed configuration page and a 7D contour
+   page for every minimum in that polarization cluster.
 
-```python
-SCANS_TO_RUN = ("W", "GHZ")
-LEPTONS_TO_OPTIMIZE = ("electron", "muon", "heavy", "massless")
-GRADIENT_WORKERS = SCAN_WORKERS
-REGENERATE_PLOTS_FROM_CSV = False
-SAVE_CONTOUR_DATA = True
-GRADIENT_OUTPUT_ROOT = Path("Output") / "GradientPhaseSpaceScan"
+The shared W/GHZ definitions, anchors, labels, and output root live in
+`GradientPhaseSpaceDefinitions.py`. Select states and leptons independently
+at the top of each stage script, then run:
+
+```sh
+python3 GradientPhaseSpaceScan.py
+python3 GradientPhaseSpaceCluster.py
+python3 GradientPhaseSpaceConfig.py
 ```
 
-Set `SCANS_TO_RUN = ("W",)` for W only, `("GHZ",)` for GHZ only, or order
-both entries as needed. After editing the globals, run
-`python3 GradientPhaseSpaceScan.py`. No command-line arguments are accepted.
-A failed scan stops the sequence before the next definition runs.
+Stage 1 exposes `REMAKE_MINIMA_PLOT_FROM_CSV`. Leave it `False` for a new
+search. Set it to `True` to read the existing
+`Data/<state>/scan/local_minima.csv` and rebuild
+`Plots/<state>/all_local_minima.pdf` without rerunning Sobol screening,
+L-BFGS-B, or multiscale local search.
+
+Each stage stops with a missing-file error if its required predecessor output
+does not exist. Separate logs are written as
+`<state>_gradient_phase_space_scan.log`,
+`<state>_gradient_phase_space_cluster.log`, and
+`<state>_gradient_phase_space_config.log`.
 
 The screening pool size, optimized screened-start count, and separation are
 set by `ENTANGLEMENT_GRADIENT_SCREENING_SAMPLES`,
@@ -377,22 +399,41 @@ The normalized gradient and local-verification resolution is controlled by
 `ENTANGLEMENT_GRADIENT_SCAN_PRECISION`; the other
 `ENTANGLEMENT_GRADIENT_*` and `ENTANGLEMENT_LOCAL_SEARCH_*` settings control
 starts, convergence, basin separation, and multiscale polishing.
+Stage 2 is polarization-first. The explicit
+`POLARIZATION_CLUSTER_CUT`, `POLARIZATION_CLUSTER_COUNT`, and
+`POLARIZATION_CLUSTER_SEED` globals control the parent classification. The
+default cut retains minima with
+`objective - objective_min <= 0.05`; deterministic circular clustering treats
+`theta_e` and `theta_p` with period `pi` and identifies six polarization
+configurations. The best-objective member is still identified in the summary,
+but every cluster member is configured. The assignments are saved in
+`clustered_minima.csv`, while parent centers, sizes, and representative IDs are
+saved in `polarization_clusters.csv`.
+`polarization_cluster_phase_space.pdf` shows every parent with its own
+color/marker pair.
 
 The seven coordinates are `sqrt(s)`, `theta_out`, the physical `E_gamma`
 fraction, the final-proton and photon azimuths, `theta_e`, and `theta_p`.
-This workflow requires `SCAN_INITIAL_MIXING_ANGLES = True`. Minima within
-`PHASE_SPACE_CONFIG_THRESHOLD` of the global minimum receive reconstructed
-configuration, momentum, coherent final-state amplitude, and PDF outputs.
+This workflow requires `SCAN_INITIAL_MIXING_ANGLES = True`. Every minimum
+assigned to a polarization cluster receives reconstructed configuration,
+momentum, coherent final-state amplitude, contour data, and PDF pages.
 The contour level and number of sampled radial directions are controlled by
 `PHASE_SPACE_CONFIG_CONTOUR_DELTA` and
 `PHASE_SPACE_CONFIG_CONTOUR_SAMPLES`.
-With `SAVE_CONTOUR_DATA = True`, each scan saves the sampled 7D contour to
-`min_<objective>_contour_samples.csv`. When
-`REGENERATE_PLOTS_FROM_CSV = True`, the configuration PDF loads that saved
-contour instead of evaluating the objective again. The saved objective,
-contour settings, minimum IDs, and minimum centers are validated before use.
-Set `SAVE_CONTOUR_DATA = False` only when contour persistence is not wanted;
-plot regeneration then recalculates the contours.
+Stage 3 exposes `SAVE_CONTOUR_DATA` and `USE_SAVED_CONTOUR_DATA`.
+The first saves newly calculated samples to
+`min_<objective>_contour_samples.csv`; the second rebuilds the configuration
+PDF from that CSV without evaluating the contour again. Saved objective,
+contour settings, minimum IDs, and centers are validated before reuse.
+Stage 3 uses all `CONFIG_WORKERS` through `GradientContourWorker.py`. That
+lightweight process entrypoint intentionally avoids SciPy imports, preventing
+Windows process-spawn duplication of the optimizer DLLs while allowing
+`CONFIG_WORKERS = SCAN_WORKERS`.
+All angular scan and configuration plots use the shared `PlotUtils.py`
+formatting: polar axes span `0` to `pi` with quarter-pi ticks, azimuthal axes
+span `0` to `2*pi` with half-pi ticks, and major grid lines coincide with
+those tick positions. A small unlabeled margin outside each physical endpoint
+keeps markers centered at `0`, `pi`, or `2*pi` fully visible.
 
 W and GHZ outputs share one main root and use a lepton-first,
 artifact-type-first hierarchy:
@@ -403,13 +444,22 @@ Output/GradientPhaseSpaceScan/
     Data/
       W/
         scan/
-        dw/combined/
+        cluster/
+        dw/
+          polarization_cluster_01/combined/
+          ...
+          polarization_cluster_06/combined/
       GHZ/
         scan/
-        dghz/combined/
+        cluster/
+        dghz/
+          polarization_cluster_01/combined/
+          ...
     Plots/
-      W/
-      GHZ/
+      W/polarization_cluster_01/
+      ...
+      W/polarization_cluster_06/
+      GHZ/polarization_cluster_01/
   muon/
     Data/W/
     Data/GHZ/
@@ -418,10 +468,11 @@ Output/GradientPhaseSpaceScan/
   Logs/
 ```
 
-The other configured lepton species follow the same structure. Scan CSVs are
-grouped under `Data/<state>/scan/`, configuration CSVs under the observable's
-`combined/` subfolder, and every PDF under `Plots/<state>/`. Each selected
-minimum receives configuration pages and pairwise projections of
+The other configured lepton species follow the same structure. Raw scan CSVs
+are under `Data/<state>/scan/`, stage-2 outputs under
+`Data/<state>/cluster/`, and each parent polarization cluster receives its own
+objective data folder and PDF folder. Every polarization-cluster member
+receives a configuration page and pairwise projections of
 `objective = objective(local minimum) + PHASE_SPACE_CONFIG_CONTOUR_DELTA`.
 Periodic contours are split at the physical plot boundary.
 
@@ -465,7 +516,7 @@ and an anchor-momentum report
 under:
 
 ```text
-Output/EpCMEntanglementScan/
+Output_local/EpCMEntanglementScan/
 ```
 
 The full CSV contains the same 13 entanglement/projection quantities and the
@@ -491,7 +542,7 @@ contains the absolute-value scan map followed by detail pages with exact
 kinematics, momentum vectors, and ensemble-aware outgoing helicity-amplitude
 components. CSV versions of the configuration, momentum, and amplitude records
 are written alongside the marked region PDFs under
-`Output/EpCMConfigGen/`.
+`Output_local/EpCMConfigGen/`.
 The decomposition labels final helicities explicitly as `h_l`, `h_p`, and
 `h_gamma`; it also writes `final_state_ket` in the user's `|p gamma l>`
 ordering. Momentum figures follow the AlignmentScan ConfigGen convention:
@@ -517,7 +568,7 @@ angular range. The script writes the complete component table, helicity-summed
 polarization responses, Ward-identity diagnostics, and angular plots under:
 
 ```text
-Output/QuasiRealComptonHelicity/
+Output_local/QuasiRealComptonHelicity/
 ```
 
 The amplitudes omit the overall QED factor `e^2`. Longitudinal results are
@@ -559,10 +610,10 @@ python3 FixedHelicityTest.py
 It writes:
 
 ```text
-Output/FixedHelicityTest/momentum_configuration.csv
-Output/FixedHelicityTest/outgoing_amplitudes.csv
-Output/FixedHelicityTest/entanglement_measurements.csv
-Output/FixedHelicityTest/configuration_summary.pdf
+Output_local/FixedHelicityTest/momentum_configuration.csv
+Output_local/FixedHelicityTest/outgoing_amplitudes.csv
+Output_local/FixedHelicityTest/entanglement_measurements.csv
+Output_local/FixedHelicityTest/configuration_summary.pdf
 ```
 
 The selected pure incoming product state is combined coherently in the

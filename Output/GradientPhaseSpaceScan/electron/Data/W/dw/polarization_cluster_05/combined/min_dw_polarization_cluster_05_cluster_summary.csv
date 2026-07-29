@@ -1,0 +1,2 @@
+detail_id,selected_observable,selected_observable_label,selected_spin_case,selected_region,qOut_regime,cluster_id,energy_band_cluster_id,selected_concurrence,selected_purity,theta_e,theta_p,sqrt_s,theta_out,phi_p_out,qOut,phi_gamma_out
+dw_mixing_angles_polarization_05,D_W,D_W,mixing_angles,polarization_cluster_05,gradient_local_minimum,4,4,3.1569866923690923e-03,1.0000000000000004e+00,2.3661742191968629e+00,1.4357728101199332e+00,1.119240901066365,1.432531169481919,3.9508245925987384,0.09316590631452688,0.6680681367758474

@@ -26,5 +26,5 @@ docs/
 # Local agents and codex directories
 .agents/
 .codex/
-# Generated scan/configuration artifacts
-Output/
+# Local generated scan/configuration artifacts
+Output_local/

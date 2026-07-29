@@ -12,7 +12,7 @@ MASSLESS_LEPTON_MASS_GEV = 0.0
 
 # Shared numerical scan behavior.
 NORMALIZE_TRACE = True
-SCAN_WORKERS = max(1, min(os.cpu_count() or 1, 24))
+SCAN_WORKERS = max(1, os.cpu_count() or 1)
 
 # PhaseSpaceScan sampling budgets. The first value controls the global
 # stratified scan; the second controls the local refinement stage.
@@ -20,9 +20,9 @@ PHASE_SPACE_SAMPLES = 8192 * 2
 REFINEMENT_SAMPLES = 4096 * 2
 
 # Shared W/GHZ randomized starts, gradient optimization, and local search.
-ENTANGLEMENT_GRADIENT_RANDOM_STARTS = 64
-ENTANGLEMENT_GRADIENT_SCREENING_SAMPLES = 8192
-ENTANGLEMENT_GRADIENT_SCREENED_STARTS = 64
+ENTANGLEMENT_GRADIENT_RANDOM_STARTS = 2 ** 9
+ENTANGLEMENT_GRADIENT_SCREENING_SAMPLES = 8192 * 2
+ENTANGLEMENT_GRADIENT_SCREENED_STARTS = 2 ** 9
 ENTANGLEMENT_GRADIENT_SCREENING_SEPARATION = 0.06
 ENTANGLEMENT_GRADIENT_MAX_ITERATIONS = 80
 ENTANGLEMENT_GRADIENT_TOLERANCE = 1.0e-7
@@ -52,4 +52,4 @@ PHASE_SPACE_CONFIG_THRESHOLD = 0.05
 # selected local minimum in the full seven-dimensional phase space.
 PHASE_SPACE_CONFIG_CONTOUR_DELTA = 0.05
 # Total seven-dimensional radial directions sampled for each contour.
-PHASE_SPACE_CONFIG_CONTOUR_SAMPLES = 3 ** 7
+PHASE_SPACE_CONFIG_CONTOUR_SAMPLES = 2 ** 7

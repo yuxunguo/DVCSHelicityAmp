@@ -34,7 +34,11 @@ from Algebra import (
     spinor_bar,
 )
 from BHHelicityAmp import lepton_kernel
-from PlotUtils import print_console_text, require_matplotlib
+from PlotUtils import (
+    configure_polar_angle_axis,
+    print_console_text,
+    require_matplotlib,
+)
 from ProtonVirtualPhotonAmp import (
     EPCM_W_ELECTRON_MIXING_ANGLE_RAD,
     EPCM_W_HELICITY_ORDER,
@@ -64,7 +68,7 @@ PHI_CM_RAD = 0.0
 WARD_RELATIVE_TOL = 1.0e-10
 FIXED_INCOMING_LEPTON_HELICITY = +1
 
-OUTPUT_DIR = Path("Output") / "QuasiRealComptonHelicity"
+OUTPUT_DIR = Path("Output_local") / "QuasiRealComptonHelicity"
 COMPONENT_CSV = OUTPUT_DIR / "compton_helicity_components.csv"
 RESPONSE_CSV = OUTPUT_DIR / "compton_polarization_responses.csv"
 PLOT_PDF = OUTPUT_DIR / "compton_helicity_components.pdf"
@@ -804,6 +808,7 @@ def save_plots(component_rows):
                             )
                     ax.set_yscale("log")
                     ax.set_xlabel(r"$\theta_{\rm cm}$ [rad]")
+                    configure_polar_angle_axis(ax, "x")
                     ax.set_ylabel(r"$|\mathcal{M}/e^2|$")
                     ax.set_title(rf"$h_\ell={h_in:+d}$")
                     ax.grid(alpha=0.25)
@@ -953,6 +958,7 @@ def save_fixed_incoming_lepton_plots(component_rows):
                         )
                     ax.set_yscale("log")
                     ax.set_xlabel(r"$\theta_{\rm cm}$ [rad]")
+                    configure_polar_angle_axis(ax, "x")
                     ax.set_ylabel(r"$|\mathcal{M}/e^2|$")
                     ax.set_title(
                         lepton_title

@@ -336,7 +336,11 @@ def characteristic_kinematic_points():
     return points
 
 
-from PlotUtils import print_console_text, require_matplotlib as _require_matplotlib
+from PlotUtils import (
+    configure_azimuthal_angle_axis,
+    print_console_text,
+    require_matplotlib as _require_matplotlib,
+)
 
 
 def clean_alignment_outputs(lepton_name="electron"):
@@ -1042,10 +1046,10 @@ def _cache_anchor_plot_grids(rows, anchors):
     return grids
 
 
-def _add_pi_over_two_reference_lines(ax):
-    """Draw the requested pi/2 guide lines on heatmaps."""
-    ax.axvline(0.5 * np.pi, color="white", linestyle="--", linewidth=0.45, alpha=0.45)
-    ax.axhline(0.5 * np.pi, color="white", linestyle="--", linewidth=0.45, alpha=0.45)
+def _configure_azimuthal_axes(ax):
+    """Apply the shared azimuthal range, ticks, and guide grid."""
+    configure_azimuthal_angle_axis(ax, "x")
+    configure_azimuthal_angle_axis(ax, "y")
 
 
 def _heatmap_color_scale(prefix, observable):
@@ -1452,7 +1456,7 @@ def save_concurrence_scan_plot(
                         plot_style,
                     )
                     ax.set_box_aspect(1)
-                    _add_pi_over_two_reference_lines(ax)
+                    _configure_azimuthal_axes(ax)
                     anchor_meshes.append(mesh)
                     finite_indices = np.flatnonzero(finite_values)
                     objective_values = np.asarray([

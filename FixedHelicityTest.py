@@ -38,7 +38,7 @@ PHI_GAMMA_OUT = np.pi / 2.0
 ELECTRON_STATE = "U"
 PROTON_STATE = "Tx"
 
-OUTPUT_DIR = Path("Output") / "FixedHelicityTest"
+OUTPUT_DIR = Path("Output_local") / "FixedHelicityTest"
 
 
 def _state_coefficients(state, particle):

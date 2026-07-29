@@ -15,7 +15,8 @@ one-to-rest concurrence observables plus ``F3`` from arXiv:2310.01477v2.
 Running this file as a script regenerates the SpinDensityMat output directory:
 unpolarized, incoming-electron-polarized, and transverse incoming-electron
 scan folders with NPZ scans, summary entanglement CSV/PDFs where defined,
-per-kinematic-point matrix CSVs/PDFs, and ``Output/SpinDensityMat.log``.
+per-kinematic-point matrix CSVs/PDFs, and
+``Output_local/SpinDensityMat.log``.
 """
 
 from itertools import product
@@ -154,8 +155,8 @@ BENCHMARK_CM_KINEMATIC_INPUTS = (
     ("CM3", 1.15 * CM_S_CENTER, 2.20, np.pi, 1.10, 0.0),
 )
 
-OUTPUT_DIR = Path("Output") / "SpinDensityMat"
-LOG_PATH = Path("Output") / "SpinDensityMat.log"
+OUTPUT_DIR = Path("Output_local") / "SpinDensityMat"
+LOG_PATH = Path("Output_local") / "SpinDensityMat.log"
 
 
 
@@ -1091,7 +1092,10 @@ def clean_generated_outputs():
             path.unlink()
 
 
-from PlotUtils import require_matplotlib as _require_matplotlib
+from PlotUtils import (
+    configure_named_angle_axes,
+    require_matplotlib as _require_matplotlib,
+)
 
 
 def _safe_float_for_filename(name, value):
@@ -1139,6 +1143,8 @@ def _plot_scan_page(
     cmap,
     vmin=None,
     vmax=None,
+    x_name=None,
+    y_name=None,
 ):
     """Draw one kinematic-grid heatmap page and return the image artist."""
     image = ax.imshow(
@@ -1154,6 +1160,7 @@ def _plot_scan_page(
     ax.set_title(title, fontsize=15)
     ax.set_xlabel(x_label, fontsize=12)
     ax.set_ylabel(y_label, fontsize=12)
+    configure_named_angle_axes(ax, x_name, y_name)
     ax.tick_params(labelsize=10)
     return image
 
@@ -1198,6 +1205,8 @@ def save_entanglement_plot(scan, output_path=None):
                 cmap=cmap,
                 vmin=vmin,
                 vmax=vmax,
+                x_name=scan["x_name"],
+                y_name=scan["y_name"],
             )
             colorbar = fig.colorbar(image, ax=ax, label=f"{title_prefix}{label}")
             colorbar.set_label(f"{title_prefix}{label}", fontsize=12)

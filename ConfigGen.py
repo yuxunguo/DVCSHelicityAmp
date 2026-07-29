@@ -48,7 +48,7 @@ LEPTON_MASS_GEV = LEPTON_SPECS[LEPTON_NAME]["mass"]
 
 FULL_CONCURRENCE_CSV = lepton_output_paths(LEPTON_NAME)["concurrence_csv"]
 
-OUTPUT_ROOT = Path("Output") / "ConfigGen"
+OUTPUT_ROOT = Path("Output_local") / "ConfigGen"
 OUTPUT_DIR = OUTPUT_ROOT / LEPTON_NAME
 DATA_DIR = OUTPUT_DIR / "Data"
 EGAMMA_CONFIG_DIR = OUTPUT_DIR
@@ -144,7 +144,11 @@ KINEMATIC_COLUMNS = (
 )
 
 
-from PlotUtils import print_console_text, require_matplotlib as _require_matplotlib
+from PlotUtils import (
+    configure_azimuthal_angle_axis,
+    print_console_text,
+    require_matplotlib as _require_matplotlib,
+)
 
 
 def configure_lepton(name, input_path=None, output_root=None):
@@ -939,12 +943,6 @@ def _binned_mean_2d(x_values, y_values, z_values, x_edges, y_edges):
     return np.ma.masked_invalid(mean.T)
 
 
-def add_pi_over_two_reference_lines(ax):
-    """Draw requested pi/2 reference lines on scan maps."""
-    ax.axvline(0.5 * math.pi, color="white", linestyle="--", linewidth=0.45, alpha=0.45)
-    ax.axhline(0.5 * math.pi, color="white", linestyle="--", linewidth=0.45, alpha=0.45)
-
-
 def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, spin_case, key, clusters):
     """Append one fixed-E_gamma/target/spin scan map with region markers."""
     observable, _file_tag = target
@@ -1013,11 +1011,10 @@ def plot_egamma_target_scan_map(plt, pdf, rows, target, group_name, spin_case, k
         f"{observable_math_label(observable)} regions",
         fontsize=14,
     )
-    add_pi_over_two_reference_lines(ax)
     ax.set_xlabel(r"$\phi_{p'}$ [rad]", fontsize=12)
     ax.set_ylabel(r"$\phi_{\gamma}$ [rad]", fontsize=12)
-    ax.set_xlim(0.0, 2.0 * math.pi)
-    ax.set_ylim(0.0, 2.0 * math.pi)
+    configure_azimuthal_angle_axis(ax, "x")
+    configure_azimuthal_angle_axis(ax, "y")
     colorbar = fig.colorbar(image, ax=ax)
     colorbar.set_label(observable_math_label(observable), fontsize=12)
     pdf.savefig(fig)

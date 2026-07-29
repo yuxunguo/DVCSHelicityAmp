@@ -12,7 +12,8 @@ back to the ep CM frame.
 All external masses and four-momentum conservation are retained exactly.
 The fixed prepared-state scan and coherent incoming-polarization scan are
 first-class outputs. The coherent scan varies ``theta_e`` and ``theta_p`` over
-one physical period. Outputs are written below ``Output/EpCMEntanglementScan``.
+one physical period. Outputs are written below
+``Output_local/EpCMEntanglementScan``.
 """
 
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
@@ -32,7 +33,11 @@ from AlignmentScan import (
 )
 from FormFactors import yahl_dirac_pauli_from_t
 from Kinematics import invariant_q2_xb_t, spatial_angles
-from PlotUtils import print_console_text, require_matplotlib
+from PlotUtils import (
+    configure_polar_angle_axis,
+    print_console_text,
+    require_matplotlib,
+)
 from SpinDensityMat import (
     SPIN_CASES,
     SPIN_CASE_MINUS_TX_PROTON,
@@ -114,7 +119,7 @@ EP_CM_SPIN_CASES = EP_CM_FIXED_SPIN_CASES + (
 SCAN_PLOT_WORKER_COUNT = max(1, min(SCAN_WORKERS, len(EP_CM_SPIN_CASES)))
 TOP_POINTS = 10
 
-OUTPUT_DIR = Path("Output") / "EpCMEntanglementScan"
+OUTPUT_DIR = Path("Output_local") / "EpCMEntanglementScan"
 FULL_CSV = OUTPUT_DIR / "ep_cm_entanglement_scan.csv"
 TOP_CSV = OUTPUT_DIR / "ep_cm_entanglement_top.csv"
 MIXING_SCAN_CSV = OUTPUT_DIR / "ep_cm_mixing_angle_scan.csv"
@@ -650,6 +655,7 @@ def save_spin_plot(rows, spin_case, output_dir=PLOT_DIR):
             )
             ax.set_xlabel(r"$\theta_{\gamma\ell}^{(q\ell\,\mathrm{CM})}$ [rad]")
             ax.set_ylabel(r"$|\mathbf{p}'_p|$ [GeV]")
+            configure_polar_angle_axis(ax, "x")
             display_name = species_observable_name(observable, LEPTON_NAME)
             ax.set_title(f"|{display_name}|")
             fig.colorbar(image, ax=ax)
@@ -711,6 +717,8 @@ def save_mixing_angle_plot(rows, output_dir=PLOT_DIR):
             )
             ax.set_xlabel(r"$\theta_e$ [rad]")
             ax.set_ylabel(r"$\theta_p$ [rad]")
+            configure_polar_angle_axis(ax, "x")
+            configure_polar_angle_axis(ax, "y")
             ax.set_title(f"|{species_observable_name(observable, LEPTON_NAME)}|")
             fig.colorbar(image, ax=ax)
         for ax in axes.flat[len(PLOT_OBSERVABLES):]:

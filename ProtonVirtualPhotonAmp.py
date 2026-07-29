@@ -14,7 +14,7 @@ Edit the values in :func:`main` and run
 
     python ProtonVirtualPhotonAmp.py
 
-Outputs are written below ``Output/ProtonVirtualPhotonAmp``.
+Outputs are written below ``Output_local/ProtonVirtualPhotonAmp``.
 """
 
 import csv
@@ -26,17 +26,21 @@ from Algebra import HELICITIES, cov, mdot
 from BHHelicityAmp import proton_current_helicity_decomposition
 from EpCMEntanglementScan import BEAM_MOMENTUM_GEV
 from FormFactors import YAHL_MODEL_NAME, yahl_dirac_pauli_from_t
-from PlotUtils import print_console_text, require_matplotlib
+from PlotUtils import (
+    configure_named_angle_axes,
+    print_console_text,
+    require_matplotlib,
+)
 from config import ELECTRON_MASS_GEV, PROTON_MASS_GEV
 
 
-OUTPUT_DIR = Path("Output") / "ProtonVirtualPhotonAmp"
+OUTPUT_DIR = Path("Output_local") / "ProtonVirtualPhotonAmp"
 AMPLITUDE_CSV = OUTPUT_DIR / "proton_virtual_photon_amplitudes.csv"
 CURRENT_CSV = OUTPUT_DIR / "proton_current_components.csv"
 THETA_SCAN_CSV = OUTPUT_DIR / "proton_virtual_photon_theta_scan.csv"
 Z_SCAN_CSV = OUTPUT_DIR / "proton_virtual_photon_z_scan.csv"
 PLOT_PATH = OUTPUT_DIR / "proton_virtual_photon_amplitude_decomposition.pdf"
-LOG_PATH = Path("Output") / "ProtonVirtualPhotonAmp.log"
+LOG_PATH = Path("Output_local") / "ProtonVirtualPhotonAmp.log"
 EPCM_W_MATRIX_CSV = OUTPUT_DIR / "epcm_w_proton_emission_matrix.csv"
 EPCM_W_STATE_CSV = OUTPUT_DIR / "epcm_w_prepared_intermediate_state.csv"
 
@@ -494,6 +498,7 @@ def plot_scan_pages(plt, pdf, rows, x_key, x_label, scan_description):
             r"$|\epsilon^\nu J_\nu|/|\mathcal{A}_{\rm unpol}|$"
         )
         ax.set_xlabel(x_label)
+        configure_named_angle_axes(ax, x_key)
         ax.set_title(rf"$s_{{in}}={s_in:+d}\to s_{{out}}={s_out:+d}$")
         ax.grid(alpha=0.25)
         ax.legend(fontsize=9)
@@ -532,6 +537,7 @@ def plot_scan_pages(plt, pdf, rows, x_key, x_label, scan_description):
                 label=polarization,
             )
         ax.set_xlabel(x_label)
+        configure_named_angle_axes(ax, x_key)
         ax.set_ylabel(r"$\arg(\epsilon^\nu J_\nu)/\pi$")
         ax.set_ylim(-1.05, 1.05)
         ax.set_title(rf"$s_{{in}}={s_in:+d}\to s_{{out}}={s_out:+d}$")
@@ -562,6 +568,7 @@ def plot_scan_pages(plt, pdf, rows, x_key, x_label, scan_description):
             linewidth=1.8,
         )
         ax.set_xlabel(x_label)
+        configure_named_angle_axes(ax, x_key)
         ax.set_ylabel(
             r"$R_{L/T}=|A_L|^2/(|A_{T-}|^2+|A_{T+}|^2)$"
         )
@@ -588,6 +595,7 @@ def plot_scan_pages(plt, pdf, rows, x_key, x_label, scan_description):
     left.plot(summary[:, 0], summary[:, 1], color="tab:purple", linewidth=2.0)
     right.plot(summary[:, 0], summary[:, 2], color="tab:red", linewidth=2.0)
     left.set_xlabel(x_label)
+    configure_named_angle_axes(left, x_key)
     left.set_ylabel(r"$Q^2=-q^2$ [GeV$^2$]", color="tab:purple")
     right.set_ylabel(r"$|\mathcal{A}_{\rm unpol}|$", color="tab:red")
     left.tick_params(axis="y", colors="tab:purple")

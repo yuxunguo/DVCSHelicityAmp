@@ -4,7 +4,7 @@ This module evaluates the Bethe-Heitler contribution to exclusive
 electroproduction in the conventions provided by :mod:`Algebra` and
 :mod:`Kinematics`. It exposes low-level routines that operate directly on
 four-momenta and a script entry point that compares against analytic benchmark
-formulae in ``Output/BHHelicityAmp.log``.
+formulae in ``Output_local/BHHelicityAmp.log``.
 
 Helicity labels are doubled helicities ``+1`` and ``-1``. The final photon
 polarization vector is generated from its four-momentum and contracted as
@@ -40,7 +40,7 @@ from Algebra import (
 from Kinematics import kinematics_cm_from_independent
 from FormFactors import sachs_from_dirac_pauli
 
-OUTPUT_LOG_PATH = Path("Output") / "BHHelicityAmp.log"
+OUTPUT_LOG_PATH = Path("Output_local") / "BHHelicityAmp.log"
 
 
 # ============================================================
@@ -391,7 +391,7 @@ def bh_amplitude_table(
 
 
 def main():
-    """Run the analytic benchmark sweep and write ``Output/BHHelicityAmp.log``.
+    """Run the benchmark sweep and write ``Output_local/BHHelicityAmp.log``.
 
     The benchmark constructs several independent initial-CM kinematic points
     and compares numerical spinor sums with analytic Bethe-Heitler expressions
