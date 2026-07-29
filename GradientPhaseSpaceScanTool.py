@@ -91,6 +91,9 @@ POLARIZATION_CLUSTER_STYLES = (
     ("#7A1FA2", "v"),
     ("#00A6A6", "X"),
 )
+POLARIZATION_CLUSTER_RESTARTS = 16
+POLARIZATION_ALPHA_E_LINE_CENTERS = (np.pi / 4.0, 3.0 * np.pi / 4.0)
+POLARIZATION_ALPHA_E_STRATUM_CLUSTERS = (1, 2, 1, 2)
 
 
 @dataclass(frozen=True)
@@ -1035,7 +1038,7 @@ def _pi_quarter_math_label(angle):
 
 
 def _circular_mixing_center(angles):
-    """Return the pi-periodic circular center of alpha_e and alpha_p."""
+    """Return the pi-periodic circular center of each supplied angle."""
     return np.mod(
         0.5
         * np.arctan2(
@@ -1047,10 +1050,47 @@ def _circular_mixing_center(angles):
 
 
 def _mixing_distance(angle, center):
-    """Return normalized distance on the alpha_e/alpha_p pi-periodic torus."""
+    """Return distance with a periodic endpoint and periodic alpha_p."""
     difference = np.abs(np.asarray(angle) - np.asarray(center))
-    wrapped = np.minimum(difference, np.pi - difference) / np.pi
-    return float(np.linalg.norm(wrapped))
+    if np.isclose(np.mod(center[0], np.pi), 0.0):
+        difference[0] = min(difference[0], np.pi - difference[0])
+    difference[1] = min(difference[1], np.pi - difference[1])
+    return float(np.linalg.norm(difference / np.pi))
+
+
+def _best_periodic_kmeans_labels(
+    embedded,
+    cluster_count,
+    random_seed,
+):
+    """Return the lowest-distortion result from deterministic k-means restarts."""
+    random_generator = np.random.default_rng(random_seed)
+    best_labels = None
+    best_distortion = np.inf
+    for _ in range(POLARIZATION_CLUSTER_RESTARTS):
+        embedded_centers, labels = kmeans2(
+            embedded,
+            cluster_count,
+            iter=100,
+            minit="++",
+            seed=random_generator,
+        )
+        if len(set(int(label) for label in labels)) != cluster_count:
+            continue
+        distortion = float(
+            np.sum((embedded - embedded_centers[labels]) ** 2)
+        )
+        if distortion < best_distortion:
+            best_distortion = distortion
+            best_labels = labels.copy()
+
+    if best_labels is None:
+        raise RuntimeError(
+            "Periodic mixing-angle clustering did not produce a complete "
+            f"{cluster_count}-cluster result in "
+            f"{POLARIZATION_CLUSTER_RESTARTS} deterministic restarts."
+        )
+    return best_labels
 
 
 def _cluster_polarization_minima(
@@ -1060,8 +1100,9 @@ def _cluster_polarization_minima(
     objective_cut,
     cluster_count,
     random_seed,
+    alpha_e_line_half_width,
 ):
-    """Classify low-objective minima in periodic mixing-angle space."""
+    """Classify minima using narrow quarter-pi alpha_e capture bands."""
     values = _objective_values(rows, lepton_name)
     optimum = float(np.min(values))
     eligible_indices = np.flatnonzero(
@@ -1081,65 +1122,98 @@ def _cluster_polarization_minima(
         ],
         dtype=float,
     )
-    embedded = np.column_stack(
-        (
-            np.cos(2.0 * angles[:, 0]),
-            np.sin(2.0 * angles[:, 0]),
-            np.cos(2.0 * angles[:, 1]),
-            np.sin(2.0 * angles[:, 1]),
+    expected_cluster_count = sum(POLARIZATION_ALPHA_E_STRATUM_CLUSTERS)
+    if cluster_count != expected_cluster_count:
+        raise ValueError(
+            f"polarization cluster count must be {expected_cluster_count} "
+            "when using narrow alpha_e capture bands around pi/4 and 3pi/4."
         )
+    alpha_e = angles[:, 0]
+    first_line, second_line = POLARIZATION_ALPHA_E_LINE_CENTERS
+    near_first_line = (
+        np.abs(alpha_e - first_line) <= alpha_e_line_half_width
     )
-    _embedded_centers, raw_labels = kmeans2(
-        embedded,
-        cluster_count,
-        iter=100,
-        minit="++",
-        seed=random_seed,
+    near_second_line = (
+        np.abs(alpha_e - second_line) <= alpha_e_line_half_width
     )
-    raw_cluster_ids = sorted(set(int(label) for label in raw_labels))
-    if len(raw_cluster_ids) != cluster_count:
-        raise RuntimeError(
-            f"Periodic mixing-angle clustering produced "
-            f"{len(raw_cluster_ids)} nonempty groups instead of "
-            f"{cluster_count}; change the seed or cut."
-        )
+    midpoint = (
+        ~(near_first_line | near_second_line)
+        & (alpha_e >= first_line)
+        & (alpha_e < second_line)
+    )
+    endpoint = ~(near_first_line | midpoint | near_second_line)
+    strata = (
+        ("0/pi", 0.0, endpoint),
+        ("pi/4", first_line, near_first_line),
+        ("pi/2", np.pi / 2.0, midpoint),
+        ("3pi/4", second_line, near_second_line),
+    )
 
-    raw_centers = {
-        cluster_id: _circular_mixing_center(
-            angles[raw_labels == cluster_id]
-        )
-        for cluster_id in raw_cluster_ids
-    }
-    ordered_raw_ids = sorted(
-        raw_cluster_ids,
-        key=lambda cluster_id: (
-            int(np.rint(4.0 * raw_centers[cluster_id][0] / np.pi)),
-            int(np.rint(4.0 * raw_centers[cluster_id][1] / np.pi)),
-            raw_centers[cluster_id][0],
-            raw_centers[cluster_id][1],
-        ),
-    )
-    stable_id = {
-        raw_id: output_id
-        for output_id, raw_id in enumerate(ordered_raw_ids)
-    }
-    assignments = {
-        int(row_index): stable_id[int(raw_label)]
-        for row_index, raw_label in zip(eligible_indices, raw_labels)
-    }
-
-    members_by_cluster = {
-        cluster_id: [
-            row_index
-            for row_index, assigned_id in assignments.items()
-            if assigned_id == cluster_id
+    assignments = {}
+    members_by_cluster = {}
+    centers = {}
+    next_cluster_id = 0
+    for stratum_id, (
+        stratum_name,
+        alpha_e_center,
+        stratum_mask,
+    ) in enumerate(strata):
+        stratum_positions = np.flatnonzero(stratum_mask)
+        stratum_cluster_count = POLARIZATION_ALPHA_E_STRATUM_CLUSTERS[
+            stratum_id
         ]
-        for cluster_id in range(cluster_count)
-    }
-    centers = {
-        stable_id[raw_id]: raw_centers[raw_id]
-        for raw_id in ordered_raw_ids
-    }
+        if len(stratum_positions) < stratum_cluster_count:
+            raise RuntimeError(
+                f"The alpha_e={stratum_name} stratum retained "
+                f"{len(stratum_positions)} minima, fewer than its requested "
+                f"{stratum_cluster_count} clusters. Increase the line width "
+                "or the objective cut."
+            )
+
+        alpha_p = angles[stratum_positions, 1]
+        embedded_alpha_p = np.column_stack(
+            (np.cos(2.0 * alpha_p), np.sin(2.0 * alpha_p))
+        )
+        stratum_labels = _best_periodic_kmeans_labels(
+            embedded_alpha_p,
+            stratum_cluster_count,
+            random_seed + stratum_id,
+        )
+        raw_ids = sorted(set(int(label) for label in stratum_labels))
+        alpha_p_centers = {
+            raw_id: float(
+                _circular_mixing_center(
+                    angles[
+                        stratum_positions[stratum_labels == raw_id]
+                    ]
+                )[1]
+            )
+            for raw_id in raw_ids
+        }
+        ordered_raw_ids = sorted(
+            raw_ids,
+            key=lambda raw_id: (
+                int(np.rint(4.0 * alpha_p_centers[raw_id] / np.pi)),
+                alpha_p_centers[raw_id],
+            ),
+        )
+        for raw_id in ordered_raw_ids:
+            cluster_id = next_cluster_id
+            next_cluster_id += 1
+            member_positions = stratum_positions[
+                stratum_labels == raw_id
+            ]
+            members = [
+                int(eligible_indices[position])
+                for position in member_positions
+            ]
+            members_by_cluster[cluster_id] = members
+            centers[cluster_id] = np.asarray(
+                (alpha_e_center, alpha_p_centers[raw_id])
+            )
+            assignments.update(
+                {row_index: cluster_id for row_index in members}
+            )
     representatives = {
         cluster_id: min(
             members,
@@ -1220,11 +1294,61 @@ def _cluster_polarization_minima(
                 "color": color,
                 "marker": marker,
                 "random_seed": random_seed,
-                "distance_coordinates": "alpha_e,alpha_p (pi-periodic)",
+                "alpha_e_line_half_width": alpha_e_line_half_width,
+                "alpha_e_line_half_width_over_pi": (
+                    alpha_e_line_half_width / np.pi
+                ),
+                "distance_coordinates": (
+                    "alpha_e (narrow pi/4 and 3pi/4 capture bands), "
+                    "alpha_p (pi-periodic)"
+                ),
                 objective_key: float(representative[objective_key]),
             }
         )
     return annotated, summary, optimum
+
+
+def _draw_alpha_e_capture_bands(
+    ax,
+    x_name,
+    y_name,
+    alpha_e_line_half_width,
+):
+    """Draw the narrow alpha_e line-cluster bands on a projection."""
+    if x_name == "alpha_e":
+        for alpha_e_line in POLARIZATION_ALPHA_E_LINE_CENTERS:
+            ax.axvspan(
+                alpha_e_line - alpha_e_line_half_width,
+                alpha_e_line + alpha_e_line_half_width,
+                color="black",
+                alpha=0.06,
+                zorder=0,
+            )
+            ax.axvline(
+                alpha_e_line,
+                color="black",
+                linestyle="--",
+                linewidth=1.0,
+                alpha=0.7,
+                zorder=1,
+            )
+    if y_name == "alpha_e":
+        for alpha_e_line in POLARIZATION_ALPHA_E_LINE_CENTERS:
+            ax.axhspan(
+                alpha_e_line - alpha_e_line_half_width,
+                alpha_e_line + alpha_e_line_half_width,
+                color="black",
+                alpha=0.06,
+                zorder=0,
+            )
+            ax.axhline(
+                alpha_e_line,
+                color="black",
+                linestyle="--",
+                linewidth=1.0,
+                alpha=0.7,
+                zorder=1,
+            )
 
 
 def _polarization_cluster_plot(
@@ -1233,9 +1357,10 @@ def _polarization_cluster_plot(
     lepton_name,
     objective_cut,
     optimum,
+    alpha_e_line_half_width,
     path,
 ):
-    """Plot low-objective phase space using six polarization styles."""
+    """Plot the cluster overview followed by one page per cluster."""
     plt, PdfPages = config_gen._require_matplotlib()
     selected_rows = [
         row for row in rows
@@ -1301,6 +1426,12 @@ def _polarization_cluster_plot(
             )
             ax.set_xlabel(x_label, fontsize=11)
             ax.set_ylabel(y_label, fontsize=11)
+            _draw_alpha_e_capture_bands(
+                ax,
+                x_name,
+                y_name,
+                alpha_e_line_half_width,
+            )
             configure_named_angle_axes(ax, x_name, y_name)
             ax.tick_params(labelsize=10)
 
@@ -1319,24 +1450,175 @@ def _polarization_cluster_plot(
             0.0,
             0.03,
             (
-                rf"$D_W-(D_W)_{{\min}}\leq {objective_cut:g}$"
+                rf"${OBJECTIVE_LATEX}-"
+                rf"({OBJECTIVE_LATEX})_{{\min}}\leq {objective_cut:g}$"
                 "\n"
-                rf"$(D_W)_{{\min}}={optimum:.7g}$"
+                rf"$({OBJECTIVE_LATEX})_{{\min}}={optimum:.7g}$"
                 "\n"
                 f"{len(selected_rows)}/{len(rows)} minima retained"
                 "\n"
-                r"$\alpha_e,\alpha_p$ clustered with period $\pi$"
+                rf"$\alpha_e$ line half-width="
+                rf"${alpha_e_line_half_width / np.pi:.4g}\pi$; "
+                r"$\alpha_p$ has period $\pi$"
             ),
             transform=summary_ax.transAxes,
             va="bottom",
             fontsize=10,
         )
         fig.suptitle(
-            f"{lepton_name}: low-$D_W$ phase space colored by six "
+            f"{lepton_name}: low-${OBJECTIVE_LATEX}$ phase space colored by "
+            f"{len(polarization_clusters)} "
             "major polarization configurations"
         )
         pdf.savefig(fig)
         plt.close(fig)
+
+        full_limits = _full_phase_space_plot_limits(lepton_name)
+        cmap, _style_vmin, _style_vmax = (
+            config_gen.observable_plot_style(OBJECTIVE_NAME)
+        )
+        color_upper = optimum + objective_cut
+        if color_upper <= optimum:
+            color_upper = optimum + max(1.0e-12, abs(optimum) * 1.0e-12)
+        for cluster in sorted(
+            polarization_clusters,
+            key=lambda item: int(item["polarization_cluster_id"]),
+        ):
+            cluster_id = int(cluster["polarization_cluster_id"])
+            cluster_rows = [
+                row for row in selected_rows
+                if int(row["polarization_cluster_id"]) == cluster_id
+            ]
+            if not cluster_rows:
+                raise RuntimeError(
+                    f"Polarization cluster {cluster_id + 1} has no members."
+                )
+            cluster_values = np.asarray(
+                [float(row[objective_key]) for row in cluster_rows]
+            )
+            representative = min(
+                cluster_rows,
+                key=lambda row: float(row[objective_key]),
+            )
+            _color, marker = POLARIZATION_CLUSTER_STYLES[cluster_id]
+            cluster_fig, cluster_axes = plt.subplots(
+                3, 3, figsize=(14.0, 11.5), constrained_layout=True
+            )
+            image = None
+            for panel_index, (
+                ax,
+                (x_name, y_name, x_label, y_label),
+            ) in enumerate(zip(cluster_axes.ravel()[:8], PLOT_PANELS)):
+                image = ax.scatter(
+                    [float(row[x_name]) for row in cluster_rows],
+                    [float(row[y_name]) for row in cluster_rows],
+                    c=cluster_values,
+                    s=42,
+                    marker=marker,
+                    cmap=cmap,
+                    vmin=optimum,
+                    vmax=color_upper,
+                    edgecolors="black",
+                    linewidths=0.4,
+                    alpha=0.85,
+                    rasterized=True,
+                    label=(
+                        f"cluster P{cluster_id + 1} members"
+                        if panel_index == 0 else None
+                    ),
+                    zorder=2,
+                )
+                ax.scatter(
+                    [float(representative[x_name])],
+                    [float(representative[y_name])],
+                    marker="*",
+                    s=190,
+                    color="gold",
+                    edgecolors="black",
+                    linewidths=0.8,
+                    label=(
+                        "best cluster member"
+                        if panel_index == 0 else None
+                    ),
+                    zorder=4,
+                )
+                ax.set_xlim(*full_limits[x_name])
+                ax.set_ylim(*full_limits[y_name])
+                ax.set_xlabel(x_label, fontsize=11)
+                ax.set_ylabel(y_label, fontsize=11)
+                _draw_alpha_e_capture_bands(
+                    ax,
+                    x_name,
+                    y_name,
+                    alpha_e_line_half_width,
+                )
+                configure_named_angle_axes(ax, x_name, y_name)
+                ax.tick_params(labelsize=10)
+            cluster_axes[0, 0].legend(fontsize=8)
+
+            cluster_summary = cluster_axes[2, 2]
+            cluster_summary.axis("off")
+            distances = np.asarray([
+                float(row["polarization_cluster_distance"])
+                for row in cluster_rows
+            ])
+            summary_lines = [
+                (
+                    f"polarization cluster P{cluster_id + 1}: "
+                    f"{cluster['polarization_configuration']}"
+                ),
+                f"members = {len(cluster_rows)}",
+                (
+                    "representative local minimum = "
+                    f"{cluster['representative_local_minimum_id']}"
+                ),
+                "",
+                f"{OBJECTIVE_NAME} best = {cluster_values.min():.8g}",
+                f"{OBJECTIVE_NAME} mean = {cluster_values.mean():.8g}",
+                f"{OBJECTIVE_NAME} max = {cluster_values.max():.8g}",
+                (
+                    "above global minimum = "
+                    f"{cluster_values.min() - optimum:.8g} to "
+                    f"{cluster_values.max() - optimum:.8g}"
+                ),
+                "",
+                (
+                    "center alpha_e/pi = "
+                    f"{float(cluster['alpha_e_center_over_pi']):.8g}"
+                ),
+                (
+                    "center alpha_p/pi = "
+                    f"{float(cluster['alpha_p_center_over_pi']):.8g}"
+                ),
+                f"mean normalized distance = {distances.mean():.8g}",
+                f"max normalized distance = {distances.max():.8g}",
+                (
+                    "alpha_e line half-width/pi = "
+                    f"{alpha_e_line_half_width / np.pi:.8g}"
+                ),
+            ]
+            cluster_summary.text(
+                0.01,
+                0.99,
+                "\n".join(summary_lines),
+                transform=cluster_summary.transAxes,
+                va="top",
+                ha="left",
+                fontsize=8.5,
+                family="monospace",
+            )
+            if image is not None:
+                cluster_fig.colorbar(
+                    image,
+                    ax=cluster_axes.ravel()[:8].tolist(),
+                    label=rf"${OBJECTIVE_LATEX}$",
+                )
+            cluster_fig.suptitle(
+                f"{lepton_name}: polarization cluster P{cluster_id + 1}; "
+                "all member minima in phase space"
+            )
+            pdf.savefig(cluster_fig)
+            plt.close(cluster_fig)
     return path
 
 
@@ -2067,6 +2349,7 @@ def cluster_species_minima(
     polarization_objective_cut,
     polarization_cluster_count,
     polarization_cluster_seed,
+    polarization_alpha_e_line_half_width,
 ):
     """Cluster low-objective minima only in polarization space."""
     output_dirs = species_output_dirs(lepton_name)
@@ -2079,6 +2362,7 @@ def cluster_species_minima(
         objective_cut=polarization_objective_cut,
         cluster_count=polarization_cluster_count,
         random_seed=polarization_cluster_seed,
+        alpha_e_line_half_width=polarization_alpha_e_line_half_width,
     )
     polarization_path = _write_csv(
         output_dirs["cluster_data"] / "polarization_clusters.csv",
@@ -2090,6 +2374,7 @@ def cluster_species_minima(
         lepton_name,
         polarization_objective_cut,
         optimum,
+        polarization_alpha_e_line_half_width,
         output_dirs["plots"] / "polarization_cluster_phase_space.pdf",
     )
     retained = sum(
@@ -2115,8 +2400,13 @@ def cluster_species_minima(
             ),
             f"  minima passing polarization cut: {retained}",
             (
-                f"  pi-periodic polarization clusters: "
+                f"  narrow-alpha_e-band polarization clusters: "
                 f"{len(polarization_clusters)}"
+            ),
+            (
+                "  alpha_e line half-width: "
+                f"{polarization_alpha_e_line_half_width:.8g} rad "
+                f"({polarization_alpha_e_line_half_width / np.pi:.8g}pi)"
             ),
             (
                 "  one best-objective representative selected per "
@@ -2527,6 +2817,7 @@ def run_phase_space_clustering(
     polarization_objective_cut,
     polarization_cluster_count,
     polarization_cluster_seed,
+    polarization_alpha_e_line_half_width,
 ):
     """Cluster phase space and optionally classify low-objective polarization."""
     if not isinstance(polarization_cluster_count, int):
@@ -2538,6 +2829,12 @@ def run_phase_space_clustering(
             f"At most {len(POLARIZATION_CLUSTER_STYLES)} distinct "
             "polarization marker/color styles are available."
         )
+    expected_cluster_count = sum(POLARIZATION_ALPHA_E_STRATUM_CLUSTERS)
+    if polarization_cluster_count != expected_cluster_count:
+        raise ValueError(
+            f"polarization_cluster_count must be {expected_cluster_count} "
+            "for the narrow alpha_e capture-band layout."
+        )
     if (
         polarization_objective_cut is None
         or not np.isfinite(polarization_objective_cut)
@@ -2548,6 +2845,15 @@ def run_phase_space_clustering(
         )
     if not isinstance(polarization_cluster_seed, int):
         raise TypeError("polarization_cluster_seed must be an int.")
+    if (
+        not np.isfinite(polarization_alpha_e_line_half_width)
+        or polarization_alpha_e_line_half_width <= 0.0
+        or polarization_alpha_e_line_half_width >= np.pi / 4.0
+    ):
+        raise ValueError(
+            "polarization_alpha_e_line_half_width must be finite and "
+            "strictly between 0 and pi/4."
+        )
     configure_scan(
         definition,
         leptons_to_process=leptons_to_cluster,
@@ -2560,6 +2866,9 @@ def run_phase_space_clustering(
             polarization_objective_cut=polarization_objective_cut,
             polarization_cluster_count=polarization_cluster_count,
             polarization_cluster_seed=polarization_cluster_seed,
+            polarization_alpha_e_line_half_width=(
+                polarization_alpha_e_line_half_width
+            ),
         )
         for lepton_name in LEPTONS_TO_PROCESS
     ]

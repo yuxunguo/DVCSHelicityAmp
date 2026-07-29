@@ -7,19 +7,23 @@ Edit the explicit globals below, then run
 
 import sys
 
+import numpy as np
+
 import GradientPhaseSpaceDefinitions as definitions
 import GradientPhaseSpaceScanTool as gradient_tool
 
 
 SCANS_TO_RUN = ("W", "GHZ")
 LEPTONS_TO_CLUSTER = ("electron", "muon")
-# The objective cut is measured above the global minimum. Polarization is
-# clustered first with alpha_e/alpha_p treated as pi-periodic coordinates.
+# The objective cut is measured above the global minimum. Narrow capture bands
+# retain the alpha_e = pi/4 and 3pi/4 line clusters. Points outside those bands
+# fall into the periodic 0/pi endpoint or pi/2 stratum.
 # The cluster assignment is the complete selection used by the configuration
 # stage; every retained minimum is configured.
 POLARIZATION_CLUSTER_CUT = 0.05
 POLARIZATION_CLUSTER_COUNT = 6
 POLARIZATION_CLUSTER_SEED = 314159
+POLARIZATION_ALPHA_E_LINE_HALF_WIDTH = np.pi / 24.0
 
 
 def run_selected_clusters():
@@ -41,6 +45,9 @@ def run_selected_clusters():
             polarization_objective_cut=POLARIZATION_CLUSTER_CUT,
             polarization_cluster_count=POLARIZATION_CLUSTER_COUNT,
             polarization_cluster_seed=POLARIZATION_CLUSTER_SEED,
+            polarization_alpha_e_line_half_width=(
+                POLARIZATION_ALPHA_E_LINE_HALF_WIDTH
+            ),
         )
     return reports
 

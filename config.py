@@ -52,4 +52,4 @@ PHASE_SPACE_CONFIG_THRESHOLD = 0.05
 # selected local minimum in the full eight-dimensional phase space.
 PHASE_SPACE_CONFIG_CONTOUR_DELTA = 0.05
 # Total eight-dimensional radial directions sampled for each contour.
-PHASE_SPACE_CONFIG_CONTOUR_SAMPLES = 3 ** 8
+PHASE_SPACE_CONFIG_CONTOUR_SAMPLES = 2 ** 8

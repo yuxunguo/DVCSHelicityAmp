@@ -356,11 +356,13 @@ uses explicit globals and accepts no command-line arguments.
    `optimization_runs.csv`, raw `local_minima.csv`, and
    `all_local_minima.pdf`; it does not cluster or call ConfigGen.
 2. `GradientPhaseSpaceCluster.py` reads `local_minima.csv`, applies the
-   objective cut, and finds six pi-periodic mixing-angle polarization
-   clusters. The minimum with the best objective in each cluster is marked as
-   that polarization cluster's configuration representative. It writes the
-   assignments and polarization summary without performing optimization or
-   ConfigGen work. Every assigned minimum is passed to the configuration stage.
+   objective cut, retains narrow tunable `alpha_e` bands around `pi/4` and
+   `3pi/4`, and assigns points outside those bands toward `0/pi` or `pi/2`.
+   It finds six `alpha_p`-periodic polarization clusters. The minimum with the
+   best objective in each cluster is marked as that polarization cluster's
+   configuration representative. It writes the assignments and polarization
+   summary without performing optimization or ConfigGen work. Every assigned
+   minimum is passed to the configuration stage.
 3. `GradientPhaseSpaceConfig.py` reads `clustered_minima.csv` and generates a
    separate data package and configuration PDF for every parent polarization
    cluster. Each PDF starts with a summary plot containing every member's
@@ -400,16 +402,18 @@ The normalized gradient and local-verification resolution is controlled by
 starts, convergence, basin separation, and multiscale polishing.
 Stage 2 is polarization-first. The explicit
 `POLARIZATION_CLUSTER_CUT`, `POLARIZATION_CLUSTER_COUNT`, and
-`POLARIZATION_CLUSTER_SEED` globals control the parent classification. The
-default cut retains minima with
-`objective - objective_min <= 0.05`; deterministic circular clustering treats
-`alpha_e` and `alpha_p` with period `pi` and identifies six polarization
+`POLARIZATION_CLUSTER_SEED` globals control the parent classification, and
+`POLARIZATION_ALPHA_E_LINE_HALF_WIDTH` controls the narrow capture bands
+around `alpha_e=pi/4` and `3pi/4`. The default objective cut retains minima
+with `objective - objective_min <= 0.05`; `alpha_p` is clustered with period
+`pi` inside the prescribed `alpha_e` strata to identify six polarization
 configurations. The best-objective member is still identified in the summary,
 but every cluster member is configured. The assignments are saved in
 `clustered_minima.csv`, while parent centers, sizes, and representative IDs are
-saved in `polarization_clusters.csv`.
-`polarization_cluster_phase_space.pdf` shows every parent with its own
-color/marker pair.
+saved in `polarization_clusters.csv`. The first page of
+`polarization_cluster_phase_space.pdf` is the all-cluster overview; each
+following page shows all phase-space projections for one cluster, colored by
+the objective value.
 
 The eight coordinates are `sqrt(s)`, `theta_p_out`, `theta_gamma_out`, the
 physical `E_gamma` fraction, the final-proton and photon azimuths, `alpha_e`,
