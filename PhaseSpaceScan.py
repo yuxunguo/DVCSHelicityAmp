@@ -1,10 +1,8 @@
-"""Adaptive initial-CM kinematic and coherent-polarization phase-space scan.
+"""Adaptive eight-dimensional CM kinematic and polarization scan.
 
-The scan covers ``sqrt(s)``, the common final-state ``theta_out``,
-``E_gamma``, the final-proton and photon azimuths, and preparation angles
-``theta_e`` and ``theta_p``. It preserves the fixed polarization cases and
-entanglement observables from :mod:`AlignmentScan`, then refines around the
-best kinematic points.
+The independent coordinates are ``sqrt(s)``, ``theta_p_out``,
+``theta_gamma_out``, ``E_gamma``, ``phi_p_out``, ``phi_gamma_out``,
+``alpha_e``, and ``alpha_p``.
 """
 
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
@@ -65,23 +63,41 @@ RANDOM_SEED = 271828
 REFINEMENT_CENTERS = len(ALIGNMENT_SPIN_CASES) * len(SCAN_OBSERVABLE_NAMES)
 ALIGNMENT_SEED_CENTERS = REFINEMENT_CENTERS
 TOP_POINTS_PER_POLARIZATION = 100
-THETA_OUT_RANGE = (0.0, np.pi)
+THETA_P_OUT_RANGE = (0.0, np.pi)
+THETA_GAMMA_OUT_RANGE = (0.0, np.pi)
 # Keep the exact endpoint excluded because the three-body momentum solver and
 # lepton propagator become singular there.  The regulated upper edge resolves
 # the hard-photon z -> 1 region needed by the canonical-GHZ search.
 QOUT_FRACTION_RANGE = (0.05, 0.999999)
 AZIMUTH_RANGE = (0.0, 2.0 * np.pi)
-THETA_E_MIX_RANGE = (0.0, np.pi)
-THETA_P_MIX_RANGE = (0.0, np.pi)
-REFERENCE_PIN_GEV = 0.130
-REFERENCE_POUT_GEV = 0.028
-REFERENCE_QOUT_GEV = 0.07443763686223767
-REFERENCE_THETA_E_MIX_RAD = 5.503 % np.pi
-REFERENCE_THETA_P_MIX_RAD = 3.056 % np.pi
-# Common-theta seed with the benchmark proton--photon opening angle.
-REFERENCE_THETA_OUT_RAD = 0.5 * np.pi
-REFERENCE_PHI_P_OUT_RAD = 0.0
-REFERENCE_PHI_GAMMA_OUT_RAD = float((3.429 - 1.298) % (2.0 * np.pi))
+ALPHA_E_RANGE = (0.0, np.pi)
+ALPHA_P_RANGE = (0.0, np.pi)
+W_REFERENCE_POINTS = (
+    {
+        "name": "epcm_low_energy_W",
+        "sqrt_s": 1.0769666847798625,
+        "qOut": 0.0744376368622376,
+        # theta=3.429, phi=0 in the signed-polar convention used in the
+        # reference is the same Cartesian direction as this standard pair.
+        "theta_p_out": 2.0 * np.pi - 3.429,
+        "phi_p_out": np.pi,
+        "theta_gamma_out": 1.298,
+        "phi_gamma_out": 0.0,
+        "alpha_e": 5.503 % np.pi,
+        "alpha_p": 3.056 % np.pi,
+    },
+    {
+        "name": "epcm_standard_W",
+        "sqrt_s": 1.1518524360498226,
+        "qOut": 0.17713201262935663,
+        "theta_p_out": 0.0,
+        "phi_p_out": 0.0,
+        "theta_gamma_out": 3.032,
+        "phi_gamma_out": 0.0,
+        "alpha_e": 0.834,
+        "alpha_p": (-0.036) % np.pi,
+    },
+)
 OUTPUT_ROOT = Path("Output_local") / "PhaseSpaceScan"
 LOG_PATH = OUTPUT_ROOT / "PhaseSpaceScan.log"
 
@@ -123,7 +139,7 @@ MIXING_CSV = OUTPUT_DIR / "electron_photon_mixing_angle_phase_space.csv"
 MIXING_TOP_CSV = OUTPUT_DIR / "electron_photon_mixing_angle_top.csv"
 MIXING_PLOT = (
     OUTPUT_DIR
-    / "phase_space_scan_lepton_electron_theta_mix_proton_theta_p_mix.pdf"
+    / "phase_space_scan_lepton_electron_alpha_e_mix_proton_alpha_p_mix.pdf"
 )
 PLOT_DIR = OUTPUT_DIR
 
@@ -167,14 +183,16 @@ def _configure_lepton(name):
     MIXING_TOP_CSV = OUTPUT_DIR / f"{stem}_mixing_angle_top.csv"
     MIXING_PLOT = (
         OUTPUT_DIR
-        / f"phase_space_scan_lepton_{name}_theta_mix_proton_theta_p_mix.pdf"
+        / f"phase_space_scan_lepton_{name}_alpha_e_mix_proton_alpha_p_mix.pdf"
     )
     PLOT_DIR = OUTPUT_DIR
 
 
 def _uniform_samples(rng, count):
     """Return a randomized stratified design covering every scan coordinate."""
-    dimensions = 7 if SCAN_INITIAL_MIXING_ANGLES else 5
+    if not SCAN_INITIAL_MIXING_ANGLES:
+        raise ValueError("The phase-space scan now requires the 8D mixing-angle mode.")
+    dimensions = 8
     unit_samples = np.column_stack([
         (rng.permutation(count) + rng.random(count)) / count
         for _dimension in range(dimensions)
@@ -187,29 +205,32 @@ def _uniform_samples(rng, count):
     qout_max = _qout_max(s_values)
     qout_fractions = (
         QOUT_FRACTION_RANGE[0]
-        + unit_samples[:, 2]
+        + unit_samples[:, 3]
         * (QOUT_FRACTION_RANGE[1] - QOUT_FRACTION_RANGE[0])
     )
     qout_values = qout_fractions * qout_max
     columns = [
         s_values,
-        THETA_OUT_RANGE[0]
-        + unit_samples[:, 1] * (THETA_OUT_RANGE[1] - THETA_OUT_RANGE[0]),
+        THETA_P_OUT_RANGE[0]
+        + unit_samples[:, 1]
+        * (THETA_P_OUT_RANGE[1] - THETA_P_OUT_RANGE[0]),
+        THETA_GAMMA_OUT_RANGE[0]
+        + unit_samples[:, 2]
+        * (THETA_GAMMA_OUT_RANGE[1] - THETA_GAMMA_OUT_RANGE[0]),
         qout_values,
         AZIMUTH_RANGE[0]
-        + unit_samples[:, 3] * (AZIMUTH_RANGE[1] - AZIMUTH_RANGE[0]),
-        AZIMUTH_RANGE[0]
         + unit_samples[:, 4] * (AZIMUTH_RANGE[1] - AZIMUTH_RANGE[0]),
+        AZIMUTH_RANGE[0]
+        + unit_samples[:, 5] * (AZIMUTH_RANGE[1] - AZIMUTH_RANGE[0]),
     ]
-    if SCAN_INITIAL_MIXING_ANGLES:
-        columns.extend((
-            THETA_E_MIX_RANGE[0]
-            + unit_samples[:, 5]
-            * (THETA_E_MIX_RANGE[1] - THETA_E_MIX_RANGE[0]),
-            THETA_P_MIX_RANGE[0]
-            + unit_samples[:, 6]
-            * (THETA_P_MIX_RANGE[1] - THETA_P_MIX_RANGE[0]),
-        ))
+    columns.extend((
+        ALPHA_E_RANGE[0]
+        + unit_samples[:, 6]
+        * (ALPHA_E_RANGE[1] - ALPHA_E_RANGE[0]),
+        ALPHA_P_RANGE[0]
+        + unit_samples[:, 7]
+        * (ALPHA_P_RANGE[1] - ALPHA_P_RANGE[0]),
+    ))
     return np.column_stack(columns)
 
 
@@ -218,19 +239,27 @@ def _circular_delta(first, second):
 
 
 def _normalized_distance(first, second):
-    scales = np.array((SQRT_S_RANGE[1] - SQRT_S_RANGE[0],
-                       THETA_OUT_RANGE[1] - THETA_OUT_RANGE[0],
-                       QOUT_RANGE[1] - QOUT_RANGE[0], np.pi, np.pi))
+    scales = np.array((
+        SQRT_S_RANGE[1] - SQRT_S_RANGE[0],
+        THETA_P_OUT_RANGE[1] - THETA_P_OUT_RANGE[0],
+        THETA_GAMMA_OUT_RANGE[1] - THETA_GAMMA_OUT_RANGE[0],
+        QOUT_RANGE[1] - QOUT_RANGE[0],
+        np.pi,
+        np.pi,
+    ))
     delta = first - second
     delta[0] = np.sqrt(first[0]) - np.sqrt(second[0])
-    delta[3:] = [_circular_delta(first[i], second[i]) for i in (3, 4)]
+    delta[4:] = [_circular_delta(first[i], second[i]) for i in (4, 5)]
     return float(np.linalg.norm(delta / scales))
 
 
 def _point_from_row(row):
-    """Return the five independent scan coordinates stored in a result row."""
+    """Return the six independent kinematic coordinates in a result row."""
     return np.asarray([
-        float(row["s"]), float(row["theta_out"]), float(row["qOut"]),
+        float(row["s"]),
+        float(row["theta_p_out"]),
+        float(row["theta_gamma_out"]),
+        float(row["qOut"]),
         float(row["phi_p_out"]), float(row["phi_gamma_out"]),
     ])
 
@@ -239,8 +268,9 @@ def _point_in_scan_range(point):
     """Return whether a seed lies inside the configured physical search box."""
     return (
         S_RANGE[0] <= point[0] <= S_RANGE[1]
-        and THETA_OUT_RANGE[0] <= point[1] <= THETA_OUT_RANGE[1]
-        and QOUT_RANGE[0] <= point[2] <= min(QOUT_RANGE[1], _qout_max(point[0]))
+        and THETA_P_OUT_RANGE[0] <= point[1] <= THETA_P_OUT_RANGE[1]
+        and THETA_GAMMA_OUT_RANGE[0] <= point[2] <= THETA_GAMMA_OUT_RANGE[1]
+        and QOUT_RANGE[0] <= point[3] <= min(QOUT_RANGE[1], _qout_max(point[0]))
     )
 
 
@@ -323,7 +353,7 @@ def _alignment_seed_points():
     """Return separated top points from the matching AlignmentScan species."""
     path = _alignment_seed_path()
     if not path.exists():
-        return np.empty((0, 5))
+        return np.empty((0, 6))
     with path.open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
     rows.sort(key=lambda row: int(row.get("rank", 0) or 0))
@@ -336,26 +366,34 @@ def _alignment_seed_points():
 
 
 def _reference_seed_points():
-    """Return the exact electron benchmark in the seven scan coordinates."""
+    """Return both exact electron W benchmarks in the eight scan coordinates."""
     if LEPTON_NAME != "electron":
-        return np.empty((0, 7))
-    proton_energy = np.hypot(PROTON_MASS_GEV, REFERENCE_PIN_GEV)
-    lepton_energy = np.hypot(LEPTON_MASS_GEV, REFERENCE_PIN_GEV)
-    return np.asarray([[
-        (proton_energy + lepton_energy) ** 2,
-        REFERENCE_THETA_OUT_RAD,
-        REFERENCE_QOUT_GEV,
-        REFERENCE_PHI_P_OUT_RAD,
-        REFERENCE_PHI_GAMMA_OUT_RAD,
-        REFERENCE_THETA_E_MIX_RAD,
-        REFERENCE_THETA_P_MIX_RAD,
-    ]])
+        return np.empty((0, 8))
+    return np.asarray([
+        (
+            reference["sqrt_s"] ** 2,
+            reference["theta_p_out"],
+            reference["theta_gamma_out"],
+            reference["qOut"],
+            reference["phi_p_out"],
+            reference["phi_gamma_out"],
+            reference["alpha_e"],
+            reference["alpha_p"],
+        )
+        for reference in W_REFERENCE_POINTS
+    ])
 
 
 def _refinement_samples(rng, centers, count):
     if not len(centers):
-        return np.empty((0, 7 if SCAN_INITIAL_MIXING_ANGLES else 5))
-    scales = np.array((0.16, 0.08 * QOUT_RANGE[1], 0.24, 0.24))
+        return np.empty((0, 8))
+    scales = np.array((
+        0.16,
+        0.16,
+        0.08 * QOUT_RANGE[1],
+        0.24,
+        0.24,
+    ))
     sqrt_s_scale = 0.06 * (SQRT_S_RANGE[1] - SQRT_S_RANGE[0])
     samples = []
     for index in range(count):
@@ -363,19 +401,19 @@ def _refinement_samples(rng, centers, count):
         point[0] = np.clip(
             np.sqrt(point[0]) + rng.normal() * sqrt_s_scale, *SQRT_S_RANGE
         ) ** 2
-        point[1:] += rng.normal(size=4) * scales
-        point[1] = np.clip(point[1], *THETA_OUT_RANGE)
+        point[1:] += rng.normal(size=5) * scales
+        point[1] = np.clip(point[1], *THETA_P_OUT_RANGE)
+        point[2] = np.clip(point[2], *THETA_GAMMA_OUT_RANGE)
         qout_max = _qout_max(point[0])
-        point[2] = np.clip(point[2], 0.01 * qout_max, 0.99 * qout_max)
-        point[3:] %= 2.0 * np.pi
-        if SCAN_INITIAL_MIXING_ANGLES:
-            point = np.concatenate((
-                point,
-                [
-                    rng.uniform(*THETA_E_MIX_RANGE),
-                    rng.uniform(*THETA_P_MIX_RANGE),
-                ],
-            ))
+        point[3] = np.clip(point[3], 0.01 * qout_max, 0.99 * qout_max)
+        point[4:] %= 2.0 * np.pi
+        point = np.concatenate((
+            point,
+            [
+                rng.uniform(*ALPHA_E_RANGE),
+                rng.uniform(*ALPHA_P_RANGE),
+            ],
+        ))
         samples.append(point)
     return np.asarray(samples)
 
@@ -389,24 +427,26 @@ def _evaluate_sample(
 ):
     """Evaluate one sample using explicit worker-safe species settings."""
     point = np.asarray(point, dtype=float)
-    if point.size == 5:
-        s, theta_out, qout, phi_p_out, phi_gamma_out = map(float, point)
-        theta_e_mix = REFERENCE_THETA_E_MIX_RAD
-        theta_p_mix = REFERENCE_THETA_P_MIX_RAD
-    elif point.size == 7:
-        (
-            s, theta_out, qout, phi_p_out, phi_gamma_out,
-            theta_e_mix, theta_p_mix,
-        ) = map(float, point)
-    else:
-        raise ValueError("Phase-space samples must contain five or seven coordinates.")
+    if point.size != 8:
+        raise ValueError("Phase-space samples must contain exactly eight coordinates.")
+    (
+        s,
+        theta_p_out,
+        theta_gamma_out,
+        qout,
+        phi_p_out,
+        phi_gamma_out,
+        alpha_e,
+        alpha_p,
+    ) = map(float, point)
     anchor = {
         "kinematic_point": f"{stage}_{sample_id:05d}",
         "s_regime": stage,
-        "theta_out_regime": stage,
+        "theta_p_gamma_regime": stage,
         "qOut_regime": stage,
         "s": s,
-        "theta_out": theta_out,
+        "theta_p_out": theta_p_out,
+        "theta_gamma_out": theta_gamma_out,
         "qOut": qout,
     }
     settings = {
@@ -415,8 +455,8 @@ def _evaluate_sample(
         "lepton_name": lepton_name,
         "normalize_trace": NORMALIZE_TRACE,
         "angle_max_rad": ALIGNMENT_ANGLE_MAX_RAD,
-        "return_amplitudes": SCAN_INITIAL_MIXING_ANGLES,
-        "skip_fixed_polarizations": SCAN_INITIAL_MIXING_ANGLES,
+        "return_amplitudes": True,
+        "skip_fixed_polarizations": True,
     }
     try:
         result = _evaluate_kinematic_sample(
@@ -429,14 +469,13 @@ def _evaluate_sample(
     row = result["row"]
     row["search_stage"] = stage
     row["sample_id"] = sample_id
-    if not SCAN_INITIAL_MIXING_ANGLES:
-        return row, None
+    row["reference_name"] = ""
     amplitudes = result["amplitudes"]
     try:
         spin_data = mixed_angle_spin_density_observables(
             amplitudes,
-            theta_e_mix,
-            theta_p_mix,
+            alpha_e,
+            alpha_p,
             normalize_trace=NORMALIZE_TRACE,
         )
     except (
@@ -446,27 +485,27 @@ def _evaluate_sample(
         np.linalg.LinAlgError,
     ):
         return None
-    prefix = f"lepton_{lepton_name}_theta_mix_proton_theta_p_mix"
+    prefix = f"lepton_{lepton_name}_alpha_e_mix_proton_alpha_p_mix"
     mixing_row = {
         key: row[key]
         for key in (
-            "lepton", "kinematic_point", "s_regime", "theta_out_regime",
+            "lepton", "kinematic_point", "s_regime", "theta_p_gamma_regime",
             "qOut_regime", "lepton_mass", "s", "sqrt_s", "pIn", "pOut",
             "theta_p_in", "phi_p_in", "theta_lepton_in", "phi_lepton_in",
-            "qOut", "theta_out", "theta_p_out", "phi_p_out",
+            "qOut", "theta_p_out", "phi_p_out",
             "theta_gamma_out", "phi_gamma_out",
             "theta_lepton_out", "phi_lepton_out", "cos_p_gamma_out",
             "Q2", "xB", "t", "F1", "F2", "W2", "y",
             "theta_lepton_gamma_rad", "theta_lepton_gamma_deg",
             "k_dot_qout", "kp_dot_qout", "abs_k_dot_qout",
-            "abs_kp_dot_qout", "aligned",
+            "abs_kp_dot_qout", "aligned", "reference_name",
         )
     }
     mixing_row.update({
         "search_stage": stage,
         "sample_id": sample_id,
-        "theta_e": theta_e_mix,
-        "theta_p": theta_p_mix,
+        "alpha_e": alpha_e,
+        "alpha_p": alpha_p,
         f"{prefix}_trace": spin_data["trace"],
         f"{prefix}_spin_signal_M2": spin_data["spin_signal"],
         f"{prefix}_cross_section_ratio": spin_data["cross_section_ratio"],
@@ -551,23 +590,15 @@ def run_phase_space_scan():
         start_id=0,
         max_workers=PHASE_SPACE_SCAN_WORKERS,
     )
-    seed_points = (
-        np.empty((0, 5))
-        if SCAN_INITIAL_MIXING_ANGLES
-        else _alignment_seed_points()
-    )
+    seed_points = np.empty((0, 8))
     seed_rows, seed_mixing_rows = _evaluate_samples(
         seed_points,
         "alignment_seed",
         start_id=PHASE_SPACE_SAMPLES,
         max_workers=PHASE_SPACE_SCAN_WORKERS,
     )
-    centers = (
-        _select_mixing_refinement_centers(
-            phase_space_mixing_rows + seed_mixing_rows
-        )
-        if SCAN_INITIAL_MIXING_ANGLES
-        else _select_refinement_centers(phase_space_rows + seed_rows)
+    centers = _select_mixing_refinement_centers(
+        phase_space_mixing_rows + seed_mixing_rows
     )
     refined = _refinement_samples(rng, centers, REFINEMENT_SAMPLES)
     refinement_rows, refinement_mixing_rows = _evaluate_samples(
@@ -583,6 +614,13 @@ def run_phase_space_scan():
         start_id=PHASE_SPACE_SAMPLES + len(seed_points) + len(refined),
         max_workers=PHASE_SPACE_SCAN_WORKERS,
     )
+    for reference, row, mixing_row in zip(
+        W_REFERENCE_POINTS,
+        reference_rows,
+        reference_mixing_rows,
+    ):
+        row["reference_name"] = reference["name"]
+        mixing_row["reference_name"] = reference["name"]
     return (
         phase_space_rows + seed_rows + refinement_rows + reference_rows,
         (
@@ -628,7 +666,7 @@ def write_outputs(rows):
 
 def _mixing_prefix(lepton_name=None):
     species = LEPTON_NAME if lepton_name is None else lepton_name
-    return f"lepton_{species}_theta_mix_proton_theta_p_mix"
+    return f"lepton_{species}_alpha_e_mix_proton_alpha_p_mix"
 
 
 def write_mixing_outputs(rows):
@@ -662,15 +700,16 @@ def write_mixing_outputs(rows):
                 "observable": observable,
                 "rank": rank,
                 "value": row[key],
-                "theta_e": row["theta_e"],
-                "theta_p": row["theta_p"],
+                "alpha_e": row["alpha_e"],
+                "alpha_p": row["alpha_p"],
                 "search_stage": row["search_stage"],
                 "sample_id": row["sample_id"],
                 "sqrt_s": row["sqrt_s"],
                 "pIn": row["pIn"],
                 "pOut": row["pOut"],
                 "qOut": row["qOut"],
-                "theta_out": row["theta_out"],
+                "theta_p_out": row["theta_p_out"],
+                "theta_gamma_out": row["theta_gamma_out"],
                 "phi_p_out": row["phi_p_out"],
                 "phi_gamma_out": row["phi_gamma_out"],
             })
@@ -690,14 +729,14 @@ def write_mixing_plot(rows):
     plt, PdfPages = require_matplotlib()
     prefix = _mixing_prefix()
     panels = (
-        ("theta_out", "qOut", r"$\theta_{\rm out}$", r"$E_\gamma$ [GeV]"),
+        ("theta_p_out", "theta_gamma_out", r"$\theta_{p'}$", r"$\theta_\gamma$"),
         ("sqrt_s", "qOut", r"$\sqrt{s}$ [GeV]", r"$E_\gamma$ [GeV]"),
         ("phi_p_out", "phi_gamma_out", r"$\phi_{p'}$", r"$\phi_\gamma$"),
-        ("theta_e", "theta_p", r"$\theta_e$", r"$\theta_p$"),
-        ("sqrt_s", "theta_e", r"$\sqrt{s}$ [GeV]", r"$\theta_e$"),
-        ("sqrt_s", "theta_p", r"$\sqrt{s}$ [GeV]", r"$\theta_p$"),
-        ("qOut", "theta_e", r"$E_\gamma$ [GeV]", r"$\theta_e$"),
-        ("qOut", "theta_p", r"$E_\gamma$ [GeV]", r"$\theta_p$"),
+        ("alpha_e", "alpha_p", r"$\alpha_e$", r"$\alpha_p$"),
+        ("theta_p_out", "qOut", r"$\theta_{p'}$", r"$E_\gamma$ [GeV]"),
+        ("theta_gamma_out", "qOut", r"$\theta_\gamma$", r"$E_\gamma$ [GeV]"),
+        ("sqrt_s", "alpha_e", r"$\sqrt{s}$ [GeV]", r"$\alpha_e$"),
+        ("sqrt_s", "alpha_p", r"$\sqrt{s}$ [GeV]", r"$\alpha_p$"),
     )
     coordinates = {
         name: np.asarray([float(row[name]) for row in rows], dtype=float)
@@ -771,7 +810,7 @@ def write_mixing_plot(rows):
             direction = observable_optimum_label(observable)
             fig.suptitle(
                 f"Phase-space scan: {LEPTON_NAME} coherent "
-                f"theta_e x theta_p [{prefix}], "
+                f"alpha_e x alpha_p [{prefix}], "
                 f"{direction} {observable_label}={best_value:.5g}"
             )
             fig.colorbar(
@@ -789,7 +828,7 @@ def _write_polarization_plot(rows, prefix, spin_label, lepton_name, plot_dir):
     plt, PdfPages = require_matplotlib()
     plot_dir.mkdir(parents=True, exist_ok=True)
     panels = (
-        ("theta_out", "qOut", r"$\theta_{\rm out}$", r"$E_\gamma$ [GeV]"),
+        ("theta_p_out", "theta_gamma_out", r"$\theta_{p'}$", r"$\theta_\gamma$"),
         ("sqrt_s", "qOut", r"$\sqrt{s}$ [GeV]", r"$E_\gamma$ [GeV]"),
         ("phi_p_out", "phi_gamma_out", r"$\phi_{p'}$", r"$\phi_\gamma$"),
     )
@@ -934,7 +973,7 @@ def build_report(
     reference_valid,
 ):
     mixing_range_text = (
-        f", theta_e={THETA_E_MIX_RANGE}, theta_p={THETA_P_MIX_RANGE}"
+        f", alpha_e={ALPHA_E_RANGE}, alpha_p={ALPHA_P_RANGE}"
         if SCAN_INITIAL_MIXING_ANGLES
         else ""
     )
@@ -942,7 +981,7 @@ def build_report(
         f"AlignmentScan-style entanglement phase-space scan ({LEPTON_NAME})",
         "  polarization mode: "
         + (
-            "coherent theta_e x theta_p only"
+            "coherent alpha_e x alpha_p only"
             if SCAN_INITIAL_MIXING_ANGLES
             else "fixed polarization cases only"
         ),
@@ -952,7 +991,8 @@ def build_report(
         f"  {LEPTON_NAME} mass: {LEPTON_MASS_GEV:.10g} GeV",
         f"  threshold: sqrt(s)={COM_THRESHOLD:.9g} GeV",
         f"  ranges: sqrt(s)={SQRT_S_RANGE} GeV, s={S_RANGE}, "
-        f"theta_out={THETA_OUT_RANGE}{mixing_range_text}",
+        f"theta_p_out={THETA_P_OUT_RANGE}, "
+        f"theta_gamma_out={THETA_GAMMA_OUT_RANGE}{mixing_range_text}",
         f"  qOut fraction of kinematic maximum: {QOUT_FRACTION_RANGE}",
         f"  phase-space valid samples: {phase_space_valid}/{PHASE_SPACE_SAMPLES}",
         "  observables: " + ", ".join(
@@ -988,8 +1028,8 @@ def build_report(
             lines.append(
                 f"  {observable_text_label(observable, LEPTON_NAME)} "
                 f"[{prefix}]: {float(best[key]):.8g}, "
-                f"theta_e={best['theta_e']:.7g}, "
-                f"theta_p={best['theta_p']:.7g}, "
+                f"alpha_e={best['alpha_e']:.7g}, "
+                f"alpha_p={best['alpha_p']:.7g}, "
                 f"sqrt(s)={best['sqrt_s']:.7g}, qOut={best['qOut']:.7g}"
             )
     else:
@@ -1013,7 +1053,8 @@ def build_report(
                     f"    {species_spin_label(label, LEPTON_NAME)} "
                     f"[{output_prefix}]: "
                     f"{float(best[key]):.8g}, sqrt(s)={best['sqrt_s']:.7g}, "
-                    f"theta_out={best['theta_out']:.7g}, "
+                    f"theta_p_out={best['theta_p_out']:.7g}, "
+                    f"theta_gamma_out={best['theta_gamma_out']:.7g}, "
                     f"qOut={best['qOut']:.7g}, "
                     f"phi_p_out={best['phi_p_out']:.7g}, "
                     f"phi_gamma_out={best['phi_gamma_out']:.7g}"
@@ -1046,12 +1087,8 @@ def _run_species(lepton):
         refinement_valid,
         reference_valid,
     ) = run_phase_space_scan()
-    if SCAN_INITIAL_MIXING_ANGLES:
-        write_mixing_outputs(mixing_rows)
-        write_mixing_plot(mixing_rows)
-    else:
-        write_outputs(rows)
-        write_plot(rows, max_workers=PHASE_SPACE_PLOT_WORKERS)
+    write_mixing_outputs(mixing_rows)
+    write_mixing_plot(mixing_rows)
     report = build_report(
         rows,
         mixing_rows,
@@ -1074,37 +1111,58 @@ def main():
         raise ValueError("PHASE_SPACE_SCAN_WORKERS must be positive")
     if PHASE_SPACE_PLOT_WORKERS < 1:
         raise ValueError("PHASE_SPACE_PLOT_WORKERS must be positive")
+    if not SCAN_INITIAL_MIXING_ANGLES:
+        raise ValueError(
+            "PhaseSpaceScan is an 8D coherent-polarization scan; "
+            "set SCAN_INITIAL_MIXING_ANGLES = True."
+        )
     for name, bounds in (
-        ("theta_e mixing", THETA_E_MIX_RANGE),
-        ("theta_p mixing", THETA_P_MIX_RANGE),
+        ("alpha_e mixing", ALPHA_E_RANGE),
+        ("alpha_p mixing", ALPHA_P_RANGE),
     ):
         if not 0.0 <= bounds[0] < bounds[1] <= np.pi:
             raise ValueError(f"{name} range must lie inside [0, pi].")
     electron_settings = LEPTON_SETTINGS["electron"]
-    reference_sqrt_s = (
-        np.hypot(PROTON_MASS_GEV, REFERENCE_PIN_GEV)
-        + np.hypot(ELECTRON_MASS_GEV, REFERENCE_PIN_GEV)
-    )
-    if not (
-        electron_settings["sqrt_s_range"][0]
-        <= reference_sqrt_s
-        <= electron_settings["sqrt_s_range"][1]
-    ):
-        raise ValueError("The electron sqrt(s) range excludes the reference point.")
-    if not THETA_OUT_RANGE[0] <= REFERENCE_THETA_OUT_RAD <= THETA_OUT_RANGE[1]:
-        raise ValueError("THETA_OUT_RANGE excludes the reference point.")
-    reference_s = reference_sqrt_s**2
-    electron_final_mass = PROTON_MASS_GEV + ELECTRON_MASS_GEV
-    reference_qout_max = (
-        reference_s - electron_final_mass**2
-    ) / (2.0 * reference_sqrt_s)
-    reference_qout_fraction = REFERENCE_QOUT_GEV / reference_qout_max
-    if not (
-        QOUT_FRACTION_RANGE[0]
-        <= reference_qout_fraction
-        <= QOUT_FRACTION_RANGE[1]
-    ):
-        raise ValueError("QOUT_FRACTION_RANGE excludes the reference point.")
+    for reference in W_REFERENCE_POINTS:
+        reference_sqrt_s = reference["sqrt_s"]
+        if not (
+            electron_settings["sqrt_s_range"][0]
+            <= reference_sqrt_s
+            <= electron_settings["sqrt_s_range"][1]
+        ):
+            raise ValueError(
+                f"The electron sqrt(s) range excludes {reference['name']}."
+            )
+        if not (
+            THETA_P_OUT_RANGE[0]
+            <= reference["theta_p_out"]
+            <= THETA_P_OUT_RANGE[1]
+        ):
+            raise ValueError(
+                f"THETA_P_OUT_RANGE excludes {reference['name']}."
+            )
+        if not (
+            THETA_GAMMA_OUT_RANGE[0]
+            <= reference["theta_gamma_out"]
+            <= THETA_GAMMA_OUT_RANGE[1]
+        ):
+            raise ValueError(
+                f"THETA_GAMMA_OUT_RANGE excludes {reference['name']}."
+            )
+        reference_s = reference_sqrt_s**2
+        electron_final_mass = PROTON_MASS_GEV + ELECTRON_MASS_GEV
+        reference_qout_max = (
+            reference_s - electron_final_mass**2
+        ) / (2.0 * reference_sqrt_s)
+        reference_qout_fraction = reference["qOut"] / reference_qout_max
+        if not (
+            QOUT_FRACTION_RANGE[0]
+            <= reference_qout_fraction
+            <= QOUT_FRACTION_RANGE[1]
+        ):
+            raise ValueError(
+                f"QOUT_FRACTION_RANGE excludes {reference['name']}."
+            )
     reports = [_run_species(lepton) for lepton in LEPTONS_TO_SCAN]
     log_text = "\n\n".join(report.rstrip() for report in reports) + "\n"
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)

@@ -3,10 +3,10 @@
 The frame fixes the incoming proton along ``+z`` and the incoming lepton
 along ``-z``.  The independent variables are
 
-``(s, qOut, theta_out, phi_p_out, phi_gamma_out)``.
+``(s, qOut, theta_p_out, phi_p_out, theta_gamma_out, phi_gamma_out)``.
 
 The final proton and real photon share the production-plane polar angle
-``theta_out`` and have separate azimuths.  The outgoing-lepton momentum
+independent polar and azimuthal angles.  The outgoing-lepton momentum
 follows from three-momentum conservation, while the final-proton magnitude
 ``pOut`` is solved from energy conservation.
 
@@ -31,8 +31,8 @@ from Algebra import (
 #
 # p  = (sqrt(pIn^2+m^2), 0, 0, +pIn)
 # k  = (sqrt(pIn^2+me^2), 0, 0, -pIn)
-# p' = (sqrt(pOut^2+m^2), pOut n(theta_out, phi_p_out))
-# q' = qOut (1, n(theta_out, phi_gamma_out))
+# p' = (sqrt(pOut^2+m^2), pOut n(theta_p_out, phi_p_out))
+# q' = qOut (1, n(theta_gamma_out, phi_gamma_out))
 # k' = (sqrt(|-p' - q'|^2+me^2), -p' - q')
 # ============================================================
 
@@ -191,8 +191,9 @@ def _cm_energy_residual_for_pout(
 def solve_pout_from_cm_independent(
     s,
     qOut,
-    theta_out,
+    theta_p_out,
     phi_p_out,
+    theta_gamma_out,
     phi_gamma_out,
     m,
     electron_mass,
@@ -205,8 +206,8 @@ def solve_pout_from_cm_independent(
     """
     s = _validate_positive_scalar(s, "s")
     qOut = _validate_nonnegative_scalar(qOut, "qOut")
-    proton_direction = direction_from_angles(theta_out, phi_p_out)
-    photon_direction = direction_from_angles(theta_out, phi_gamma_out)
+    proton_direction = direction_from_angles(theta_p_out, phi_p_out)
+    photon_direction = direction_from_angles(theta_gamma_out, phi_gamma_out)
     opening_cosine = float(np.dot(proton_direction, photon_direction))
     m = _validate_positive_scalar(m, "m")
     electron_mass = _validate_nonnegative_scalar(electron_mass, "electron_mass")
@@ -336,8 +337,9 @@ def invariant_q2_xb_t(mom, m):
 def kinematics_cm_from_independent(
     s,
     qOut,
-    theta_out,
+    theta_p_out,
     phi_p_out,
+    theta_gamma_out,
     phi_gamma_out,
     m,
     electron_mass,
@@ -345,15 +347,18 @@ def kinematics_cm_from_independent(
 ):
     """Build initial proton--lepton CM kinematics from independent variables.
 
-    The incoming proton/lepton axes are fixed at ``+z``/``-z``.  Both final
-    proton and photon share ``theta_out`` and have independent azimuths;
-    ``pOut`` is solved.
+    The incoming proton/lepton axes are fixed at ``+z``/``-z``.  The final
+    proton and photon have independent polar and azimuthal angles; ``pOut`` is
+    solved from energy conservation.
     """
     s = _validate_positive_scalar(s, "s")
     qOut = _validate_nonnegative_scalar(qOut, "qOut")
-    theta_out = _validate_scalar(theta_out, "theta_out")
-    if not 0.0 <= theta_out <= np.pi:
-        raise ValueError("theta_out must lie in [0, pi].")
+    theta_p_out = _validate_scalar(theta_p_out, "theta_p_out")
+    theta_gamma_out = _validate_scalar(theta_gamma_out, "theta_gamma_out")
+    if not 0.0 <= theta_p_out <= np.pi:
+        raise ValueError("theta_p_out must lie in [0, pi].")
+    if not 0.0 <= theta_gamma_out <= np.pi:
+        raise ValueError("theta_gamma_out must lie in [0, pi].")
     phi_p_out = _normalize_angle(_validate_scalar(phi_p_out, "phi_p_out"))
     phi_gamma_out = _normalize_angle(
         _validate_scalar(phi_gamma_out, "phi_gamma_out")
@@ -365,8 +370,9 @@ def kinematics_cm_from_independent(
     pOut = solve_pout_from_cm_independent(
         s,
         qOut,
-        theta_out,
+        theta_p_out,
         phi_p_out,
+        theta_gamma_out,
         phi_gamma_out,
         m,
         electron_mass,
@@ -375,9 +381,9 @@ def kinematics_cm_from_independent(
         pIn,
         pOut,
         qOut,
-        theta_out,
+        theta_p_out,
         phi_p_out,
-        theta_out,
+        theta_gamma_out,
         phi_gamma_out,
         m,
         electron_mass,
@@ -385,8 +391,8 @@ def kinematics_cm_from_independent(
     mom["q"] = mom["k"] - mom["kp"]
     theta_lepton_out, phi_lepton_out = spatial_angles(mom["kp"])
     opening_cosine = float(np.dot(
-        direction_from_angles(theta_out, phi_p_out),
-        direction_from_angles(theta_out, phi_gamma_out),
+        direction_from_angles(theta_p_out, phi_p_out),
+        direction_from_angles(theta_gamma_out, phi_gamma_out),
     ))
     derived = invariant_q2_xb_t(mom, m)
     return {
@@ -403,10 +409,9 @@ def kinematics_cm_from_independent(
         "theta_lepton_in": float(np.pi),
         "phi_lepton_in": 0.0,
         "qOut": qOut,
-        "theta_out": float(theta_out),
-        "theta_p_out": float(theta_out),
+        "theta_p_out": float(theta_p_out),
         "phi_p_out": phi_p_out,
-        "theta_gamma_out": float(theta_out),
+        "theta_gamma_out": float(theta_gamma_out),
         "phi_gamma_out": phi_gamma_out,
         "theta_lepton_out": theta_lepton_out,
         "phi_lepton_out": phi_lepton_out,

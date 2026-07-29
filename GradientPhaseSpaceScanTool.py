@@ -1,6 +1,6 @@
 """Generic gradient phase-space search, configuration, and contour tool.
 
-Each optimization uses the same seven continuous coordinates and coherent
+Each optimization uses the same eight continuous coordinates and coherent
 incoming-spin preparation as :mod:`PhaseSpaceScan`. The coordinates are
 normalized to a unit box before SciPy's L-BFGS-B minimizer estimates numerical
 gradients. A periodic-aware multiscale direct search then follows unresolved
@@ -63,24 +63,25 @@ SCAN_KEY = ""
 PHYSICS_ANCHOR_STARTS = {}
 
 INVALID_OBJECTIVE = 1.0e3
-PERIODIC_UNIT_COORDINATES = (3, 4, 5, 6)
+SCAN_DIMENSION = 8
+PERIODIC_UNIT_COORDINATES = (4, 5, 6, 7)
 CONFIG_CONTOUR_BISECTION_ITERATIONS = 8
 CONFIG_CONTOUR_INITIAL_RADIUS = 0.01
 PLOT_PANELS = (
-    ("theta_out", "qOut", r"$\theta_{\rm out}$", r"$E_\gamma$ [GeV]"),
+    ("theta_p_out", "theta_gamma_out", r"$\theta_{p'}$", r"$\theta_\gamma$"),
     ("sqrt_s", "qOut", r"$\sqrt{s}$ [GeV]", r"$E_\gamma$ [GeV]"),
     ("phi_p_out", "phi_gamma_out", r"$\phi_{p'}$", r"$\phi_\gamma$"),
-    ("theta_e", "theta_p", r"$\theta_e$", r"$\theta_p$"),
-    ("sqrt_s", "theta_e", r"$\sqrt{s}$ [GeV]", r"$\theta_e$"),
-    ("sqrt_s", "theta_p", r"$\sqrt{s}$ [GeV]", r"$\theta_p$"),
-    ("qOut", "theta_e", r"$E_\gamma$ [GeV]", r"$\theta_e$"),
-    ("qOut", "theta_p", r"$E_\gamma$ [GeV]", r"$\theta_p$"),
+    ("alpha_e", "alpha_p", r"$\alpha_e$", r"$\alpha_p$"),
+    ("theta_p_out", "qOut", r"$\theta_{p'}$", r"$E_\gamma$ [GeV]"),
+    ("theta_gamma_out", "qOut", r"$\theta_\gamma$", r"$E_\gamma$ [GeV]"),
+    ("sqrt_s", "alpha_e", r"$\sqrt{s}$ [GeV]", r"$\alpha_e$"),
+    ("sqrt_s", "alpha_p", r"$\sqrt{s}$ [GeV]", r"$\alpha_p$"),
 )
 PLOT_PERIODS = {
     "phi_p_out": 2.0 * np.pi,
     "phi_gamma_out": 2.0 * np.pi,
-    "theta_e": np.pi,
-    "theta_p": np.pi,
+    "alpha_e": np.pi,
+    "alpha_p": np.pi,
 }
 POLARIZATION_CLUSTER_STYLES = (
     ("#0057B8", "o"),
@@ -216,7 +217,7 @@ def _run_objective_key(stage, objective_name=None):
 
 
 def _normalized_to_point(unit_point):
-    """Map the optimizer's unit box to PhaseSpaceScan's seven coordinates."""
+    """Map the optimizer's unit box to the eight physical scan coordinates."""
     unit_point = np.asarray(unit_point, dtype=float)
     sqrt_s = (
         phase_scan.SQRT_S_RANGE[0]
@@ -226,7 +227,7 @@ def _normalized_to_point(unit_point):
     s = sqrt_s**2
     qout_fraction = (
         phase_scan.QOUT_FRACTION_RANGE[0]
-        + unit_point[2]
+        + unit_point[3]
         * (
             phase_scan.QOUT_FRACTION_RANGE[1]
             - phase_scan.QOUT_FRACTION_RANGE[0]
@@ -235,17 +236,23 @@ def _normalized_to_point(unit_point):
     return np.asarray(
         (
             s,
-            phase_scan.THETA_OUT_RANGE[0]
+            phase_scan.THETA_P_OUT_RANGE[0]
             + unit_point[1]
             * (
-                phase_scan.THETA_OUT_RANGE[1]
-                - phase_scan.THETA_OUT_RANGE[0]
+                phase_scan.THETA_P_OUT_RANGE[1]
+                - phase_scan.THETA_P_OUT_RANGE[0]
+            ),
+            phase_scan.THETA_GAMMA_OUT_RANGE[0]
+            + unit_point[2]
+            * (
+                phase_scan.THETA_GAMMA_OUT_RANGE[1]
+                - phase_scan.THETA_GAMMA_OUT_RANGE[0]
             ),
             qout_fraction * phase_scan._qout_max(s),
-            unit_point[3] * 2.0 * np.pi,
             unit_point[4] * 2.0 * np.pi,
-            unit_point[5] * np.pi,
+            unit_point[5] * 2.0 * np.pi,
             unit_point[6] * np.pi,
+            unit_point[7] * np.pi,
         ),
         dtype=float,
     )
@@ -308,7 +315,7 @@ def _optimize_start(task):
         lambda point: evaluate(point)[0],
         np.asarray(start, dtype=float),
         method="L-BFGS-B",
-        bounds=((0.0, 1.0),) * 7,
+        bounds=((0.0, 1.0),) * SCAN_DIMENSION,
         options={
             "maxiter": ENTANGLEMENT_GRADIENT_MAX_ITERATIONS,
             "ftol": ENTANGLEMENT_GRADIENT_TOLERANCE,
@@ -365,8 +372,8 @@ def _move_unit_point(point, displacement):
     """Apply a displacement with bounds and periodic-axis wrapping."""
     neighbor = np.asarray(point, dtype=float).copy()
     neighbor += np.asarray(displacement, dtype=float)
-    neighbor[:3] = np.clip(neighbor[:3], 0.0, 1.0)
-    neighbor[3:] %= 1.0
+    neighbor[:4] = np.clip(neighbor[:4], 0.0, 1.0)
+    neighbor[4:] %= 1.0
     return neighbor
 
 
@@ -562,7 +569,9 @@ def _objective_values(rows, lepton_name):
 
 def _unit_point_from_minimum_row(row):
     """Recover one local minimum in the optimizer's normalized coordinates."""
-    return np.asarray([float(row[f"final_u{index}"]) for index in range(7)])
+    return np.asarray([
+        float(row[f"final_u{index}"]) for index in range(SCAN_DIMENSION)
+    ])
 
 
 def _plot_coordinate_values(unit_point):
@@ -570,21 +579,22 @@ def _plot_coordinate_values(unit_point):
     point = _normalized_to_point(unit_point)
     return {
         "sqrt_s": float(np.sqrt(point[0])),
-        "theta_out": float(point[1]),
-        "qOut": float(point[2]),
-        "phi_p_out": float(point[3]),
-        "phi_gamma_out": float(point[4]),
-        "theta_e": float(point[5]),
-        "theta_p": float(point[6]),
+        "theta_p_out": float(point[1]),
+        "theta_gamma_out": float(point[2]),
+        "qOut": float(point[3]),
+        "phi_p_out": float(point[4]),
+        "phi_gamma_out": float(point[5]),
+        "alpha_e": float(point[6]),
+        "alpha_p": float(point[7]),
     }
 
 
 def _contour_directions(seed):
-    """Return deterministic directions spanning the seven-dimensional sphere."""
-    axes = np.vstack((np.eye(7), -np.eye(7)))
+    """Return deterministic directions spanning the eight-dimensional sphere."""
+    axes = np.vstack((np.eye(SCAN_DIMENSION), -np.eye(SCAN_DIMENSION)))
     random_count = PHASE_SPACE_CONFIG_CONTOUR_SAMPLES - len(axes)
     rng = np.random.default_rng(seed)
-    random_directions = rng.normal(size=(random_count, 7))
+    random_directions = rng.normal(size=(random_count, SCAN_DIMENSION))
     if random_count:
         random_directions /= np.linalg.norm(
             random_directions,
@@ -649,7 +659,11 @@ def _configuration_contours(rows, lepton_name):
     ):
         grouped[row_index].append(boundary_points)
     return {
-        row_index: np.vstack(chunks) if chunks else np.empty((0, 7))
+        row_index: (
+            np.vstack(chunks)
+            if chunks
+            else np.empty((0, SCAN_DIMENSION))
+        )
         for row_index, chunks in grouped.items()
     }
 
@@ -670,7 +684,7 @@ def _contour_csv_rows(selected_rows, contours):
             "contour_point_count": len(contours[row_index]),
             **{
                 f"center_u{coordinate}": float(center[coordinate])
-                for coordinate in range(7)
+                for coordinate in range(SCAN_DIMENSION)
             },
         }
         csv_rows.append(
@@ -678,7 +692,10 @@ def _contour_csv_rows(selected_rows, contours):
                 **base,
                 "record_type": "minimum",
                 "contour_sample_id": "",
-                **{f"u{coordinate}": "" for coordinate in range(7)},
+                **{
+                    f"u{coordinate}": ""
+                    for coordinate in range(SCAN_DIMENSION)
+                },
                 **{name: "" for name in _plot_coordinate_values(center)},
             }
         )
@@ -691,7 +708,7 @@ def _contour_csv_rows(selected_rows, contours):
                     "contour_sample_id": sample_index,
                     **{
                         f"u{coordinate}": float(point[coordinate])
-                        for coordinate in range(7)
+                        for coordinate in range(SCAN_DIMENSION)
                     },
                     **physical,
                 }
@@ -753,7 +770,10 @@ def _load_contour_data(path, selected_rows):
             sample_ids[row_index].append(int(saved["contour_sample_id"]))
             samples[row_index].append(
                 np.asarray(
-                    [float(saved[f"u{coordinate}"]) for coordinate in range(7)],
+                    [
+                        float(saved[f"u{coordinate}"])
+                        for coordinate in range(SCAN_DIMENSION)
+                    ],
                     dtype=float,
                 )
             )
@@ -785,7 +805,7 @@ def _load_contour_data(path, selected_rows):
         saved_center = np.asarray(
             [
                 float(saved[f"center_u{coordinate}"])
-                for coordinate in range(7)
+                for coordinate in range(SCAN_DIMENSION)
             ],
             dtype=float,
         )
@@ -808,7 +828,7 @@ def _load_contour_data(path, selected_rows):
         loaded[output_index] = np.asarray(
             samples[saved_index],
             dtype=float,
-        ).reshape((-1, 7))
+        ).reshape((-1, SCAN_DIMENSION))
     return loaded
 
 
@@ -826,7 +846,7 @@ def _project_high_dimensional_contour(
     x_name,
     y_name,
 ):
-    """Project a sampled seven-dimensional contour into one plot panel."""
+    """Project a sampled eight-dimensional contour into one plot panel."""
     center_coordinates = _plot_coordinate_values(center)
     projected = [
         _plot_coordinate_values(point)
@@ -918,17 +938,18 @@ def _full_phase_space_plot_limits(lepton_name):
     ) * phase_scan.QOUT_FRACTION_RANGE[1]
     return {
         "sqrt_s": tuple(phase_scan.SQRT_S_RANGE),
-        "theta_out": tuple(phase_scan.THETA_OUT_RANGE),
+        "theta_p_out": tuple(phase_scan.THETA_P_OUT_RANGE),
+        "theta_gamma_out": tuple(phase_scan.THETA_GAMMA_OUT_RANGE),
         "qOut": (0.0, float(qout_upper)),
         "phi_p_out": tuple(phase_scan.AZIMUTH_RANGE),
         "phi_gamma_out": tuple(phase_scan.AZIMUTH_RANGE),
-        "theta_e": tuple(phase_scan.THETA_E_MIX_RANGE),
-        "theta_p": tuple(phase_scan.THETA_P_MIX_RANGE),
+        "alpha_e": tuple(phase_scan.ALPHA_E_RANGE),
+        "alpha_p": tuple(phase_scan.ALPHA_P_RANGE),
     }
 
 
-def _plot_all_local_minima(rows, lepton_name, path):
-    """Plot every distinct local minimum before configuration selection."""
+def _plot_all_local_minima(rows, lepton_name, path, reference_rows=()):
+    """Plot every minimum and overlay the exact unoptimized references."""
     plt, PdfPages = config_gen._require_matplotlib()
     values = _objective_values(rows, lepton_name)
     cmap, vmin, vmax = config_gen.observable_plot_style(OBJECTIVE_NAME)
@@ -952,6 +973,22 @@ def _plot_all_local_minima(rows, lepton_name, path):
                 x[best_index], y[best_index], marker="*", s=180,
                 c="red", edgecolors="black", label="global minimum",
             )
+            for reference_index, reference in enumerate(reference_rows):
+                ax.scatter(
+                    [float(reference[x_name])],
+                    [float(reference[y_name])],
+                    marker="D",
+                    s=72,
+                    facecolors="none",
+                    edgecolors="black",
+                    linewidths=1.2,
+                    label=(
+                        reference["reference_name"]
+                        if ax is axes[0, 0]
+                        else None
+                    ),
+                    zorder=5,
+                )
             ax.set_xlabel(x_label, fontsize=11)
             ax.set_ylabel(y_label, fontsize=11)
             configure_named_angle_axes(ax, x_name, y_name)
@@ -998,7 +1035,7 @@ def _pi_quarter_math_label(angle):
 
 
 def _circular_mixing_center(angles):
-    """Return the pi-periodic circular center of theta_e and theta_p."""
+    """Return the pi-periodic circular center of alpha_e and alpha_p."""
     return np.mod(
         0.5
         * np.arctan2(
@@ -1010,7 +1047,7 @@ def _circular_mixing_center(angles):
 
 
 def _mixing_distance(angle, center):
-    """Return normalized distance on the theta_e/theta_p pi-periodic torus."""
+    """Return normalized distance on the alpha_e/alpha_p pi-periodic torus."""
     difference = np.abs(np.asarray(angle) - np.asarray(center))
     wrapped = np.minimum(difference, np.pi - difference) / np.pi
     return float(np.linalg.norm(wrapped))
@@ -1039,7 +1076,7 @@ def _cluster_polarization_minima(
 
     angles = np.asarray(
         [
-            (float(rows[index]["theta_e"]), float(rows[index]["theta_p"]))
+            (float(rows[index]["alpha_e"]), float(rows[index]["alpha_p"]))
             for index in eligible_indices
         ],
         dtype=float,
@@ -1131,8 +1168,8 @@ def _cluster_polarization_minima(
         else:
             center = centers[cluster_id]
             configuration = (
-                f"theta_e~{_pi_quarter_label(center[0])},"
-                f"theta_p~{_pi_quarter_label(center[1])}"
+                f"alpha_e~{_pi_quarter_label(center[0])},"
+                f"alpha_p~{_pi_quarter_label(center[1])}"
             )
             item.update(
                 {
@@ -1141,7 +1178,7 @@ def _cluster_polarization_minima(
                         members_by_cluster[cluster_id]
                     ),
                     "polarization_cluster_distance": _mixing_distance(
-                        (float(source["theta_e"]), float(source["theta_p"])),
+                        (float(source["alpha_e"]), float(source["alpha_p"])),
                         center,
                     ),
                     "polarization_cluster_representative": (
@@ -1163,8 +1200,8 @@ def _cluster_polarization_minima(
             {
                 "polarization_cluster_id": cluster_id,
                 "polarization_configuration": (
-                    f"theta_e~{_pi_quarter_label(center[0])},"
-                    f"theta_p~{_pi_quarter_label(center[1])}"
+                    f"alpha_e~{_pi_quarter_label(center[0])},"
+                    f"alpha_p~{_pi_quarter_label(center[1])}"
                 ),
                 "member_count": len(members),
                 "representative_local_minimum_id": representative.get(
@@ -1176,14 +1213,14 @@ def _cluster_polarization_minima(
                 "global_minimum": optimum,
                 "best_objective": float(values[members].min()),
                 "mean_objective": float(values[members].mean()),
-                "theta_e_center": float(center[0]),
-                "theta_p_center": float(center[1]),
-                "theta_e_center_over_pi": float(center[0] / np.pi),
-                "theta_p_center_over_pi": float(center[1] / np.pi),
+                "alpha_e_center": float(center[0]),
+                "alpha_p_center": float(center[1]),
+                "alpha_e_center_over_pi": float(center[0] / np.pi),
+                "alpha_p_center_over_pi": float(center[1] / np.pi),
                 "color": color,
                 "marker": marker,
                 "random_seed": random_seed,
-                "distance_coordinates": "theta_e,theta_p (pi-periodic)",
+                "distance_coordinates": "alpha_e,alpha_p (pi-periodic)",
                 objective_key: float(representative[objective_key]),
             }
         )
@@ -1247,9 +1284,9 @@ def _polarization_cluster_plot(
                     legend_handles[cluster_id] = artist
                     legend_labels[cluster_id] = (
                         rf"$P_{{{cluster_id + 1}}}: "
-                        rf"(\theta_e,\theta_p)\approx"
-                        rf"({_pi_quarter_math_label(float(cluster['theta_e_center']))},"
-                        rf"{_pi_quarter_math_label(float(cluster['theta_p_center']))})$ "
+                        rf"(\alpha_e,\alpha_p)\approx"
+                        rf"({_pi_quarter_math_label(float(cluster['alpha_e_center']))},"
+                        rf"{_pi_quarter_math_label(float(cluster['alpha_p_center']))})$ "
                         f"(n={cluster['member_count']})"
                     )
             ax.scatter(
@@ -1288,7 +1325,7 @@ def _polarization_cluster_plot(
                 "\n"
                 f"{len(selected_rows)}/{len(rows)} minima retained"
                 "\n"
-                r"$\theta_e,\theta_p$ clustered with period $\pi$"
+                r"$\alpha_e,\alpha_p$ clustered with period $\pi$"
             ),
             transform=summary_ax.transAxes,
             va="bottom",
@@ -1321,8 +1358,8 @@ def _configuration_rows(minimum_rows, lepton_name):
                 ),
                 "selected_spin_case": "mixing_angles",
                 "selected_spin_label": (
-                    f"theta_e={float(row['theta_e']):.8g}, "
-                    f"theta_p={float(row['theta_p']):.8g}"
+                    f"alpha_e={float(row['alpha_e']):.8g}, "
+                    f"alpha_p={float(row['alpha_p']):.8g}"
                 ),
                 "selected_concurrence_key": key,
                 "selected_concurrence": value,
@@ -1357,7 +1394,7 @@ def _write_configuration_plot(
     path,
     contours,
 ):
-    """Write configuration pages from supplied 7D contour samples."""
+    """Write configuration pages from supplied 8D contour samples."""
     plt, PdfPages = config_gen._require_matplotlib()
     selected_rows = list(selected_rows)
     if len(selected_rows) != len(detail_rows):
@@ -1449,7 +1486,7 @@ def _write_configuration_plot(
                 f"contour delta={PHASE_SPACE_CONFIG_CONTOUR_DELTA:g}"
             ),
             (
-                f"configured 7D samples/minimum="
+                f"configured 8D samples/minimum="
                 f"{PHASE_SPACE_CONFIG_CONTOUR_SAMPLES}"
             ),
             (
@@ -1478,7 +1515,7 @@ def _write_configuration_plot(
         overview_fig.suptitle(
             f"{lepton_name}: polarization cluster P{parent_id + 1}; "
             "all local-minimum configurations and pairwise projections "
-            "of their 7D contours"
+            "of their 8D contours"
         )
         pdf.savefig(overview_fig)
         plt.close(overview_fig)
@@ -1532,7 +1569,7 @@ def _write_configuration_plot(
                     alpha=0.18,
                     linewidths=0.0,
                     label=(
-                        "projected 7D contour samples"
+                        "projected 8D contour samples"
                         if panel_index == 0 else None
                     ),
                     zorder=1,
@@ -1587,7 +1624,7 @@ def _write_configuration_plot(
                     f"above global minimum = "
                     f"{local_value - optimum:.8g}"
                 ),
-                f"7D contour samples = {len(boundary_points)}",
+                f"8D contour samples = {len(boundary_points)}",
                 "",
                 "selected phase-space point:",
             ]
@@ -1595,12 +1632,13 @@ def _write_configuration_plot(
                 f"{name:>10s} = {coordinates[name]:.7g}"
                 for name in (
                     "sqrt_s",
-                    "theta_out",
+                    "theta_p_out",
+                    "theta_gamma_out",
                     "qOut",
                     "phi_p_out",
                     "phi_gamma_out",
-                    "theta_e",
-                    "theta_p",
+                    "alpha_e",
+                    "alpha_p",
                 )
             )
             summary_ax.text(
@@ -1616,7 +1654,7 @@ def _write_configuration_plot(
             fig.suptitle(
                 f"{lepton_name}: polarization cluster P{parent_id + 1}, "
                 f"local minimum {row.get('local_minimum_id', selected_index)}; "
-                "pairwise projections of the 7D "
+                "pairwise projections of the 8D "
                 rf"${OBJECTIVE_LATEX}="
                 rf"({OBJECTIVE_LATEX})_{{\mathrm{{local}}}}"
                 rf"+{PHASE_SPACE_CONFIG_CONTOUR_DELTA:g}$ contour"
@@ -1715,10 +1753,18 @@ def _physical_start_to_unit_point(start):
                 - phase_scan.SQRT_S_RANGE[0]
             ),
             (
-                float(start["theta_out"]) - phase_scan.THETA_OUT_RANGE[0]
+                float(start["theta_p_out"])
+                - phase_scan.THETA_P_OUT_RANGE[0]
             ) / (
-                phase_scan.THETA_OUT_RANGE[1]
-                - phase_scan.THETA_OUT_RANGE[0]
+                phase_scan.THETA_P_OUT_RANGE[1]
+                - phase_scan.THETA_P_OUT_RANGE[0]
+            ),
+            (
+                float(start["theta_gamma_out"])
+                - phase_scan.THETA_GAMMA_OUT_RANGE[0]
+            ) / (
+                phase_scan.THETA_GAMMA_OUT_RANGE[1]
+                - phase_scan.THETA_GAMMA_OUT_RANGE[0]
             ),
             (
                 qout_fraction - phase_scan.QOUT_FRACTION_RANGE[0]
@@ -1728,8 +1774,8 @@ def _physical_start_to_unit_point(start):
             ),
             float(start["phi_p_out"]) / (2.0 * np.pi),
             float(start["phi_gamma_out"]) / (2.0 * np.pi),
-            float(start["theta_e"]) / np.pi,
-            float(start["theta_p"]) / np.pi,
+            float(start["alpha_e"]) / np.pi,
+            float(start["alpha_p"]) / np.pi,
         ),
         dtype=float,
     )
@@ -1771,7 +1817,7 @@ def _screened_sobol_starts(lepton_name, species_seed):
     """Select low-objective, spatially separated Sobol starts."""
     exponent = int(np.log2(ENTANGLEMENT_GRADIENT_SCREENING_SAMPLES))
     candidates = qmc.Sobol(
-        d=7,
+        d=SCAN_DIMENSION,
         scramble=True,
         seed=species_seed + 10_000,
     ).random_base2(exponent)
@@ -1815,7 +1861,10 @@ def _species_tasks(lepton_name):
         ENTANGLEMENT_GRADIENT_RANDOM_SEED
         + tuple(LEPTON_SPECS).index(lepton_name)
     )
-    latin_starts = qmc.LatinHypercube(d=7, seed=species_seed).random(
+    latin_starts = qmc.LatinHypercube(
+        d=SCAN_DIMENSION,
+        seed=species_seed,
+    ).random(
         ENTANGLEMENT_GRADIENT_RANDOM_STARTS
     )
     starts = [
@@ -1854,6 +1903,39 @@ def _species_tasks(lepton_name):
     ]
 
 
+def _physics_reference_rows(lepton_name):
+    """Evaluate and retain every exact physics anchor before optimization."""
+    rows = []
+    for reference_index, anchor in enumerate(
+        PHYSICS_ANCHOR_STARTS.get(lepton_name, ())
+    ):
+        unit_point = _physical_start_to_unit_point(anchor)
+        value, row = _objective_evaluation(
+            unit_point,
+            lepton_name,
+            evaluation_id=3_000_000_000 + reference_index,
+        )
+        if row is None:
+            raise RuntimeError(
+                f"Physics reference {anchor['name']!r} is not a valid "
+                "eight-dimensional phase-space point."
+            )
+        item = dict(row)
+        item.update({
+            "record_type": "exact_physics_reference",
+            "reference_name": anchor["name"],
+            "reference_index": reference_index,
+            "reference_objective": value,
+            "optimization_start_source": (
+                f"physics_anchor:{anchor['name']}"
+            ),
+        })
+        for coordinate, coordinate_value in enumerate(unit_point):
+            item[f"reference_u{coordinate}"] = float(coordinate_value)
+        rows.append(item)
+    return rows
+
+
 def scan_species_minima(lepton_name, results=None):
     """Find and save every distinct verified minimum for one species."""
     phase_scan._configure_lepton(lepton_name)
@@ -1878,6 +1960,11 @@ def scan_species_minima(lepton_name, results=None):
         scan_data_dir / "optimization_runs.csv",
         [result[0] for result in results],
     )
+    reference_rows = _physics_reference_rows(lepton_name)
+    references_path = _write_csv(
+        scan_data_dir / "physics_reference_points.csv",
+        reference_rows,
+    )
     minimum_rows = []
     for minimum_index, (_run, _unit_point, row) in enumerate(minima):
         item = dict(row)
@@ -1893,6 +1980,7 @@ def scan_species_minima(lepton_name, results=None):
         minimum_rows,
         lepton_name,
         plot_dir / "all_local_minima.pdf",
+        reference_rows=reference_rows,
     )
     lbfgs_converged = sum(
         bool(result[0]["lbfgs_success"]) for result in results
@@ -1935,6 +2023,7 @@ def scan_species_minima(lepton_name, results=None):
         f"  minimum scan time: {minimum_scan_seconds:.3f} s",
         f"  best {OBJECTIVE_NAME}: {optimum:.10g}",
         f"  optimization runs: {run_path}",
+        f"  exact physics reference points: {references_path}",
         f"  local minima: {minima_path}",
         f"  all-local-minima plot: {minima_plot}",
     ]
@@ -1946,11 +2035,18 @@ def remake_species_minima_plot(lepton_name):
     output_dirs = species_output_dirs(lepton_name)
     minima_path = output_dirs["scan_data"] / "local_minima.csv"
     minimum_rows = _read_csv(minima_path)
+    references_path = (
+        output_dirs["scan_data"] / "physics_reference_points.csv"
+    )
+    reference_rows = (
+        _read_csv(references_path) if references_path.exists() else []
+    )
     plot_started = perf_counter()
     minima_plot = _plot_all_local_minima(
         minimum_rows,
         lepton_name,
         output_dirs["plots"] / "all_local_minima.pdf",
+        reference_rows=reference_rows,
     )
     plot_seconds = perf_counter() - plot_started
     return "\n".join(

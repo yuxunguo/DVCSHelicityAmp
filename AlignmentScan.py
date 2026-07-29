@@ -65,8 +65,8 @@ CHARACTERISTIC_S_POINTS = (
     ("mid_s", 25. ),
     ("high_s", 10000.),
 )
-CHARACTERISTIC_THETA_OUT_POINTS = (
-    ("transverse_theta_out", np.pi / 2.0),
+CHARACTERISTIC_FINAL_POLAR_POINTS = (
+    ("transverse_final_polars", np.pi / 2.0, np.pi / 2.0),
 )
 CHARACTERISTIC_QOUT_POINTS = (
     ("low_Egamma", 0.25),
@@ -321,16 +321,19 @@ def characteristic_kinematic_points():
     """Return coarse anchor kinematics for two-angle concurrence scans."""
     points = []
     for s_regime, s in CHARACTERISTIC_S_POINTS:
-        for theta_regime, theta_out in CHARACTERISTIC_THETA_OUT_POINTS:
+        for theta_regime, theta_p_out, theta_gamma_out in (
+            CHARACTERISTIC_FINAL_POLAR_POINTS
+        ):
             for qout_regime, qOut in CHARACTERISTIC_QOUT_POINTS:
                 point_id = f"{s_regime}_{theta_regime}_{qout_regime}"
                 points.append({
                     "kinematic_point": point_id,
                     "s_regime": s_regime,
-                    "theta_out_regime": theta_regime,
+                    "theta_p_gamma_regime": theta_regime,
                     "qOut_regime": qout_regime,
                     "s": float(s),
-                    "theta_out": float(theta_out),
+                    "theta_p_out": float(theta_p_out),
+                    "theta_gamma_out": float(theta_gamma_out),
                     "qOut": float(qOut),
                 })
     return points
@@ -401,18 +404,22 @@ def _evaluate_kinematic_sample(task):
     """
     anchor, phi_p_out, phi_gamma_out, settings = task
     s = anchor["s"]
-    theta_out = anchor["theta_out"]
+    theta_p_out = anchor["theta_p_out"]
+    theta_gamma_out = anchor["theta_gamma_out"]
     qOut = anchor["qOut"]
     out_states = outgoing_spin_states()
     kin = kinematics_cm_from_independent(
         s,
         qOut,
-        theta_out,
+        theta_p_out,
         phi_p_out,
+        theta_gamma_out,
         phi_gamma_out,
         settings["m"],
         label=(
-            f"initial-CM alignment s={s:.6g}, theta_out={theta_out:.6g}, "
+            f"initial-CM alignment s={s:.6g}, "
+            f"theta_p_out={theta_p_out:.6g}, "
+            f"theta_gamma_out={theta_gamma_out:.6g}, "
             f"qOut={qOut:.6g}"
         ),
         electron_mass=settings["lepton_mass"],
@@ -437,7 +444,8 @@ def _evaluate_kinematic_sample(task):
             "kinematic_point": anchor["kinematic_point"],
             "s": float(kin["s"]),
             "qOut": float(kin["qOut"]),
-            "theta_out": float(kin["theta_out"]),
+            "theta_p_out": float(kin["theta_p_out"]),
+            "theta_gamma_out": float(kin["theta_gamma_out"]),
             "phi_p_out": float(kin["phi_p_out"]),
             "phi_gamma_out": float(kin["phi_gamma_out"]),
             "error": singular_reason,
@@ -450,7 +458,7 @@ def _evaluate_kinematic_sample(task):
         "lepton": lepton_name,
         "kinematic_point": anchor["kinematic_point"],
         "s_regime": anchor["s_regime"],
-        "theta_out_regime": anchor["theta_out_regime"],
+        "theta_p_gamma_regime": anchor["theta_p_gamma_regime"],
         "qOut_regime": anchor["qOut_regime"],
         "lepton_mass": float(kin["electron_mass"]),
         "s": float(kin["s"]),
@@ -462,7 +470,6 @@ def _evaluate_kinematic_sample(task):
         "theta_lepton_in": float(kin["theta_lepton_in"]),
         "phi_lepton_in": float(kin["phi_lepton_in"]),
         "qOut": float(kin["qOut"]),
-        "theta_out": float(kin["theta_out"]),
         "theta_p_out": float(kin["theta_p_out"]),
         "phi_p_out": float(kin["phi_p_out"]),
         "theta_gamma_out": float(kin["theta_gamma_out"]),
@@ -570,7 +577,8 @@ def _safe_evaluate_kinematic_sample(task):
             "kinematic_point": anchor["kinematic_point"],
             "s": float(anchor["s"]),
             "qOut": float(anchor["qOut"]),
-            "theta_out": float(anchor["theta_out"]),
+            "theta_p_out": float(anchor["theta_p_out"]),
+            "theta_gamma_out": float(anchor["theta_gamma_out"]),
             "phi_p_out": float(phi_p_out),
             "phi_gamma_out": float(phi_gamma_out),
             "error": str(exc),
@@ -704,7 +712,8 @@ def _scan_final_lepton_photon_alignment(
                 result["kinematic_point"],
                 result["s"],
                 result["qOut"],
-                result["theta_out"],
+                result["theta_p_out"],
+                result["theta_gamma_out"],
                 result["phi_p_out"],
                 result["phi_gamma_out"],
                 result["error"],
@@ -717,8 +726,11 @@ def _scan_final_lepton_photon_alignment(
         "angle_max_deg": float(np.degrees(angle_max_rad)),
         "kinematic_points": list(kinematic_points),
         "s_values": np.asarray([point["s"] for point in kinematic_points], dtype=float),
-        "theta_out_values": np.asarray(
-            [point["theta_out"] for point in kinematic_points], dtype=float
+        "theta_p_out_values": np.asarray(
+            [point["theta_p_out"] for point in kinematic_points], dtype=float
+        ),
+        "theta_gamma_out_values": np.asarray(
+            [point["theta_gamma_out"] for point in kinematic_points], dtype=float
         ),
         "phi_p_out_values": np.asarray(phi_p_out_values, dtype=float),
         "qOut_values": np.asarray([point["qOut"] for point in kinematic_points], dtype=float),
@@ -778,7 +790,7 @@ def _kinematic_csv_headers():
         "lepton",
         "kinematic_point",
         "s_regime",
-        "theta_out_regime",
+        "theta_p_gamma_regime",
         "qOut_regime",
         "lepton_mass",
         "s",
@@ -790,7 +802,6 @@ def _kinematic_csv_headers():
         "theta_lepton_in",
         "phi_lepton_in",
         "qOut",
-        "theta_out",
         "theta_p_out",
         "phi_p_out",
         "theta_gamma_out",
@@ -820,7 +831,7 @@ def _kinematic_csv_row(row):
         row["lepton"],
         row["kinematic_point"],
         row["s_regime"],
-        row["theta_out_regime"],
+        row["theta_p_gamma_regime"],
         row["qOut_regime"],
         f"{row['lepton_mass']:.16e}",
         f"{row['s']:.16e}",
@@ -832,7 +843,6 @@ def _kinematic_csv_row(row):
         f"{row['theta_lepton_in']:.16e}",
         f"{row['phi_lepton_in']:.16e}",
         f"{row['qOut']:.16e}",
-        f"{row['theta_out']:.16e}",
         f"{row['theta_p_out']:.16e}",
         f"{row['phi_p_out']:.16e}",
         f"{row['theta_gamma_out']:.16e}",
@@ -1280,7 +1290,7 @@ def load_concurrence_scan_csv(csv_path=CONCURRENCE_PHASE_SPACE_CSV):
         "lepton",
         "kinematic_point",
         "s_regime",
-        "theta_out_regime",
+        "theta_p_gamma_regime",
         "qOut_regime",
     }
     with csv_path.open("r", newline="", encoding="utf-8") as handle:
@@ -1331,10 +1341,11 @@ def load_concurrence_scan_csv(csv_path=CONCURRENCE_PHASE_SPACE_CSV):
         kinematic_points.append({
             "kinematic_point": point_id,
             "s_regime": row["s_regime"],
-            "theta_out_regime": row["theta_out_regime"],
+            "theta_p_gamma_regime": row["theta_p_gamma_regime"],
             "qOut_regime": row["qOut_regime"],
             "s": row["s"],
-            "theta_out": row["theta_out"],
+            "theta_p_out": row["theta_p_out"],
+            "theta_gamma_out": row["theta_gamma_out"],
             "qOut": row["qOut"],
         })
 
@@ -1345,8 +1356,11 @@ def load_concurrence_scan_csv(csv_path=CONCURRENCE_PHASE_SPACE_CSV):
         "angle_max_deg": np.nan,
         "kinematic_points": kinematic_points,
         "s_values": np.asarray([point["s"] for point in kinematic_points], dtype=float),
-        "theta_out_values": np.asarray(
-            [point["theta_out"] for point in kinematic_points], dtype=float
+        "theta_p_out_values": np.asarray(
+            [point["theta_p_out"] for point in kinematic_points], dtype=float
+        ),
+        "theta_gamma_out_values": np.asarray(
+            [point["theta_gamma_out"] for point in kinematic_points], dtype=float
         ),
         "phi_p_out_values": np.unique(np.asarray([
             row["phi_p_out"] for row in rows
@@ -1471,7 +1485,9 @@ def save_concurrence_scan_plot(
                     best = point_rows[int(finite_indices[local_best])]
                     ax.set_title(
                         f"$s={anchor['s']:.3g}\\,{{\\rm GeV}}^2$, "
-                        f"$\\theta_{{\\rm out}}={anchor['theta_out']:.3g}\\,{{\\rm rad}}$\n"
+                        f"$\\theta_{{p'}}={anchor['theta_p_out']:.3g},\\ "
+                        f"\\theta_\\gamma={anchor['theta_gamma_out']:.3g}\\,"
+                        f"{{\\rm rad}}$\n"
                         f"$E_\\gamma={anchor['qOut']:.3g}\\,{{\\rm GeV}}$, "
                         f"{observable_optimum_label(name)} "
                         f"{label}={best[f'{prefix}_{name}']:.3f}",
@@ -1578,7 +1594,8 @@ def concurrence_summary_line(row, key, display_key=None):
         display_key = key
     return (
         f"    {display_key}={row[key]:.12g}, s={row['s']:.8g}, "
-        f"theta_out={row['theta_out']:.8g}, "
+        f"theta_p_out={row['theta_p_out']:.8g}, "
+        f"theta_gamma_out={row['theta_gamma_out']:.8g}, "
         f"phi_p_out={row['phi_p_out']:.8g}, "
         f"qOut={row['qOut']:.8g}, "
         f"phi_gamma_out={row['phi_gamma_out']:.8g}, "
@@ -1601,7 +1618,7 @@ def build_alignment_report(alignment_scan, alignment_paths):
     lines = [
         f"{lepton_label}-photon {locator_label}-focused initial-CM phase-space scan",
         "  initial CM axes: proton +z, lepton -z",
-        "  anchor variables: s, theta_out, qOut",
+        "  anchor variables: s, theta_p_out, theta_gamma_out, qOut",
         "  scanned variables per anchor: phi_p_out, phi_gamma_out",
         "  locator observables: "
         f"{', '.join(observable_text_label(name, lepton_name) for name in SCAN_OBSERVABLE_NAMES)}",
@@ -1615,7 +1632,12 @@ def build_alignment_report(alignment_scan, alignment_paths):
         f"{alignment_scan['angle_max_deg']:.6g} deg",
         f"  characteristic kinematic anchors: {len(alignment_scan['kinematic_points'])}",
         f"  s anchor range: {min(alignment_scan['s_values']):.6g} to {max(alignment_scan['s_values']):.6g}",
-        f"  theta_out anchor range: {min(alignment_scan['theta_out_values']):.6g} to {max(alignment_scan['theta_out_values']):.6g}",
+        f"  theta_p_out anchor range: "
+        f"{min(alignment_scan['theta_p_out_values']):.6g} to "
+        f"{max(alignment_scan['theta_p_out_values']):.6g}",
+        f"  theta_gamma_out anchor range: "
+        f"{min(alignment_scan['theta_gamma_out_values']):.6g} to "
+        f"{max(alignment_scan['theta_gamma_out_values']):.6g}",
         f"  qOut/Egamma anchor range: {min(alignment_scan['qOut_values']):.6g} to {max(alignment_scan['qOut_values']):.6g}",
         f"  form factor model: {alignment_scan['form_factor_model']} with F1(t), F2(t)",
         f"  {lepton_label} mass: {alignment_scan['lepton_mass']:.12g} GeV",
@@ -1692,10 +1714,13 @@ def build_alignment_report(alignment_scan, alignment_paths):
     if alignment_scan["failures"]:
         lines.append(f"  invalid phase-space points: {len(alignment_scan['failures'])}")
         for (
-            point_id, s, qOut, theta_out, phi_p_out, phi_gamma_out, message
+            point_id, s, qOut, theta_p_out, theta_gamma_out,
+            phi_p_out, phi_gamma_out, message
         ) in alignment_scan["failures"][:10]:
             lines.append(
-                f"    point={point_id}, s={s:.8g}, theta_out={theta_out:.8g}, "
+                f"    point={point_id}, s={s:.8g}, "
+                f"theta_p_out={theta_p_out:.8g}, "
+                f"theta_gamma_out={theta_gamma_out:.8g}, "
                 f"phi_p_out={phi_p_out:.8g}, qOut={qOut:.8g}, "
                 f"phi_gamma_out={phi_gamma_out:.8g}: {message}"
             )

@@ -111,7 +111,7 @@ KINEMATIC_COLUMNS = (
     "lepton",
     "kinematic_point",
     "s_regime",
-    "theta_out_regime",
+    "theta_p_gamma_regime",
     "qOut_regime",
     "lepton_mass",
     "s",
@@ -122,7 +122,6 @@ KINEMATIC_COLUMNS = (
     "phi_p_in",
     "theta_lepton_in",
     "phi_lepton_in",
-    "theta_out",
     "theta_p_out",
     "phi_p_out",
     "theta_gamma_out",
@@ -381,8 +380,9 @@ def kinematics_from_config_row(row):
     return kinematics_cm_from_independent(
         parse_float(row.get("s")),
         parse_float(row.get("qOut")),
-        parse_float(row.get("theta_out")),
+        parse_float(row.get("theta_p_out")),
         parse_float(row.get("phi_p_out")),
+        parse_float(row.get("theta_gamma_out")),
         parse_float(row.get("phi_gamma_out")),
         M,
         label=row.get("detail_id") or row.get("kinematic_point"),
@@ -451,7 +451,14 @@ def row_distance(a, b):
     q_scale = max(abs(parse_float(a.get("qOut"))), abs(parse_float(b.get("qOut"))), 1.0)
     pieces = [
         (parse_float(a.get("s")) - parse_float(b.get("s"))) / s_scale,
-        (parse_float(a.get("theta_out")) - parse_float(b.get("theta_out"))) / math.pi,
+        (
+            parse_float(a.get("theta_p_out"))
+            - parse_float(b.get("theta_p_out"))
+        ) / math.pi,
+        (
+            parse_float(a.get("theta_gamma_out"))
+            - parse_float(b.get("theta_gamma_out"))
+        ) / math.pi,
         circular_distance(scan_x_phi(a), scan_x_phi(b)) / math.pi,
         (parse_float(a.get("qOut")) - parse_float(b.get("qOut"))) / q_scale,
         circular_distance(
@@ -544,7 +551,8 @@ def cluster_summary_rows(target, grouped_clusters):
             }
             for name in (
                 "s",
-                "theta_out",
+                "theta_p_out",
+                "theta_gamma_out",
                 "phi_p_out",
                 "qOut",
                 "phi_gamma_out",
@@ -758,7 +766,6 @@ def momentum_configuration_rows(detail_rows):
                 "phi_p_in": f"{kin['phi_p_in']:.16e}",
                 "theta_lepton_in": f"{kin['theta_lepton_in']:.16e}",
                 "phi_lepton_in": f"{kin['phi_lepton_in']:.16e}",
-                "theta_out": f"{kin['theta_out']:.16e}",
                 "theta_p_out": f"{kin['theta_p_out']:.16e}",
                 "phi_p_out": f"{kin['phi_p_out']:.16e}",
                 "theta_gamma_out": f"{kin['theta_gamma_out']:.16e}",
@@ -1199,7 +1206,8 @@ def plot_configuration_text(ax, row, kin):
             rf"$|\vec{{P}}|$={kin['pIn']:.6g}, $|\vec{{P}}^{{\,\prime}}|$={kin['pOut']:.6g}"
         ),
         (
-            rf"$\theta_{{\rm out}}$={kin['theta_out']:.6g}, "
+            rf"$\theta_{{p'}}$={kin['theta_p_out']:.6g}, "
+            rf"$\theta_\gamma$={kin['theta_gamma_out']:.6g}, "
             rf"$\phi_{{p'}}$={kin['phi_p_out']:.6g}, "
             rf"$\phi_\gamma$={kin['phi_gamma_out']:.6g}"
         ),
@@ -1557,7 +1565,8 @@ def build_report(
                     f"region {cluster['cluster_id']}: "
                     f"size={len(rows)}, {observable_optimum_word(observable)}_"
                     f"{label}={best['selected_concurrence']:.6g}, "
-                    f"theta_out={format_range(rows, 'theta_out')}, "
+                    f"theta_p_out={format_range(rows, 'theta_p_out')}, "
+                    f"theta_gamma_out={format_range(rows, 'theta_gamma_out')}, "
                     f"phi_p_out={format_range(rows, 'phi_p_out')}, "
                     f"phi_gamma_out={format_range(rows, 'phi_gamma_out')}, "
                     f"purity={format_range(rows, 'selected_purity')}, "
@@ -1569,7 +1578,9 @@ def build_report(
                 lines.append(
                     "      best: "
                     f"s={parse_float(best.get('s')):.6g}, "
-                    f"theta_out={parse_float(best.get('theta_out')):.6g}, "
+                    f"theta_p_out={parse_float(best.get('theta_p_out')):.6g}, "
+                    f"theta_gamma_out="
+                    f"{parse_float(best.get('theta_gamma_out')):.6g}, "
                     f"phi_p_out={parse_float(best.get('phi_p_out')):.6g}, "
                     f"qOut={parse_float(best.get('qOut')):.6g}, "
                     f"phi_gamma_out={parse_float(best.get('phi_gamma_out')):.6g}, "

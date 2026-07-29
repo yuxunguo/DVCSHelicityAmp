@@ -29,10 +29,11 @@ from SpinDensityMat import (
 # Each state may be -1, +1, "U", "L", "Tx", "-Tx", "Ty", or "-Ty".
 # "U" (or "unpolarized") is the equal incoherent average over helicities.
 # ---------------------------------------------------------------------------
-# Editable initial-CM point. The final proton and photon share THETA_OUT.
+# Editable initial-CM point with independent final polar angles.
 S = 21.515844
-THETA_OUT = 1.570795
+THETA_P_OUT = 1.570795
 PHI_P_OUT = np.pi / 2.0
+THETA_GAMMA_OUT = 1.570795
 QOUT = 0.50
 PHI_GAMMA_OUT = np.pi / 2.0
 ELECTRON_STATE = "U"
@@ -65,8 +66,9 @@ def _state_ensemble(state, particle):
 
 def evaluate_prepared_spin_configuration(
     s,
-    theta_out,
+    theta_p_out,
     phi_p_out,
+    theta_gamma_out,
     qOut,
     phi_gamma_out,
     electron_state,
@@ -79,8 +81,9 @@ def evaluate_prepared_spin_configuration(
     kin = kinematics_cm_from_independent(
         s,
         qOut,
-        theta_out,
+        theta_p_out,
         phi_p_out,
+        theta_gamma_out,
         phi_gamma_out,
         PROTON_MASS_GEV,
         electron_mass=ELECTRON_MASS_GEV,
@@ -254,11 +257,12 @@ def write_summary_pdf(result, output_dir=OUTPUT_DIR):
             "",
             f"s={kin['s']:.6g} GeV^2, sqrt(s)={kin['sqrt_s']:.6g} GeV",
             (
-                f"theta_out={kin['theta_out']:.6g}, "
+                f"theta_p_out={kin['theta_p_out']:.6g}, "
                 f"phi_p_out={kin['phi_p_out']:.6g}"
             ),
             (
                 f"E_gamma={kin['qOut']:.6g} GeV, "
+                f"theta_gamma_out={kin['theta_gamma_out']:.6g}, "
                 f"phi_gamma_out={kin['phi_gamma_out']:.6g}"
             ),
             f"Q2={kin['Q2']:.6g}, xB={kin['xB']:.6g}, t={kin['t']:.6g}",
@@ -316,8 +320,9 @@ def main():
     """Evaluate the editable test point and write CSV and PDF summaries."""
     result = evaluate_prepared_spin_configuration(
         S,
-        THETA_OUT,
+        THETA_P_OUT,
         PHI_P_OUT,
+        THETA_GAMMA_OUT,
         QOUT,
         PHI_GAMMA_OUT,
         ELECTRON_STATE,

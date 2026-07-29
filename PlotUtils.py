@@ -102,10 +102,15 @@ def configure_azimuthal_angle_axis(ax, axis="x"):
 
 
 def configure_named_angle_axes(ax, x_name=None, y_name=None):
-    """Format axes whose coordinate names begin with theta or phi."""
+    """Format polar, azimuthal, and spin-mixing angle axes."""
     for axis, name in (("x", x_name), ("y", y_name)):
         normalized = str(name or "").lower()
-        if normalized.startswith("theta") or "_theta" in normalized:
+        if (
+            normalized.startswith("theta")
+            or "_theta" in normalized
+            or normalized.startswith("alpha")
+            or "_alpha" in normalized
+        ):
             configure_polar_angle_axis(ax, axis)
         elif normalized.startswith("phi") or "_phi" in normalized:
             configure_azimuthal_angle_axis(ax, axis)

@@ -47,12 +47,13 @@ CM_BEAM_ENERGY_REFERENCE = 11.0
 CM_S_CENTER = M**2 + 2.0 * M * CM_BEAM_ENERGY_REFERENCE
 CM_S_VALUES = np.linspace(0.72 * CM_S_CENTER, 1.20 * CM_S_CENTER, 9)
 CM_QOUT_VALUES = np.linspace(0.30, 1.55, 9)
-CM_THETA_OUT_VALUES = np.linspace(0.35, 2.80, 9)
+CM_THETA_P_OUT_VALUES = np.linspace(0.35, 2.80, 9)
 CM_PHI_GAMMA_OUT_VALUES = np.linspace(
     0.0, 2.0 * np.pi, 12, endpoint=False
 )
 CM_FIXED_S = CM_S_CENTER
-CM_FIXED_THETA_OUT = 1.30
+CM_FIXED_THETA_P_OUT = 1.30
+CM_FIXED_THETA_GAMMA_OUT = 1.30
 CM_FIXED_PHI_P_OUT = 0.0
 CM_FIXED_QOUT = 0.85
 CM_FIXED_PHI_GAMMA_OUT = np.pi
@@ -150,9 +151,9 @@ def w_concurrence_distance(c_e_p, c_e_gamma, c_p_gamma):
     ))
 
 BENCHMARK_CM_KINEMATIC_INPUTS = (
-    ("CM1", CM_S_CENTER, 1.30, 0.0, 0.85, np.pi),
-    ("CM2", 0.90 * CM_S_CENTER, 0.85, 0.5 * np.pi, 0.60, 0.5 * np.pi),
-    ("CM3", 1.15 * CM_S_CENTER, 2.20, np.pi, 1.10, 0.0),
+    ("CM1", CM_S_CENTER, 1.30, 0.0, 1.30, 0.85, np.pi),
+    ("CM2", 0.90 * CM_S_CENTER, 0.85, 0.5 * np.pi, 0.85, 0.60, 0.5 * np.pi),
+    ("CM3", 1.15 * CM_S_CENTER, 2.20, np.pi, 2.20, 1.10, 0.0),
 )
 
 OUTPUT_DIR = Path("Output_local") / "SpinDensityMat"
@@ -773,8 +774,9 @@ def spin_density_observables_from_amplitudes(
 
 def build_cm_scan_point(
     s,
-    theta_out,
+    theta_p_out,
     phi_p_out,
+    theta_gamma_out,
     qOut,
     phi_gamma_out,
     m,
@@ -786,12 +788,16 @@ def build_cm_scan_point(
     kin = kinematics_cm_from_independent(
         s,
         qOut,
-        theta_out,
+        theta_p_out,
         phi_p_out,
+        theta_gamma_out,
         phi_gamma_out,
         m,
         electron_mass,
-        label=f"initial-CM s={s:.6g}, theta_out={theta_out:.6g}, qOut={qOut:.6g}",
+        label=(
+            f"initial-CM s={s:.6g}, theta_p_out={theta_p_out:.6g}, "
+            f"theta_gamma_out={theta_gamma_out:.6g}, qOut={qOut:.6g}"
+        ),
     )
     F1, F2 = yahl_dirac_pauli_from_t(kin["t"], kin["m"])
     amplitudes = amplitude_table(
@@ -815,8 +821,9 @@ def _scan_spin_density_cm_grid_task(task):
     y_index, x_index, cm_vars, settings = task
     point = build_cm_scan_point(
         cm_vars["s"],
-        cm_vars["theta_out"],
+        cm_vars["theta_p_out"],
         cm_vars["phi_p_out"],
+        cm_vars["theta_gamma_out"],
         cm_vars["qOut"],
         cm_vars["phi_gamma_out"],
         settings["m"],
@@ -854,7 +861,14 @@ def scan_spin_density_cm_grid(
     max_workers=SCAN_WORKERS,
 ):
     """Scan a 2D grid of independent initial-CM kinematic variables."""
-    allowed = {"s", "theta_out", "phi_p_out", "qOut", "phi_gamma_out"}
+    allowed = {
+        "s",
+        "theta_p_out",
+        "phi_p_out",
+        "theta_gamma_out",
+        "qOut",
+        "phi_gamma_out",
+    }
     if x_name not in allowed or y_name not in allowed:
         raise ValueError(f"x_name and y_name must be in {sorted(allowed)}.")
     if x_name == y_name:
@@ -887,7 +901,8 @@ def scan_spin_density_cm_grid(
             "theta_lepton_in",
             "phi_lepton_in",
             "qOut",
-            "theta_out",
+            "theta_p_out",
+            "theta_gamma_out",
             "phi_p_out",
             "phi_gamma_out",
             "theta_lepton_out",
@@ -931,8 +946,9 @@ def scan_spin_density_cm_grid(
         if not result["ok"]:
             failures.append((
                 result.get("s", np.nan),
-                result.get("theta_out", np.nan),
+                result.get("theta_p_out", np.nan),
                 result.get("phi_p_out", np.nan),
+                result.get("theta_gamma_out", np.nan),
                 result.get("qOut", np.nan),
                 result.get("phi_gamma_out", np.nan),
                 result["error"],
@@ -954,7 +970,8 @@ def scan_spin_density_cm_grid(
         for key in (
             "s", "theta_p_in", "phi_p_in",
             "theta_lepton_in", "phi_lepton_in",
-            "theta_out", "phi_p_out", "qOut", "phi_gamma_out",
+            "theta_p_out", "phi_p_out",
+            "theta_gamma_out", "qOut", "phi_gamma_out",
             "theta_lepton_out", "phi_lepton_out",
         ):
             kinematic_grids[key][y_index, x_index] = kin[key]
@@ -1002,7 +1019,8 @@ def cm_axis_label(name):
     """Return a plot/report label for one independent initial-CM variable."""
     labels = {
         "s": r"$s$ [GeV$^2$]",
-        "theta_out": r"$\theta_{\rm out}$ [rad]",
+        "theta_p_out": r"$\theta_{p'}$ [rad]",
+        "theta_gamma_out": r"$\theta_\gamma$ [rad]",
         "phi_p_out": r"$\phi_{p'}$ [rad]",
         "qOut": r"$E_{\gamma}'$ [GeV]",
         "phi_gamma_out": r"$\phi_{\gamma}$ [rad]",
@@ -1024,12 +1042,21 @@ def benchmark_spin_density_trace(
 ):
     """Check that selected benchmark density matrices normalize to trace one."""
     rows = []
-    for case_id, s, theta_out, phi_p_out, qOut, phi_gamma_out in kinematic_inputs:
+    for (
+        case_id,
+        s,
+        theta_p_out,
+        phi_p_out,
+        theta_gamma_out,
+        qOut,
+        phi_gamma_out,
+    ) in kinematic_inputs:
         kin = kinematics_cm_from_independent(
             s,
             qOut,
-            theta_out,
+            theta_p_out,
             phi_p_out,
+            theta_gamma_out,
             phi_gamma_out,
             m,
             electron_mass,
@@ -1064,8 +1091,9 @@ def benchmark_spin_density_trace(
         rows.append({
             "case": case_id,
             "s": s,
-            "theta_out": theta_out,
+            "theta_p_out": theta_p_out,
             "phi_p_out": phi_p_out,
+            "theta_gamma_out": theta_gamma_out,
             "qOut": qOut,
             "phi_gamma_out": phi_gamma_out,
             "Q2": kin["Q2"],
@@ -1279,7 +1307,8 @@ def _matrix_headers(include_matrix_indices):
         "theta_lepton_in",
         "phi_lepton_in",
         "qOut",
-        "theta_out",
+        "theta_p_out",
+        "theta_gamma_out",
         "phi_p_out",
         "phi_gamma_out",
         "theta_lepton_out",
@@ -1342,7 +1371,8 @@ def _metadata_row(scan, y_index, x_index):
         f"{grid_value('theta_lepton_in'):.16e}",
         f"{grid_value('phi_lepton_in'):.16e}",
         f"{grid_value('qOut'):.16e}",
-        f"{grid_value('theta_out'):.16e}",
+        f"{grid_value('theta_p_out'):.16e}",
+        f"{grid_value('theta_gamma_out'):.16e}",
         f"{grid_value('phi_p_out'):.16e}",
         f"{grid_value('phi_gamma_out'):.16e}",
         f"{grid_value('theta_lepton_out'):.16e}",
@@ -1538,7 +1568,8 @@ def format_trace_benchmark_rows(rows):
     headers = (
         "case",
         "s",
-        "theta_out",
+        "theta_p_out",
+        "theta_gamma_out",
         "qOut",
         "F1",
         "F2",
@@ -1552,7 +1583,8 @@ def format_trace_benchmark_rows(rows):
         (
             row["case"],
             f"{row['s']:.6g}",
-            f"{row['theta_out']:.6g}",
+            f"{row['theta_p_out']:.6g}",
+            f"{row['theta_gamma_out']:.6g}",
             f"{row['qOut']:.6g}",
             f"{row['F1']:.6g}",
             f"{row['F2']:.6g}",
@@ -1636,10 +1668,19 @@ def build_scan_report(scan, paths):
     ])
     if scan["failures"]:
         lines.append("  invalid grid points:")
-        for s, theta_out, phi_p_out, qOut, phi_gamma_out, message in scan["failures"]:
+        for (
+            s,
+            theta_p_out,
+            phi_p_out,
+            theta_gamma_out,
+            qOut,
+            phi_gamma_out,
+            message,
+        ) in scan["failures"]:
             lines.append(
-                f"    s={s:.8g}, theta_out={theta_out:.8g}, "
-                f"phi_p_out={phi_p_out:.8g}, qOut={qOut:.8g}, "
+                f"    s={s:.8g}, theta_p_out={theta_p_out:.8g}, "
+                f"phi_p_out={phi_p_out:.8g}, "
+                f"theta_gamma_out={theta_gamma_out:.8g}, qOut={qOut:.8g}, "
                 f"phi_gamma_out={phi_gamma_out:.8g}: {message}"
             )
     return "\n".join(lines)
@@ -1668,7 +1709,8 @@ def main():
     )
     fixed_cm = {
         "s": CM_FIXED_S,
-        "theta_out": CM_FIXED_THETA_OUT,
+        "theta_p_out": CM_FIXED_THETA_P_OUT,
+        "theta_gamma_out": CM_FIXED_THETA_GAMMA_OUT,
         "phi_p_out": CM_FIXED_PHI_P_OUT,
         "qOut": CM_FIXED_QOUT,
         "phi_gamma_out": CM_FIXED_PHI_GAMMA_OUT,
@@ -1687,9 +1729,9 @@ def main():
                 spin_case=spin_case,
             ),
             scan_spin_density_cm_grid(
-                CM_THETA_OUT_VALUES,
+                CM_THETA_P_OUT_VALUES,
                 CM_PHI_GAMMA_OUT_VALUES,
-                x_name="theta_out",
+                x_name="theta_p_out",
                 y_name="phi_gamma_out",
                 fixed_cm=fixed_cm,
                 m=M,

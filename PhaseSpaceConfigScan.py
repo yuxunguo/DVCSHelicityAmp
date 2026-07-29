@@ -2,9 +2,9 @@
 
 The continuous PhaseSpaceScan photon-energy coordinate is divided into three
 balanced low/mid/high ``E_gamma`` bands.  Fixed-polarization scans reuse
-ConfigGen's established machinery.  Coherent mixing-angle scans instead
-cluster in all seven scan coordinates and preserve the selected ``theta_e``
-and ``theta_p`` when reconstructing amplitudes.
+ConfigGen's established machinery. Coherent mixing-angle scans instead
+cluster in all eight scan coordinates and preserve the selected ``alpha_e``
+and ``alpha_p`` when reconstructing amplitudes.
 """
 
 import csv
@@ -148,7 +148,7 @@ def energy_band_report(bands, prepared_path):
 
 def mixing_prefix(lepton_name):
     """Return the coherent-polarization column prefix used by PhaseSpaceScan."""
-    return f"lepton_{lepton_name}_theta_mix_proton_theta_p_mix"
+    return f"lepton_{lepton_name}_alpha_e_mix_proton_alpha_p_mix"
 
 
 def validate_mixing_columns(rows, lepton_name):
@@ -156,7 +156,7 @@ def validate_mixing_columns(rows, lepton_name):
     if not rows:
         raise ValueError("The mixing-angle PhaseSpaceScan CSV contains no rows.")
     names = set(rows[0])
-    required = {"theta_e", "theta_p"}
+    required = {"alpha_e", "alpha_p"}
     prefix = mixing_prefix(lepton_name)
     required.update(
         f"{prefix}_{observable}"
@@ -215,7 +215,11 @@ def _plain_write_csv(path, rows):
 
 
 def _mixing_row_distance(a, b):
-    """Distance in the five kinematic and two polarization scan dimensions."""
+    """Distance in the six kinematic and two polarization dimensions."""
+    def alpha_distance(first, second):
+        difference = abs(float(first) - float(second)) % math.pi
+        return min(difference, math.pi - difference) / math.pi
+
     s_scale = max(
         abs(config.parse_float(a.get("s"))),
         abs(config.parse_float(b.get("s"))),
@@ -229,8 +233,12 @@ def _mixing_row_distance(a, b):
     pieces = (
         (config.parse_float(a.get("s")) - config.parse_float(b.get("s"))) / s_scale,
         (
-            config.parse_float(a.get("theta_out"))
-            - config.parse_float(b.get("theta_out"))
+            config.parse_float(a.get("theta_p_out"))
+            - config.parse_float(b.get("theta_p_out"))
+        ) / math.pi,
+        (
+            config.parse_float(a.get("theta_gamma_out"))
+            - config.parse_float(b.get("theta_gamma_out"))
         ) / math.pi,
         config.circular_distance(
             config.parse_float(a.get("phi_p_out")),
@@ -244,14 +252,14 @@ def _mixing_row_distance(a, b):
             config.parse_float(a.get("phi_gamma_out")),
             config.parse_float(b.get("phi_gamma_out")),
         ) / math.pi,
-        (
-            config.parse_float(a.get("theta_e"))
-            - config.parse_float(b.get("theta_e"))
-        ) / math.pi,
-        (
-            config.parse_float(a.get("theta_p"))
-            - config.parse_float(b.get("theta_p"))
-        ) / math.pi,
+        alpha_distance(
+            config.parse_float(a.get("alpha_e")),
+            config.parse_float(b.get("alpha_e")),
+        ),
+        alpha_distance(
+            config.parse_float(a.get("alpha_p")),
+            config.parse_float(b.get("alpha_p")),
+        ),
     )
     return float(np.linalg.norm(np.asarray(pieces, dtype=float)))
 
@@ -267,10 +275,10 @@ def _annotated_mixing_candidates(rows, lepton_name, observable):
     keep = _threshold_mask(values, observable)
     candidates = []
     for row, value, retained in zip(rows, values, keep):
-        theta_e = config.parse_float(row.get("theta_e"))
-        theta_p = config.parse_float(row.get("theta_p"))
+        alpha_e = config.parse_float(row.get("alpha_e"))
+        alpha_p = config.parse_float(row.get("alpha_p"))
         if not retained or not all(
-            np.isfinite(item) for item in (value, theta_e, theta_p)
+            np.isfinite(item) for item in (value, alpha_e, alpha_p)
         ):
             continue
         item = dict(row)
@@ -279,7 +287,7 @@ def _annotated_mixing_candidates(rows, lepton_name, observable):
             "selected_observable_label": config.observable_label(observable),
             "selected_spin_case": "mixing_angles",
             "selected_spin_label": (
-                f"theta_e={theta_e:.8g}, theta_p={theta_p:.8g}"
+                f"alpha_e={alpha_e:.8g}, alpha_p={alpha_p:.8g}"
             ),
             "selected_concurrence_key": key,
             "selected_concurrence": value,
@@ -299,7 +307,7 @@ def _annotated_mixing_candidates(rows, lepton_name, observable):
 
 
 def _select_mixing_regions(rows, lepton_name, observable, file_tag):
-    """Greedily select separated optima using all seven scan variables."""
+    """Greedily select separated optima using all eight scan variables."""
     candidates = _annotated_mixing_candidates(rows, lepton_name, observable)
     selected = []
     for band in ENERGY_BAND_LABELS:
@@ -333,7 +341,7 @@ def _select_mixing_regions(rows, lepton_name, observable, file_tag):
 
 
 def _mixing_cluster_rows(detail_rows):
-    """Return one cluster-summary record per selected seven-dimensional region."""
+    """Return one cluster-summary record per selected eight-dimensional region."""
     return [{
         "detail_id": row["detail_id"],
         "selected_observable": row["selected_observable"],
@@ -345,10 +353,11 @@ def _mixing_cluster_rows(detail_rows):
         "energy_band_cluster_id": row["energy_band_cluster_id"],
         "selected_concurrence": f"{row['selected_concurrence']:.16e}",
         "selected_purity": f"{row['selected_purity']:.16e}",
-        "theta_e": f"{config.parse_float(row['theta_e']):.16e}",
-        "theta_p": f"{config.parse_float(row['theta_p']):.16e}",
+        "alpha_e": f"{config.parse_float(row['alpha_e']):.16e}",
+        "alpha_p": f"{config.parse_float(row['alpha_p']):.16e}",
         "sqrt_s": row.get("sqrt_s", ""),
-        "theta_out": row.get("theta_out", ""),
+        "theta_p_out": row.get("theta_p_out", ""),
+        "theta_gamma_out": row.get("theta_gamma_out", ""),
         "phi_p_out": row.get("phi_p_out", ""),
         "qOut": row.get("qOut", ""),
         "phi_gamma_out": row.get("phi_gamma_out", ""),
@@ -366,8 +375,8 @@ def _mixing_momentum_rows(detail_rows):
                 "detail_id": row["detail_id"],
                 "selected_observable": row["selected_observable"],
                 "selected_region": row["selected_region"],
-                "theta_e": f"{config.parse_float(row['theta_e']):.16e}",
-                "theta_p": f"{config.parse_float(row['theta_p']):.16e}",
+                "alpha_e": f"{config.parse_float(row['alpha_e']):.16e}",
+                "alpha_p": f"{config.parse_float(row['alpha_p']):.16e}",
                 "momentum": name,
                 "E": f"{vector[0]:.16e}",
                 "px": f"{vector[1]:.16e}",
@@ -383,7 +392,8 @@ def _mixing_momentum_rows(detail_rows):
                 "phi_p_in": f"{kin['phi_p_in']:.16e}",
                 "theta_lepton_in": f"{kin['theta_lepton_in']:.16e}",
                 "phi_lepton_in": f"{kin['phi_lepton_in']:.16e}",
-                "theta_out": f"{kin['theta_out']:.16e}",
+                "theta_p_out": f"{kin['theta_p_out']:.16e}",
+                "theta_gamma_out": f"{kin['theta_gamma_out']:.16e}",
                 "phi_p_out": f"{kin['phi_p_out']:.16e}",
                 "qOut": f"{kin['qOut']:.16e}",
                 "phi_gamma_out": f"{kin['phi_gamma_out']:.16e}",
@@ -404,9 +414,9 @@ def _mixing_amplitude_rows(detail_rows):
             F2,
             electron_mass=kin["electron_mass"],
         )
-        theta_e = config.parse_float(row["theta_e"])
-        theta_p = config.parse_float(row["theta_p"])
-        state = mixed_angle_final_state(amplitudes, theta_e, theta_p)
+        alpha_e = config.parse_float(row["alpha_e"])
+        alpha_p = config.parse_float(row["alpha_p"])
+        state = mixed_angle_final_state(amplitudes, alpha_e, alpha_p)
         norms = np.abs(state) ** 2
         total = float(np.sum(norms))
         if not np.isfinite(total) or total <= 0.0:
@@ -423,11 +433,11 @@ def _mixing_amplitude_rows(detail_rows):
                 "selected_observable": row["selected_observable"],
                 "selected_region": row["selected_region"],
                 "incoming_state": (
-                    "cos(theta_e)|+>+sin(theta_e)|-> tensor "
-                    "cos(theta_p)|+>+sin(theta_p)|->"
+                    "cos(alpha_e)|+>+sin(alpha_e)|-> tensor "
+                    "cos(alpha_p)|+>+sin(alpha_p)|->"
                 ),
-                "theta_e": f"{theta_e:.16e}",
-                "theta_p": f"{theta_p:.16e}",
+                "alpha_e": f"{alpha_e:.16e}",
+                "alpha_p": f"{alpha_p:.16e}",
                 "final_state_order": "p_gamma_lepton",
                 "final_ket": f"|{s_out:+d}{lam:+d}{h_out:+d}>",
                 "out_index": index,
@@ -468,8 +478,8 @@ def _normalized_mixed_final_state(row):
     )
     state = mixed_angle_final_state(
         amplitudes,
-        config.parse_float(row["theta_e"]),
-        config.parse_float(row["theta_p"]),
+        config.parse_float(row["alpha_e"]),
+        config.parse_float(row["alpha_p"]),
     )
     norm = float(np.vdot(state, state).real)
     if not np.isfinite(norm) or norm <= 0.0:
@@ -710,12 +720,12 @@ def _plot_mixing_configuration_text(ax, row, kin):
     region_line = f"region: {row['selected_region']}"
     if np.isfinite(pair_delta):
         region_line += f"  final-pair delta_xy={pair_delta:.6g} rad"
-    theta_e = config.parse_float(row["theta_e"])
-    theta_p = config.parse_float(row["theta_p"])
-    lepton_plus = np.cos(theta_e)
-    lepton_minus = np.sin(theta_e)
-    proton_plus = np.cos(theta_p)
-    proton_minus = np.sin(theta_p)
+    alpha_e = config.parse_float(row["alpha_e"])
+    alpha_p = config.parse_float(row["alpha_p"])
+    lepton_plus = np.cos(alpha_e)
+    lepton_minus = np.sin(alpha_e)
+    proton_plus = np.cos(alpha_p)
+    proton_minus = np.sin(alpha_p)
     lines = [
         (
             f"{row['detail_id']}  {row['selected_observable_label']}="
@@ -724,12 +734,12 @@ def _plot_mixing_configuration_text(ax, row, kin):
         region_line,
         f"outgoing-state purity: {row['selected_purity']:.6g}",
         f"kinematic point: {row.get('kinematic_point', '')}",
-        f"lepton mixing angle: theta_e={theta_e:.8g} rad",
+        f"lepton mixing angle: alpha_e={alpha_e:.8g} rad",
         (
             "incoming lepton: "
             f"{lepton_plus:.6g}|+> {lepton_minus:+.6g}|->"
         ),
-        f"proton mixing angle: theta_p={theta_p:.8g} rad",
+        f"proton mixing angle: alpha_p={alpha_p:.8g} rad",
         (
             "incoming proton: "
             f"{proton_plus:.6g}|+> {proton_minus:+.6g}|->"
@@ -741,7 +751,8 @@ def _plot_mixing_configuration_text(ax, row, kin):
             rf"$|\vec{{P}}^{{\,\prime}}|$={kin['pOut']:.6g}"
         ),
         (
-            rf"$\theta_{{\rm out}}$={kin['theta_out']:.6g}, "
+            rf"$\theta_{{p'}}$={kin['theta_p_out']:.6g}, "
+            rf"$\theta_\gamma$={kin['theta_gamma_out']:.6g}, "
             rf"$\phi_{{p'}}$={kin['phi_p_out']:.6g}, "
             rf"$\phi_\gamma$={kin['phi_gamma_out']:.6g}"
         ),
@@ -849,14 +860,14 @@ def _write_mixing_target_plot(rows, detail_rows, lepton_name, observable, path):
     prefix = mixing_prefix(lepton_name)
     key = f"{prefix}_{observable}"
     panels = (
-        ("theta_out", "qOut", r"$\theta_{\rm out}$", r"$E_\gamma$ [GeV]"),
+        ("theta_p_out", "theta_gamma_out", r"$\theta_{p'}$", r"$\theta_\gamma$"),
         ("sqrt_s", "qOut", r"$\sqrt{s}$ [GeV]", r"$E_\gamma$ [GeV]"),
         ("phi_p_out", "phi_gamma_out", r"$\phi_{p'}$", r"$\phi_\gamma$"),
-        ("theta_e", "theta_p", r"$\theta_e$", r"$\theta_p$"),
-        ("sqrt_s", "theta_e", r"$\sqrt{s}$ [GeV]", r"$\theta_e$"),
-        ("sqrt_s", "theta_p", r"$\sqrt{s}$ [GeV]", r"$\theta_p$"),
-        ("qOut", "theta_e", r"$E_\gamma$ [GeV]", r"$\theta_e$"),
-        ("qOut", "theta_p", r"$E_\gamma$ [GeV]", r"$\theta_p$"),
+        ("alpha_e", "alpha_p", r"$\alpha_e$", r"$\alpha_p$"),
+        ("theta_p_out", "qOut", r"$\theta_{p'}$", r"$E_\gamma$ [GeV]"),
+        ("theta_gamma_out", "qOut", r"$\theta_\gamma$", r"$E_\gamma$ [GeV]"),
+        ("sqrt_s", "alpha_e", r"$\sqrt{s}$ [GeV]", r"$\alpha_e$"),
+        ("sqrt_s", "alpha_p", r"$\sqrt{s}$ [GeV]", r"$\alpha_p$"),
     )
     values = np.asarray([config.parse_float(row.get(key)) for row in rows])
     finite = _threshold_mask(values, observable)
@@ -943,8 +954,8 @@ def run_mixing_species(lepton_name, rows, input_path, bands, prepared_path):
             f"{scan_settings.PHASE_SPACE_CONFIG_THRESHOLD:g} "
             f"of each target optimum"
         ),
-        "  scan dimensions: s, theta_out, phi_p_out, qOut, "
-        "phi_gamma_out, theta_e, theta_p",
+        "  scan dimensions: s, theta_p_out, theta_gamma_out, qOut, "
+        "phi_p_out, phi_gamma_out, alpha_e, alpha_p",
         f"  polarization prefix: {mixing_prefix(lepton_name)}",
     ])
     for observable, count, paths, plot_path in outputs:

@@ -13,14 +13,26 @@ GRADIENT_OUTPUT_ROOT = Path("Output") / "GradientPhaseSpaceScan"
 W_PHYSICS_ANCHORS = {
     "electron": (
         {
+            "name": "epcm_low_energy_W",
+            "sqrt_s": 1.0769666847798625,
+            "theta_p_out": 2.0 * np.pi - 3.429,
+            "theta_gamma_out": 1.298,
+            "qOut": 0.0744376368622376,
+            "phi_p_out": np.pi,
+            "phi_gamma_out": 0.0,
+            "alpha_e": 5.503 % np.pi,
+            "alpha_p": 3.056 % np.pi,
+        },
+        {
             "name": "epcm_standard_W",
             "sqrt_s": 1.1518524360498226,
-            "theta_out": 0.5 * np.pi,
-            "qOut": 0.1771320126293574,
+            "theta_p_out": 0.0,
+            "theta_gamma_out": 3.032,
+            "qOut": 0.17713201262935663,
             "phi_p_out": 0.0,
-            "phi_gamma_out": 3.032,
-            "theta_e": 0.834,
-            "theta_p": (-0.036) % np.pi,
+            "phi_gamma_out": 0.0,
+            "alpha_e": 0.834,
+            "alpha_p": (-0.036) % np.pi,
         },
     ),
 }
@@ -30,12 +42,13 @@ GHZ_PHYSICS_ANCHORS = {
         {
             "name": "canonical_GHZ_hard_photon_endpoint",
             "sqrt_s": 4.2441101238978085,
-            "theta_out": 1.57041484647354,
+            "theta_p_out": 1.57041484647354,
+            "theta_gamma_out": 1.57041484647354,
             "qOut": 2.0182672022904082,
             "phi_p_out": 1.5708006597909723,
             "phi_gamma_out": 4.712388736566098,
-            "theta_e": 2.35626799,
-            "theta_p": 2.35589509,
+            "alpha_e": 2.35626799,
+            "alpha_p": 2.35589509,
         },
     ),
 }

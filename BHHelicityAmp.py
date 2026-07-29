@@ -549,15 +549,15 @@ def main():
         return value / t
 
     input_keys = (
-        "case", "s", "theta_out", "phi_p_out",
-        "qOut", "phi_gamma_out", "m",
+        "case", "s", "theta_p_out", "phi_p_out",
+        "theta_gamma_out", "qOut", "phi_gamma_out", "m",
     )
     kinematic_inputs = [
         dict(zip(input_keys, row))
         for row in (
-            ("K1", 10.25844, 1.10, 0.20, 0.45, 2.40, 0.938),
-            ("K2", 14.01544, 1.45, 0.70, 0.70, 3.10, 0.938),
-            ("K3", 19.64894, 1.90, 1.10, 0.95, 3.70, 0.938),
+            ("K1", 10.25844, 1.10, 0.20, 1.10, 0.45, 2.40, 0.938),
+            ("K2", 14.01544, 1.45, 0.70, 1.45, 0.70, 3.10, 0.938),
+            ("K3", 19.64894, 1.90, 1.10, 1.90, 0.95, 3.70, 0.938),
         )
     ]
     form_factors = [(0.5, 0.0), (0.8, 0.0), (1.0, 0.2)]
@@ -572,8 +572,9 @@ def main():
         kin = kinematics_cm_from_independent(
             inputs["s"],
             inputs["qOut"],
-            inputs["theta_out"],
+            inputs["theta_p_out"],
             inputs["phi_p_out"],
+            inputs["theta_gamma_out"],
             inputs["phi_gamma_out"],
             inputs["m"],
             0.0,
@@ -603,8 +604,8 @@ def main():
             *values_from(
                 case["kin"],
                 (
-                    "pIn", "pOut", "qOut", "theta_out",
-                    "phi_p_out", "phi_gamma_out",
+                    "pIn", "pOut", "qOut", "theta_p_out",
+                    "phi_p_out", "theta_gamma_out", "phi_gamma_out",
                 ),
             ),
             fmt(case["kin"]["energy_residual"]),
@@ -645,8 +646,8 @@ def main():
             case,
             "input",
             (
-                "s", "theta_out", "phi_p_out",
-                "qOut", "phi_gamma_out", "m",
+                "s", "theta_p_out", "phi_p_out",
+                "theta_gamma_out", "qOut", "phi_gamma_out", "m",
             ),
         )
         for case in cases
@@ -733,8 +734,9 @@ def main():
 
     table_specs = {
         "independent": (
-            ["case", "s [GeV^2]", "theta_out [rad]", "phi_p_out [rad]",
-             "qOut [GeV]", "phi_gamma_out [rad]", "m [GeV]"],
+            ["case", "s [GeV^2]", "theta_p_out [rad]", "phi_p_out [rad]",
+             "theta_gamma_out [rad]", "qOut [GeV]",
+             "phi_gamma_out [rad]", "m [GeV]"],
             independent_rows,
         ),
         "derived": (
@@ -744,7 +746,8 @@ def main():
         ),
         "solved": (
             ["case", "pIn [GeV]", "pOut [GeV]", "qOut [GeV]",
-             "theta_out [rad]", "phi_p_out [rad]", "phi_gamma_out [rad]",
+             "theta_p_out [rad]", "phi_p_out [rad]",
+             "theta_gamma_out [rad]", "phi_gamma_out [rad]",
              "energy residual [GeV]"],
             solved_rows,
         ),
@@ -785,8 +788,9 @@ def main():
           Each K row is one independent initial-CM input point.
           s: total incoming e+p invariant mass squared in GeV^2.
           Initial proton/lepton directions are fixed at +z/-z.
-          theta_out: common final-proton and photon polar angle.
+          theta_p_out: outgoing proton polar angle.
           phi_p_out: outgoing proton azimuth.
+          theta_gamma_out: outgoing real-photon polar angle.
           qOut: outgoing real-photon energy/momentum magnitude in GeV.
           phi_gamma_out: outgoing real-photon azimuth.
           pOut is solved from energy conservation for each row.
@@ -796,8 +800,8 @@ def main():
           momenta_cm.
           Four-momenta are reported in the initial proton-lepton CM frame as
           [E, px, py, pz] in GeV, with p along +z and k along -z.
-          The final proton and photon share theta_out; kp follows from
-          three-momentum conservation.
+          The final proton and photon have independent directions; kp follows
+          from three-momentum conservation.
           phi_xy: atan2(py, px) in radians, shown for k, p, and qout.
           k, kp: incoming and outgoing electron momenta.
           p, pp: incoming and outgoing proton momenta.

@@ -11,7 +11,7 @@ back to the ep CM frame.
 
 All external masses and four-momentum conservation are retained exactly.
 The fixed prepared-state scan and coherent incoming-polarization scan are
-first-class outputs. The coherent scan varies ``theta_e`` and ``theta_p`` over
+first-class outputs. The coherent scan varies ``alpha_e`` and ``alpha_p`` over
 one physical period. Outputs are written below
 ``Output_local/EpCMEntanglementScan``.
 """
@@ -87,23 +87,21 @@ PHI_CM_RAD = 0.0
 PHI_P_RAD = 0.0
 # Explicit coherent incoming preparation.  In the user's |p e> ordering,
 #
-#   |p> = cos(theta_p) |+> + sin(theta_p) |->
-#   |e> = cos(theta_e) |+> + sin(theta_e) |->.
+#   |p> = cos(alpha_p) |+> + sin(alpha_p) |->
+#   |e> = cos(alpha_e) |+> + sin(alpha_e) |->.
 #
-# ``theta_p`` here is a polarization mixing angle and is distinct from the
-# final-proton recoil polar angle ``THETA_P_VALUES``.
-INITIAL_LEPTON_MIXING_ANGLE_RAD = 5.503
-INITIAL_PROTON_MIXING_ANGLE_RAD = 3.056
+INITIAL_ALPHA_E_RAD = 5.503
+INITIAL_ALPHA_P_RAD = 3.056
 # A polarization state is unchanged by theta -> theta + pi up to a global
 # phase, so one period is sufficient.  The benchmark angles are inserted as
 # exact grid anchors in addition to the uniform scan.
-THETA_E_MIX_VALUES_RAD = np.unique(np.concatenate((
+ALPHA_E_VALUES_RAD = np.unique(np.concatenate((
     np.linspace(0.0, np.pi, 5, endpoint=False),
-    [INITIAL_LEPTON_MIXING_ANGLE_RAD % np.pi],
+    [INITIAL_ALPHA_E_RAD % np.pi],
 )))
-THETA_P_MIX_VALUES_RAD = np.unique(np.concatenate((
+ALPHA_P_VALUES_RAD = np.unique(np.concatenate((
     np.linspace(0.0, np.pi, 5, endpoint=False),
-    [INITIAL_PROTON_MIXING_ANGLE_RAD % np.pi],
+    [INITIAL_ALPHA_P_RAD % np.pi],
 )))
 SPIN_CASE_MIXING_ANGLES = "mixing_angles"
 SCAN_WORKER_COUNT = SCAN_WORKERS
@@ -147,14 +145,14 @@ MIXING_SCAN_KINEMATIC_FIELDS = (
 def polarization_prefix(spin_case):
     """Return the exact species-aware polarization label."""
     if spin_case == SPIN_CASE_MIXING_ANGLES:
-        return f"lepton_{LEPTON_NAME}_theta_mix_proton_theta_p_mix"
+        return f"lepton_{LEPTON_NAME}_alpha_e_mix_proton_alpha_p_mix"
     return explicit_polarization_name(spin_case, LEPTON_NAME)
 
 
 def ep_cm_spin_case_display_label(spin_case):
     """Return a display label, including the explicit angle preparation."""
     if spin_case == SPIN_CASE_MIXING_ANGLES:
-        return "coherent theta_e x theta_p mixing-angle scan"
+        return "coherent alpha_e x alpha_p mixing-angle scan"
     return spin_case_display_label(spin_case)
 
 
@@ -328,7 +326,7 @@ def _evaluate_point_data(task):
             f"ep_cm_z_{z:.8g}_theta_cm_{theta_cm:.8g}_theta_p_{theta_p:.8g}"
         ),
         "s_regime": "reference_low_energy_ep_cm",
-        "theta_out_regime": "independent_ep_cm_final_angles",
+        "theta_p_gamma_regime": "independent_ep_cm_final_angles",
         "qOut_regime": "high_energy_transfer_slow_recoil_proton",
         "lepton_mass": LEPTON_MASS_GEV,
         "z_index": z_index,
@@ -355,14 +353,12 @@ def _evaluate_point_data(task):
         "proton_energy_loss_GeV": kin["proton_energy_loss"],
         "proton_energy_loss_fraction": kin["proton_energy_loss_fraction"],
         "qOut": mom["qout"][0],
-        "theta_out": np.nan,
         "theta_p_out": theta_p_out,
         "phi_p_out": phi_p_out,
         "theta_gamma_out": theta_gamma_out,
         "phi_gamma_out": phi_gamma_out,
         "theta_lepton_out": theta_lepton_out,
         "phi_lepton_out": phi_lepton_out,
-        "common_theta_out": False,
         "Q2": derived["Q2"],
         "xB": derived["xB"],
         "t": kin["t"],
@@ -394,10 +390,10 @@ def _evaluate_point_data(task):
         "conservation_error": kin["conservation_error"],
         "mass_shell_error": kin["mass_shell_error"],
         "squared_amplitude_M2": np.nan,
-        "initial_theta_rad": np.nan,
-        "initial_theta_deg": np.nan,
-        "initial_theta_p_rad": np.nan,
-        "initial_theta_p_deg": np.nan,
+        "alpha_e_rad": np.nan,
+        "alpha_e_deg": np.nan,
+        "alpha_p_rad": np.nan,
+        "alpha_p_deg": np.nan,
     }
     return row, amplitudes, process_rho
 
@@ -439,7 +435,7 @@ def _evaluate_fixed_polarizations(row, amplitudes, process_rho):
 
 
 def evaluate_mixing_angle_point(task):
-    """Evaluate the theta_e x theta_p coherent-polarization grid at one point."""
+    """Evaluate the alpha_e x alpha_p coherent-polarization grid at one point."""
     base_row, amplitudes, _process_rho = _evaluate_point_data(task)
     return _evaluate_mixing_polarizations(base_row, amplitudes)
 
@@ -451,21 +447,21 @@ def _evaluate_mixing_polarizations(base_row, amplitudes):
         field: base_row[field]
         for field in MIXING_SCAN_KINEMATIC_FIELDS
     }
-    for theta_e_index, theta_e in enumerate(THETA_E_MIX_VALUES_RAD):
-        for theta_p_mix_index, theta_p_mix in enumerate(THETA_P_MIX_VALUES_RAD):
+    for alpha_e_index, alpha_e in enumerate(ALPHA_E_VALUES_RAD):
+        for alpha_p_index, alpha_p in enumerate(ALPHA_P_VALUES_RAD):
             row = dict(mixing_base)
             row.update({
-                "theta_e_mix_index": theta_e_index,
-                "theta_p_mix_index": theta_p_mix_index,
-                "initial_theta_rad": float(theta_e),
-                "initial_theta_deg": float(np.degrees(theta_e)),
-                "initial_theta_p_rad": float(theta_p_mix),
-                "initial_theta_p_deg": float(np.degrees(theta_p_mix)),
+                "alpha_e_index": alpha_e_index,
+                "alpha_p_index": alpha_p_index,
+                "alpha_e_rad": float(alpha_e),
+                "alpha_e_deg": float(np.degrees(alpha_e)),
+                "alpha_p_rad": float(alpha_p),
+                "alpha_p_deg": float(np.degrees(alpha_p)),
             })
             result = mixed_angle_spin_density_observables(
                 amplitudes,
-                lepton_angle=theta_e,
-                proton_angle=theta_p_mix,
+                lepton_angle=alpha_e,
+                proton_angle=alpha_p,
                 normalize_trace=NORMALIZE_TRACE,
             )
             _store_spin_result(row, SPIN_CASE_MIXING_ANGLES, result)
@@ -562,8 +558,8 @@ def write_ranked_csv(
     ranked = []
     base_fields = (
         "z", "theta_cm_rad", "theta_p_rad", "theta_p_deg",
-        "initial_theta_rad", "initial_theta_deg",
-        "initial_theta_p_rad", "initial_theta_p_deg",
+        "alpha_e_rad", "alpha_e_deg",
+        "alpha_p_rad", "alpha_p_deg",
         "mu", "p_cm_GeV", "t_GeV2",
         "final_proton_momentum_GeV", "final_proton_energy_GeV",
         "proton_energy_loss_GeV", "proton_energy_loss_fraction",
@@ -571,7 +567,7 @@ def write_ranked_csv(
         "pp_E", "pp_pz",
     )
     optional_fields = (
-        "theta_e_mix_index", "theta_p_mix_index",
+        "alpha_e_index", "alpha_p_index",
     )
     for spin_case in spin_cases:
         for observable in RANKED_OBSERVABLES:
@@ -675,15 +671,15 @@ def save_spin_plot(rows, spin_case, output_dir=PLOT_DIR):
 
 
 def mixing_angle_grid(rows, key, minimize=False):
-    """Reduce all kinematic axes into a theta_p x theta_e polarization map."""
+    """Reduce all kinematic axes into an alpha_p x alpha_e map."""
     grid = np.full(
-        (len(THETA_P_MIX_VALUES_RAD), len(THETA_E_MIX_VALUES_RAD)),
+        (len(ALPHA_P_VALUES_RAD), len(ALPHA_E_VALUES_RAD)),
         np.nan,
     )
     for row in rows:
         index = (
-            int(row["theta_p_mix_index"]),
-            int(row["theta_e_mix_index"]),
+            int(row["alpha_p_index"]),
+            int(row["alpha_e_index"]),
         )
         value = abs(row[key])
         current = grid[index]
@@ -707,16 +703,16 @@ def save_mixing_angle_plot(rows, output_dir=PLOT_DIR):
                 minimize=observable == "D_W",
             )
             image = ax.pcolormesh(
-                THETA_E_MIX_VALUES_RAD,
-                THETA_P_MIX_VALUES_RAD,
+                ALPHA_E_VALUES_RAD,
+                ALPHA_P_VALUES_RAD,
                 values,
                 shading="auto",
                 cmap="viridis_r" if observable == "D_W" else "viridis",
                 vmin=0.0,
                 vmax=2.0 / np.sqrt(3.0) if observable == "D_W" else 1.0,
             )
-            ax.set_xlabel(r"$\theta_e$ [rad]")
-            ax.set_ylabel(r"$\theta_p$ [rad]")
+            ax.set_xlabel(r"$\alpha_e$ [rad]")
+            ax.set_ylabel(r"$\alpha_p$ [rad]")
             configure_polar_angle_axis(ax, "x")
             configure_polar_angle_axis(ax, "y")
             ax.set_title(f"|{species_observable_name(observable, LEPTON_NAME)}|")
@@ -725,8 +721,8 @@ def save_mixing_angle_plot(rows, output_dir=PLOT_DIR):
             ax.set_visible(False)
         fig.suptitle(
             "ep-CM coherent initial-polarization scan\n"
-            r"$|e\rangle=\cos\theta_e|+\rangle+\sin\theta_e|-\rangle$, "
-            r"$|p\rangle=\cos\theta_p|+\rangle+\sin\theta_p|-\rangle$; "
+            r"$|e\rangle=\cos\alpha_e|+\rangle+\sin\alpha_e|-\rangle$, "
+            r"$|p\rangle=\cos\alpha_p|+\rangle+\sin\alpha_p|-\rangle$; "
             "optimized over all kinematic axes"
         )
         pdf.savefig(fig)
@@ -828,12 +824,12 @@ def build_report(rows, plot_paths, mixing_rows=None, mixing_plot_path=None):
         "Focused ep-CM slow-recoil-proton entanglement scan",
         "  polarization mode: "
         + (
-            "coherent theta_e x theta_p only"
+            "coherent alpha_e x alpha_p only"
             if SCAN_INITIAL_MIXING_ANGLES
             else "fixed polarization cases only"
         ),
         f"  kinematic points: "
-        f"{len(kinematic_rows) // (len(THETA_E_MIX_VALUES_RAD) * len(THETA_P_MIX_VALUES_RAD)) if SCAN_INITIAL_MIXING_ANGLES else len(kinematic_rows)} "
+        f"{len(kinematic_rows) // (len(ALPHA_E_VALUES_RAD) * len(ALPHA_P_VALUES_RAD)) if SCAN_INITIAL_MIXING_ANGLES else len(kinematic_rows)} "
         f"({len(Z_VALUES)} z x {len(THETA_CM_VALUES)} theta_cm "
         f"x {len(THETA_P_VALUES)} theta_p)",
         f"  sqrt(s): {anchors[0]['sqrt_s_GeV']:.8g} GeV",
@@ -843,12 +839,12 @@ def build_report(rows, plot_paths, mixing_rows=None, mixing_plot_path=None):
         f"{THETA_CM_VALUES[-1]:.8g} rad",
         f"  theta_p range: {THETA_P_VALUES[0]:.8g}--"
         f"{THETA_P_VALUES[-1]:.8g} rad",
-        f"  benchmark lepton mixing-angle anchor theta_e: "
-        f"{INITIAL_LEPTON_MIXING_ANGLE_RAD:.8g} rad",
-        f"  benchmark proton mixing-angle anchor theta_p: "
-        f"{INITIAL_PROTON_MIXING_ANGLE_RAD:.8g} rad",
-        f"  theta_e polarization scan points: {len(THETA_E_MIX_VALUES_RAD)}",
-        f"  theta_p polarization scan points: {len(THETA_P_MIX_VALUES_RAD)}",
+        f"  benchmark lepton mixing-angle anchor alpha_e: "
+        f"{INITIAL_ALPHA_E_RAD:.8g} rad",
+        f"  benchmark proton mixing-angle anchor alpha_p: "
+        f"{INITIAL_ALPHA_P_RAD:.8g} rad",
+        f"  alpha_e polarization scan points: {len(ALPHA_E_VALUES_RAD)}",
+        f"  alpha_p polarization scan points: {len(ALPHA_P_VALUES_RAD)}",
         "",
     ]
     for row in anchors:
@@ -883,8 +879,8 @@ def build_report(rows, plot_paths, mixing_rows=None, mixing_plot_path=None):
         lines.append(
             f"  max C_lepton_gamma "
             f"({ep_cm_spin_case_display_label(SPIN_CASE_MIXING_ANGLES)}): "
-            f"{best[key]:.8g} at theta_e={best['initial_theta_rad']:.6g}, "
-            f"theta_p_mix={best['initial_theta_p_rad']:.6g}, "
+            f"{best[key]:.8g} at alpha_e={best['alpha_e_rad']:.6g}, "
+            f"alpha_p={best['alpha_p_rad']:.6g}, "
             f"z={best['z']:.6g}, theta_cm={best['theta_cm_rad']:.6g}, "
             f"theta_p_recoil={best['theta_p_rad']:.6g}"
         )
@@ -936,13 +932,13 @@ def validate_settings():
     if SCAN_WORKER_COUNT < 1 or SCAN_PLOT_WORKER_COUNT < 1:
         raise ValueError("Scan and plot worker counts must be positive.")
     if not (
-        np.isfinite(INITIAL_LEPTON_MIXING_ANGLE_RAD)
-        and np.isfinite(INITIAL_PROTON_MIXING_ANGLE_RAD)
+        np.isfinite(INITIAL_ALPHA_E_RAD)
+        and np.isfinite(INITIAL_ALPHA_P_RAD)
     ):
         raise ValueError("Initial polarization mixing angles must be finite.")
     for name, values in (
-        ("theta_e mixing", THETA_E_MIX_VALUES_RAD),
-        ("theta_p mixing", THETA_P_MIX_VALUES_RAD),
+        ("alpha_e mixing", ALPHA_E_VALUES_RAD),
+        ("alpha_p mixing", ALPHA_P_VALUES_RAD),
     ):
         if len(values) < 2 or np.any(np.diff(values) <= 0.0):
             raise ValueError(f"The {name} scan axis must be strictly increasing.")

@@ -12,19 +12,20 @@ import PhaseSpaceScan as phase_scan
 
 
 INVALID_OBJECTIVE = 1.0e3
-PERIODIC_UNIT_COORDINATES = (3, 4, 5, 6)
+SCAN_DIMENSION = 8
+PERIODIC_UNIT_COORDINATES = (4, 5, 6, 7)
 
 
 def _objective_key(lepton_name, objective_name):
     """Return the coherent mixing-angle objective column."""
     return (
-        f"lepton_{lepton_name}_theta_mix_proton_theta_p_mix_"
+        f"lepton_{lepton_name}_alpha_e_mix_proton_alpha_p_mix_"
         f"{objective_name}"
     )
 
 
 def _normalized_to_point(unit_point):
-    """Map one normalized seven-vector to physical phase-space coordinates."""
+    """Map one normalized eight-vector to physical phase-space coordinates."""
     unit_point = np.asarray(unit_point, dtype=float)
     sqrt_s = (
         phase_scan.SQRT_S_RANGE[0]
@@ -34,7 +35,7 @@ def _normalized_to_point(unit_point):
     s = sqrt_s**2
     qout_fraction = (
         phase_scan.QOUT_FRACTION_RANGE[0]
-        + unit_point[2]
+        + unit_point[3]
         * (
             phase_scan.QOUT_FRACTION_RANGE[1]
             - phase_scan.QOUT_FRACTION_RANGE[0]
@@ -43,17 +44,23 @@ def _normalized_to_point(unit_point):
     return np.asarray(
         (
             s,
-            phase_scan.THETA_OUT_RANGE[0]
+            phase_scan.THETA_P_OUT_RANGE[0]
             + unit_point[1]
             * (
-                phase_scan.THETA_OUT_RANGE[1]
-                - phase_scan.THETA_OUT_RANGE[0]
+                phase_scan.THETA_P_OUT_RANGE[1]
+                - phase_scan.THETA_P_OUT_RANGE[0]
+            ),
+            phase_scan.THETA_GAMMA_OUT_RANGE[0]
+            + unit_point[2]
+            * (
+                phase_scan.THETA_GAMMA_OUT_RANGE[1]
+                - phase_scan.THETA_GAMMA_OUT_RANGE[0]
             ),
             qout_fraction * phase_scan._qout_max(s),
-            unit_point[3] * 2.0 * np.pi,
             unit_point[4] * 2.0 * np.pi,
-            unit_point[5] * np.pi,
+            unit_point[5] * 2.0 * np.pi,
             unit_point[6] * np.pi,
+            unit_point[7] * np.pi,
         ),
         dtype=float,
     )
@@ -86,8 +93,8 @@ def _move_unit_point(point, displacement):
     """Apply bounded nonperiodic and wrapped periodic displacement."""
     neighbor = np.asarray(point, dtype=float).copy()
     neighbor += np.asarray(displacement, dtype=float)
-    neighbor[:3] = np.clip(neighbor[:3], 0.0, 1.0)
-    neighbor[3:] %= 1.0
+    neighbor[:4] = np.clip(neighbor[:4], 0.0, 1.0)
+    neighbor[4:] %= 1.0
     return neighbor
 
 
@@ -115,7 +122,7 @@ def _trace_contour(
     initial_radius,
     bisection_iterations,
 ):
-    """Trace one direction chunk of a local seven-dimensional contour."""
+    """Trace one direction chunk of a local eight-dimensional contour."""
     target = float(base_value) + contour_delta
     boundary_points = []
     for direction in directions:
@@ -146,7 +153,9 @@ def _trace_contour(
         boundary_points.append(
             _move_unit_point(center, high_radius * direction)
         )
-    return np.asarray(boundary_points, dtype=float).reshape((-1, 7))
+    return np.asarray(boundary_points, dtype=float).reshape(
+        (-1, SCAN_DIMENSION)
+    )
 
 
 def configuration_contour_task(task):
@@ -165,7 +174,10 @@ def configuration_contour_task(task):
     ) = task
     phase_scan._configure_lepton(lepton_name)
     center = np.asarray(
-        [float(row[f"final_u{index}"]) for index in range(7)],
+        [
+            float(row[f"final_u{index}"])
+            for index in range(SCAN_DIMENSION)
+        ],
         dtype=float,
     )
     base_value = float(row[_objective_key(lepton_name, objective_name)])

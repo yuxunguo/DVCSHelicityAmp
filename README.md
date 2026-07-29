@@ -49,7 +49,7 @@ BHHelicityAmp.py      Bethe–Heitler amplitudes and benchmarks
 SpinDensityMat.py     Density matrices and entanglement observables
 AlignmentScan.py      Fine angular scan at characteristic kinematics
 ConfigGen.py          Ranked-region configuration and plot generator
-PhaseSpaceScan.py      Adaptive seven-dimensional kinematic/polarization scan
+PhaseSpaceScan.py      Adaptive eight-dimensional kinematic/polarization scan
 PhaseSpaceConfigScan.py ConfigGen-style packages from PhaseSpaceScan results
 GradientPhaseSpaceDefinitions.py Shared W/GHZ objectives, anchors, and root
 GradientPhaseSpaceScan.py Stage 1 local-minimum search interface
@@ -117,11 +117,12 @@ is fixed along `+z`, the incoming lepton along `-z`, and the independent
 variables are
 
 ```text
-s, qOut, theta_out, phi_p_out, phi_gamma_out
+s, qOut, theta_p_out, phi_p_out, theta_gamma_out, phi_gamma_out
 ```
 
-The final proton and real photon share the production-plane polar angle
-`theta_out` and have separate azimuths `phi_p_out` and `phi_gamma_out`.
+The final proton and real photon have independent polar angles
+`theta_p_out`, `theta_gamma_out` and independent azimuths `phi_p_out`,
+`phi_gamma_out`.
 The code computes the incoming COM momentum `pIn`, solves the outgoing proton
 momentum `pOut` from energy conservation, and derives the outgoing-lepton
 angles `theta_lepton_out` and `phi_lepton_out` from momentum conservation.
@@ -136,7 +137,7 @@ from config import ELECTRON_MASS_GEV, PROTON_MASS_GEV
 from Kinematics import kinematics_cm_from_independent
 
 kin = kinematics_cm_from_independent(
-    s, qOut, theta_out, phi_p_out, phi_gamma_out,
+    s, qOut, theta_p_out, phi_p_out, theta_gamma_out, phi_gamma_out,
     PROTON_MASS_GEV,
     electron_mass=ELECTRON_MASS_GEV,
 )
@@ -239,7 +240,7 @@ and the fully unpolarized result as `squared_amplitude_M2`.
 ## AlignmentScan and ConfigGen
 
 `AlignmentScan.py` scans `phi_p_out` and `phi_gamma_out` at characteristic
-values of `s`, `theta_out`, and `qOut`. It records the outgoing
+values of `s`, `theta_p_out`, `theta_gamma_out`, and `qOut`. It records the outgoing
 lepton–photon opening angle and writes full, aligned-only, and ranked tables
 directly in each species directory:
 
@@ -294,11 +295,11 @@ and is also minimized. For a pure three-qubit state, `dGHZ = 0` means all
 pairwise concurrences vanish and `F3 = 1`, identifying the maximally entangled
 GHZ local-unitary orbit.
 
-`PhaseSpaceScan.py` performs a stratified seven-dimensional scan over its five
-kinematic coordinates plus the coherent incoming angles `theta_e` and
-`theta_p`, followed by local kinematic refinement. The coherent state is
-`|e> = cos(theta_e)|+> + sin(theta_e)|->` and
-`|p> = cos(theta_p)|+> + sin(theta_p)|->`, with each angle covering `[0, pi)`.
+`PhaseSpaceScan.py` performs a stratified eight-dimensional scan over six
+kinematic coordinates plus the coherent incoming angles `alpha_e` and
+`alpha_p`, followed by local kinematic refinement. The coherent state is
+`|e> = cos(alpha_e)|+> + sin(alpha_e)|->` and
+`|p> = cos(alpha_p)|+> + sin(alpha_p)|->`, with each angle covering `[0, pi)`.
 The original fixed-polarization results are preserved without duplication.
 The electron scan also contains an exact deterministic seed equivalent by
 spatial rotation to the reference point `pIn=0.130 GeV`, `pOut=0.028 GeV`,
@@ -310,18 +311,16 @@ default, and writes independent full, aligned,
 ranked, and plotted fixed-polarization results under
 `Output_local/PhaseSpaceScan/<lepton>/`. Each species additionally receives
 `<stem>_mixing_angle_phase_space.csv`, `<stem>_mixing_angle_top.csv`, and
-`phase_space_scan_lepton_<species>_theta_mix_proton_theta_p_mix.pdf`. The
+`phase_space_scan_lepton_<species>_alpha_e_mix_proton_alpha_p_mix.pdf`. The
 mixed-angle PDF retains all three original kinematic projections and the
-observable histogram, then adds projections involving `theta_e` and
-`theta_p`.
+observable histogram, then adds projections involving `alpha_e` and
+`alpha_p`.
 
 The central `SCAN_INITIAL_MIXING_ANGLES` option in `config.py` selects one
-mutually exclusive scan mode. When `True`, every sampled row contains the
-original five kinematic variables plus `theta_e` and `theta_p`, and only the
-coherent mixed-angle polarization is evaluated. When `False`, sampling returns
-to the original five-dimensional design and evaluates each established fixed
-polarization separately. The EpCM scan and `EpCMConfigGen.py` obey the same
-switch and only produce or consume the selected mode's files.
+mode required by the eight-dimensional scan. Every sampled row contains six
+kinematic variables plus `alpha_e` and `alpha_p`, and only the coherent
+mixed-angle polarization is evaluated. `PhaseSpaceScan.py` rejects the old
+fixed-polarization scan mode.
 Its plot filenames use the same explicit convention:
 `phase_space_scan_lepton_<species>_<polarization>_proton_<polarization>.pdf`.
 Point evaluations run in parallel. Edit `LEPTONS_TO_SCAN`,
@@ -331,8 +330,8 @@ Point evaluations run in parallel. Edit `LEPTONS_TO_SCAN`,
 
 `PhaseSpaceConfigScan.py` consumes the PhaseSpaceScan CSV selected by the same
 central mode switch. In fixed mode it retains the ConfigGen per-polarization
-workflow. In mixing-angle mode it clusters in all seven variables, writes
-`theta_e` and `theta_p` into the configuration, momentum, and amplitude CSVs,
+workflow. In mixing-angle mode it clusters in all eight variables, writes
+`alpha_e` and `alpha_p` into the configuration, momentum, and amplitude CSVs,
 and contracts each amplitude with the exact coherent incoming state. Its PDFs
 retain the original kinematic projections and add the two mixing-angle
 dimensions. Each PDF then appends the old ConfigGen-style momentum,
@@ -365,7 +364,7 @@ uses explicit globals and accepts no command-line arguments.
 3. `GradientPhaseSpaceConfig.py` reads `clustered_minima.csv` and generates a
    separate data package and configuration PDF for every parent polarization
    cluster. Each PDF starts with a summary plot containing every member's
-   contour, followed by a reconstructed configuration page and a 7D contour
+   contour, followed by a reconstructed configuration page and an 8D contour
    page for every minimum in that polarization cluster.
 
 The shared W/GHZ definitions, anchors, labels, and output root live in
@@ -404,7 +403,7 @@ Stage 2 is polarization-first. The explicit
 `POLARIZATION_CLUSTER_SEED` globals control the parent classification. The
 default cut retains minima with
 `objective - objective_min <= 0.05`; deterministic circular clustering treats
-`theta_e` and `theta_p` with period `pi` and identifies six polarization
+`alpha_e` and `alpha_p` with period `pi` and identifies six polarization
 configurations. The best-objective member is still identified in the summary,
 but every cluster member is configured. The assignments are saved in
 `clustered_minima.csv`, while parent centers, sizes, and representative IDs are
@@ -412,8 +411,9 @@ saved in `polarization_clusters.csv`.
 `polarization_cluster_phase_space.pdf` shows every parent with its own
 color/marker pair.
 
-The seven coordinates are `sqrt(s)`, `theta_out`, the physical `E_gamma`
-fraction, the final-proton and photon azimuths, `theta_e`, and `theta_p`.
+The eight coordinates are `sqrt(s)`, `theta_p_out`, `theta_gamma_out`, the
+physical `E_gamma` fraction, the final-proton and photon azimuths, `alpha_e`,
+and `alpha_p`.
 This workflow requires `SCAN_INITIAL_MIXING_ANGLES = True`. Every minimum
 assigned to a polarization cluster receives reconstructed configuration,
 momentum, coherent final-state amplitude, contour data, and PDF pages.
@@ -497,12 +497,12 @@ It also includes the direct product preparations `L lepton + -Tx proton` and
 `L lepton + -Ty proton`.
 An additional `mixing_angles` case prepares both incoming particles
 coherently as
-`|p> = cos(theta_p)|+> + sin(theta_p)|->` and
-`|l> = cos(theta_e)|+> + sin(theta_e)|->`. The independent
-`THETA_E_MIX_VALUES_RAD` and `THETA_P_MIX_VALUES_RAD` axes cover one physical
+`|p> = cos(alpha_p)|+> + sin(alpha_p)|->` and
+`|l> = cos(alpha_e)|+> + sin(alpha_e)|->`. The independent
+`ALPHA_E_VALUES_RAD` and `ALPHA_P_VALUES_RAD` axes cover one physical
 period `[0, pi)` and include the benchmark angles `5.503 mod pi` and `3.056`
-radians exactly. The scan stores them as `initial_theta_rad` and
-`initial_theta_p_rad`, so they cannot be confused with the final-proton recoil
+radians exactly. The scan stores them as `alpha_e_rad` and
+`alpha_p_rad`, so they cannot be confused with the final-proton recoil
 coordinate `theta_p_rad`.
 `EpCMConfigGen.py` generates the corresponding configuration CSVs and PDFs.
 The default grid scans final-proton momentum from `0.036` down to `0.020 GeV`,
@@ -526,7 +526,7 @@ The fixed-polarization results are written to
 `ep_cm_entanglement_scan.csv`. The coherent two-angle scan is written
 separately to `ep_cm_mixing_angle_scan.csv`, with its own ranked
 `ep_cm_mixing_angle_top.csv`, so fixed-polarization rows are not duplicated
-for every `(theta_e, theta_p)` pair.
+for every `(alpha_e, alpha_p)` pair.
 The per-polarization PDFs plot the absolute value of all 13 quantities; purity
 is retained only in the CSV as the mixed-state diagnostic used by
 `AlignmentScan`, not as an entanglement heatmap.

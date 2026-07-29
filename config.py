@@ -40,8 +40,8 @@ ENTANGLEMENT_LOCAL_SEARCH_OBJECTIVE_TOLERANCE = 1.0e-10
 # Mutually exclusive incoming-polarization scan mode.
 #
 # True:  scan only the coherent
-#        cos(theta_e)|+> + sin(theta_e)|-> tensor
-#        cos(theta_p)|+> + sin(theta_p)|-> preparation.
+#        cos(alpha_e)|+> + sin(alpha_e)|-> tensor
+#        cos(alpha_p)|+> + sin(alpha_p)|-> preparation.
 SCAN_INITIAL_MIXING_ANGLES = True
 
 # PhaseSpaceConfigScan keeps and displays points whose observable is no more
@@ -49,7 +49,7 @@ SCAN_INITIAL_MIXING_ANGLES = True
 PHASE_SPACE_CONFIG_THRESHOLD = 0.05
 
 # The generic gradient tool samples this objective-level contour around every
-# selected local minimum in the full seven-dimensional phase space.
+# selected local minimum in the full eight-dimensional phase space.
 PHASE_SPACE_CONFIG_CONTOUR_DELTA = 0.05
-# Total seven-dimensional radial directions sampled for each contour.
+# Total eight-dimensional radial directions sampled for each contour.
 PHASE_SPACE_CONFIG_CONTOUR_SAMPLES = 2 ** 7
