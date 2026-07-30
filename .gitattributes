@@ -1,0 +1,2 @@
+Output/GradientPhaseSpaceScan/electron/Data/W/dw/polarization_cluster_01/combined/min_dw_polarization_cluster_01_contour_samples.csv filter=lfs diff=lfs merge=lfs -text
+Output/GradientPhaseSpaceScan/electron/Data/W/dw/polarization_cluster_04/combined/min_dw_polarization_cluster_04_contour_samples.csv filter=lfs diff=lfs merge=lfs -text
