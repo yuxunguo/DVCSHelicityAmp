@@ -37,22 +37,6 @@ W_PHYSICS_ANCHORS = {
     ),
 }
 
-GHZ_PHYSICS_ANCHORS = {
-    "electron": (
-        {
-            "name": "canonical_GHZ_hard_photon_endpoint",
-            "sqrt_s": 4.2441101238978085,
-            "theta_p_out": 1.57041484647354,
-            "theta_gamma_out": 1.57041484647354,
-            "qOut": 2.0182672022904082,
-            "phi_p_out": 1.5708006597909723,
-            "phi_gamma_out": 4.712388736566098,
-            "alpha_e": 2.35626799,
-            "alpha_p": 2.35589509,
-        },
-    ),
-}
-
 SCAN_DEFINITIONS = {
     "W": gradient_tool.GradientScanDefinition(
         key="W",
@@ -70,7 +54,7 @@ SCAN_DEFINITIONS = {
         latex=r"d_{\mathrm{GHZ}}",
         state_file_label="GHZ",
         output_root=GRADIENT_OUTPUT_ROOT,
-        physics_anchor_starts=GHZ_PHYSICS_ANCHORS,
+        physics_anchor_starts={},
     ),
 }
 
@@ -99,7 +83,7 @@ def validated_leptons(leptons):
     if isinstance(leptons, str):
         raise TypeError("The lepton selection must be a tuple or list.")
     selected = tuple(leptons)
-    unknown = set(selected) - set(gradient_tool.LEPTON_SPECS)
+    unknown = set(selected) - set(gradient_tool.GRADIENT_LEPTON_SPECS)
     if unknown:
         raise ValueError(f"Unknown lepton species: {sorted(unknown)}")
     if not selected:

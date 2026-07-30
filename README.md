@@ -319,8 +319,8 @@ observable histogram, then adds projections involving `alpha_e` and
 The central `SCAN_INITIAL_MIXING_ANGLES` option in `config.py` selects one
 mode required by the eight-dimensional scan. Every sampled row contains six
 kinematic variables plus `alpha_e` and `alpha_p`, and only the coherent
-mixed-angle polarization is evaluated. `PhaseSpaceScan.py` rejects the old
-fixed-polarization scan mode.
+mixed-angle polarization is evaluated; fixed-polarization mode is not part of
+this scan.
 Its plot filenames use the same explicit convention:
 `phase_space_scan_lepton_<species>_<polarization>_proton_<polarization>.pdf`.
 Point evaluations run in parallel. Edit `LEPTONS_TO_SCAN`,
@@ -333,8 +333,8 @@ central mode switch. In fixed mode it retains the ConfigGen per-polarization
 workflow. In mixing-angle mode it clusters in all eight variables, writes
 `alpha_e` and `alpha_p` into the configuration, momentum, and amplitude CSVs,
 and contracts each amplitude with the exact coherent incoming state. Its PDFs
-retain the original kinematic projections and add the two mixing-angle
-dimensions. Each PDF then appends the old ConfigGen-style momentum,
+retain the kinematic projections and add the two mixing-angle dimensions.
+Each PDF then appends the momentum,
 four-vector, kinematic-summary, and final-state-amplitude page for every
 selected minimum/maximum. The central `PHASE_SPACE_CONFIG_THRESHOLD` setting
 in `config.py` limits both displayed and selectable points to an absolute
@@ -356,10 +356,12 @@ uses explicit globals and accepts no command-line arguments.
    `optimization_runs.csv`, raw `local_minima.csv`, and
    `all_local_minima.pdf`; it does not cluster or call ConfigGen.
 2. `GradientPhaseSpaceCluster.py` reads `local_minima.csv`, applies the
-   objective cut, retains narrow tunable `alpha_e` bands around `pi/4` and
-   `3pi/4`, and assigns points outside those bands toward `0/pi` or `pi/2`.
-   It finds six `alpha_p`-periodic polarization clusters. The minimum with the
-   best objective in each cluster is marked as that polarization cluster's
+   objective cut, and applies a state-specific polarization partition. W
+   retains narrow tunable `alpha_e` bands around `pi/4` and `3pi/4` and finds
+   six `alpha_p`-periodic configurations. GHZ uses the `alpha_e` boundaries
+   `(0, pi/2, pi)` and finds two periodic `alpha_p` groups inside each of the
+   two resulting regions, for four configurations. The minimum with the best
+   objective in each cluster is marked as that polarization cluster's
    configuration representative. It writes the assignments and polarization
    summary without performing optimization or ConfigGen work. Every assigned
    minimum is passed to the configuration stage.
@@ -400,17 +402,18 @@ The normalized gradient and local-verification resolution is controlled by
 `ENTANGLEMENT_GRADIENT_SCAN_PRECISION`; the other
 `ENTANGLEMENT_GRADIENT_*` and `ENTANGLEMENT_LOCAL_SEARCH_*` settings control
 starts, convergence, basin separation, and multiscale polishing.
-Stage 2 is polarization-first. The explicit
-`POLARIZATION_CLUSTER_CUT`, `POLARIZATION_CLUSTER_COUNT`, and
-`POLARIZATION_CLUSTER_SEED` globals control the parent classification, and
-`POLARIZATION_ALPHA_E_LINE_HALF_WIDTH` controls the narrow capture bands
-around `alpha_e=pi/4` and `3pi/4`. The default objective cut retains minima
-with `objective - objective_min <= 0.05`; `alpha_p` is clustered with period
-`pi` inside the prescribed `alpha_e` strata to identify six polarization
-configurations. The best-objective member is still identified in the summary,
-but every cluster member is configured. The assignments are saved in
-`clustered_minima.csv`, while parent centers, sizes, and representative IDs are
-saved in `polarization_clusters.csv`. The first page of
+Stage 2 is polarization-first. The explicit `POLARIZATION_CLUSTER_CUT` and
+`POLARIZATION_CLUSTER_SEED` globals are shared. W uses
+`W_POLARIZATION_CLUSTER_COUNT = 6` and
+`W_ALPHA_E_LINE_HALF_WIDTH`, while GHZ uses
+`GHZ_POLARIZATION_CLUSTER_COUNT = 4` and
+`GHZ_ALPHA_E_BOUNDARIES = (0, pi/2, pi)`. The default objective cut retains
+minima with `objective - objective_min <= 0.05`; `alpha_p` is clustered with
+period `pi` inside each state-specific `alpha_e` region. The best-objective
+member is still identified in the summary, but every cluster member is
+configured. The assignments are saved in `clustered_minima.csv`, while parent
+regions, centers, sizes, and representative IDs are saved in
+`polarization_clusters.csv`. The first page of
 `polarization_cluster_phase_space.pdf` is the all-cluster overview; each
 following page shows all phase-space projections for one cluster, colored by
 the objective value.
@@ -475,7 +478,7 @@ Output/GradientPhaseSpaceScan/
   Logs/
 ```
 
-The other configured lepton species follow the same structure. Raw scan CSVs
+Only electron and muon are accepted by the gradient workflow. Raw scan CSVs
 are under `Data/<state>/scan/`, stage-2 outputs under
 `Data/<state>/cluster/`, and each parent polarization cluster receives its own
 objective data folder and PDF folder. Every polarization-cluster member

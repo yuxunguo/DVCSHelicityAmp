@@ -1,0 +1,51 @@
+Gradient dGHZ cluster ConfigGen (electron)
+  source clustered minima: Output\GradientPhaseSpaceScan\electron\Data\GHZ\cluster\clustered_minima.csv
+  local minima loaded: 579
+  parent polarization PDFs: 4
+  configured polarization-cluster minima: 376
+  local-minimum contour delta: 0.05
+  total contour processing time: 877.713 s
+  P1: alpha_e in [0,pi/2),alpha_p~pi/4
+    retained minima: 111
+    configured local minima: 111
+    selected minima: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_01\combined\min_dghz_polarization_cluster_01_selected_minima.csv
+    saved contour samples: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_01\combined\min_dghz_polarization_cluster_01_contour_samples.csv
+    contour generation time: 260.889 s
+    configuration examples: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_01\combined\min_dghz_polarization_cluster_01_configuration_examples.csv
+    cluster summary: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_01\combined\min_dghz_polarization_cluster_01_cluster_summary.csv
+    momentum configurations: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_01\combined\min_dghz_polarization_cluster_01_momentum_configurations.csv
+    amplitude decomposition: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_01\combined\min_dghz_polarization_cluster_01_final_state_amplitude_decomposition.csv
+    configuration PDF: Output\GradientPhaseSpaceScan\electron\Plots\GHZ\polarization_cluster_01\GHZ_State_Search_and_Config_Electron_Polarization_Cluster_01.pdf
+  P2: alpha_e in [0,pi/2),alpha_p~3pi/4
+    retained minima: 97
+    configured local minima: 97
+    selected minima: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_02\combined\min_dghz_polarization_cluster_02_selected_minima.csv
+    saved contour samples: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_02\combined\min_dghz_polarization_cluster_02_contour_samples.csv
+    contour generation time: 223.980 s
+    configuration examples: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_02\combined\min_dghz_polarization_cluster_02_configuration_examples.csv
+    cluster summary: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_02\combined\min_dghz_polarization_cluster_02_cluster_summary.csv
+    momentum configurations: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_02\combined\min_dghz_polarization_cluster_02_momentum_configurations.csv
+    amplitude decomposition: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_02\combined\min_dghz_polarization_cluster_02_final_state_amplitude_decomposition.csv
+    configuration PDF: Output\GradientPhaseSpaceScan\electron\Plots\GHZ\polarization_cluster_02\GHZ_State_Search_and_Config_Electron_Polarization_Cluster_02.pdf
+  P3: alpha_e in [pi/2,pi],alpha_p~pi/4
+    retained minima: 87
+    configured local minima: 87
+    selected minima: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_03\combined\min_dghz_polarization_cluster_03_selected_minima.csv
+    saved contour samples: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_03\combined\min_dghz_polarization_cluster_03_contour_samples.csv
+    contour generation time: 194.931 s
+    configuration examples: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_03\combined\min_dghz_polarization_cluster_03_configuration_examples.csv
+    cluster summary: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_03\combined\min_dghz_polarization_cluster_03_cluster_summary.csv
+    momentum configurations: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_03\combined\min_dghz_polarization_cluster_03_momentum_configurations.csv
+    amplitude decomposition: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_03\combined\min_dghz_polarization_cluster_03_final_state_amplitude_decomposition.csv
+    configuration PDF: Output\GradientPhaseSpaceScan\electron\Plots\GHZ\polarization_cluster_03\GHZ_State_Search_and_Config_Electron_Polarization_Cluster_03.pdf
+  P4: alpha_e in [pi/2,pi],alpha_p~3pi/4
+    retained minima: 81
+    configured local minima: 81
+    selected minima: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_04\combined\min_dghz_polarization_cluster_04_selected_minima.csv
+    saved contour samples: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_04\combined\min_dghz_polarization_cluster_04_contour_samples.csv
+    contour generation time: 197.912 s
+    configuration examples: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_04\combined\min_dghz_polarization_cluster_04_configuration_examples.csv
+    cluster summary: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_04\combined\min_dghz_polarization_cluster_04_cluster_summary.csv
+    momentum configurations: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_04\combined\min_dghz_polarization_cluster_04_momentum_configurations.csv
+    amplitude decomposition: Output\GradientPhaseSpaceScan\electron\Data\GHZ\dghz\polarization_cluster_04\combined\min_dghz_polarization_cluster_04_final_state_amplitude_decomposition.csv
+    configuration PDF: Output\GradientPhaseSpaceScan\electron\Plots\GHZ\polarization_cluster_04\GHZ_State_Search_and_Config_Electron_Polarization_Cluster_04.pdf

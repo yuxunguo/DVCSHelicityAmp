@@ -52,6 +52,10 @@ from PlotUtils import configure_named_angle_axes, print_console_text
 
 
 # Runtime state is populated only through :func:`configure_scan`.
+GRADIENT_LEPTON_NAMES = ("electron", "muon")
+GRADIENT_LEPTON_SPECS = {
+    name: LEPTON_SPECS[name] for name in GRADIENT_LEPTON_NAMES
+}
 LEPTONS_TO_PROCESS = ()
 GRADIENT_WORKERS = SCAN_WORKERS
 OUTPUT_ROOT = None
@@ -92,8 +96,12 @@ POLARIZATION_CLUSTER_STYLES = (
     ("#00A6A6", "X"),
 )
 POLARIZATION_CLUSTER_RESTARTS = 16
-POLARIZATION_ALPHA_E_LINE_CENTERS = (np.pi / 4.0, 3.0 * np.pi / 4.0)
-POLARIZATION_ALPHA_E_STRATUM_CLUSTERS = (1, 2, 1, 2)
+W_POLARIZATION_ALPHA_E_LINE_CENTERS = (
+    np.pi / 4.0,
+    3.0 * np.pi / 4.0,
+)
+W_POLARIZATION_ALPHA_E_STRATUM_CLUSTERS = (1, 2, 1, 2)
+GHZ_ALPHA_P_CLUSTERS_PER_ALPHA_E_REGION = 2
 
 
 @dataclass(frozen=True)
@@ -156,7 +164,9 @@ def _objective_key(lepton_name, objective_name=None):
 
 def _configuration_plot_path(lepton_name, polarization_cluster_id):
     """Return one parent-polarization configuration PDF path."""
-    species_label = LEPTON_SPECS[lepton_name]["label"].title().replace(" ", "_")
+    species_label = (
+        GRADIENT_LEPTON_SPECS[lepton_name]["label"].title().replace(" ", "_")
+    )
     parent_label = f"Polarization_Cluster_{polarization_cluster_id + 1:02d}"
     filename = (
         f"{OBJECTIVE_STATE_FILE_LABEL}_State_Search_and_Config_"
@@ -171,10 +181,10 @@ def _configuration_plot_path(lepton_name, polarization_cluster_id):
 
 def species_output_dirs(lepton_name):
     """Return the organized state/lepton data and plot directories."""
-    if lepton_name not in LEPTON_SPECS:
+    if lepton_name not in GRADIENT_LEPTON_SPECS:
         raise ValueError(
             f"Unknown lepton {lepton_name!r}; choose from "
-            f"{tuple(LEPTON_SPECS)}."
+            f"{GRADIENT_LEPTON_NAMES}."
         )
     root = OUTPUT_ROOT / lepton_name
     return {
@@ -273,7 +283,7 @@ def _objective_evaluation(
         sample_id=evaluation_id,
         stage="gradient",
         lepton_name=lepton_name,
-        lepton_mass=LEPTON_SPECS[lepton_name]["mass"],
+        lepton_mass=GRADIENT_LEPTON_SPECS[lepton_name]["mass"],
     )
     if result is None or result[1] is None:
         return INVALID_OBJECTIVE, None
@@ -571,10 +581,52 @@ def _objective_values(rows, lepton_name):
 
 
 def _unit_point_from_minimum_row(row):
-    """Recover one local minimum in the optimizer's normalized coordinates."""
-    return np.asarray([
-        float(row[f"final_u{index}"]) for index in range(SCAN_DIMENSION)
-    ])
+    """Map one current-schema physical minimum back to the optimizer box."""
+    sqrt_s = float(row["sqrt_s"])
+    s = sqrt_s**2
+    qout_fraction = float(row["qOut"]) / phase_scan._qout_max(s)
+    unit_point = np.asarray(
+        (
+            (
+                sqrt_s - phase_scan.SQRT_S_RANGE[0]
+            )
+            / (
+                phase_scan.SQRT_S_RANGE[1]
+                - phase_scan.SQRT_S_RANGE[0]
+            ),
+            (
+                float(row["theta_p_out"])
+                - phase_scan.THETA_P_OUT_RANGE[0]
+            )
+            / (
+                phase_scan.THETA_P_OUT_RANGE[1]
+                - phase_scan.THETA_P_OUT_RANGE[0]
+            ),
+            (
+                float(row["theta_gamma_out"])
+                - phase_scan.THETA_GAMMA_OUT_RANGE[0]
+            )
+            / (
+                phase_scan.THETA_GAMMA_OUT_RANGE[1]
+                - phase_scan.THETA_GAMMA_OUT_RANGE[0]
+            ),
+            (
+                qout_fraction - phase_scan.QOUT_FRACTION_RANGE[0]
+            )
+            / (
+                phase_scan.QOUT_FRACTION_RANGE[1]
+                - phase_scan.QOUT_FRACTION_RANGE[0]
+            ),
+            float(row["phi_p_out"]) / (2.0 * np.pi),
+            float(row["phi_gamma_out"]) / (2.0 * np.pi),
+            float(row["alpha_e"]) / np.pi,
+            float(row["alpha_p"]) / np.pi,
+        ),
+        dtype=float,
+    )
+    unit_point[:4] = np.clip(unit_point[:4], 0.0, 1.0)
+    unit_point[4:] %= 1.0
+    return unit_point
 
 
 def _plot_coordinate_values(unit_point):
@@ -617,10 +669,12 @@ def _configuration_contours(rows, lepton_name):
     )
     tasks = []
     for row_index, row in enumerate(rows):
+        center = _unit_point_from_minimum_row(row)
+        base_value = float(row[_objective_key(lepton_name)])
         direction_chunks = np.array_split(
             _contour_directions(
                 ENTANGLEMENT_GRADIENT_RANDOM_SEED
-                + int(row.get("local_minimum_id", row_index))
+                + int(row["local_minimum_id"])
             ),
             chunks_per_minimum,
         )
@@ -628,9 +682,10 @@ def _configuration_contours(rows, lepton_name):
             (
                 row_index,
                 chunk_index,
-                row,
+                center,
+                base_value,
                 lepton_name,
-                LEPTON_SPECS[lepton_name]["mass"],
+                GRADIENT_LEPTON_SPECS[lepton_name]["mass"],
                 OBJECTIVE_NAME,
                 directions,
                 PHASE_SPACE_CONFIG_CONTOUR_DELTA,
@@ -672,11 +727,11 @@ def _configuration_contours(rows, lepton_name):
 
 
 def _contour_csv_rows(selected_rows, contours):
-    """Serialize contour centers and samples with compatibility metadata."""
+    """Serialize contour centers, samples, and validation metadata."""
     csv_rows = []
     for row_index, row in enumerate(selected_rows):
         center = _unit_point_from_minimum_row(row)
-        minimum_id = row.get("local_minimum_id", row_index)
+        minimum_id = row["local_minimum_id"]
         base = {
             "objective_name": OBJECTIVE_NAME,
             "objective_file_tag": OBJECTIVE_FILE_TAG,
@@ -797,7 +852,7 @@ def _load_contour_data(path, selected_rows):
 
     loaded = {}
     for output_index, row in enumerate(selected_rows):
-        expected_id = str(row.get("local_minimum_id", output_index))
+        expected_id = str(row["local_minimum_id"])
         if expected_id not in saved_index_by_id:
             raise ValueError(
                 f"Saved contour data is missing local-minimum ID "
@@ -1093,6 +1148,106 @@ def _best_periodic_kmeans_labels(
     return best_labels
 
 
+def _polarization_alpha_e_strata(
+    alpha_e,
+    *,
+    cluster_count,
+    alpha_e_line_half_width,
+    alpha_e_boundaries,
+):
+    """Return state-specific alpha_e strata and clustering metadata."""
+    if SCAN_KEY == "W":
+        expected_cluster_count = sum(
+            W_POLARIZATION_ALPHA_E_STRATUM_CLUSTERS
+        )
+        if cluster_count != expected_cluster_count:
+            raise ValueError(
+                f"W polarization cluster count must be "
+                f"{expected_cluster_count}."
+            )
+        first_line, second_line = W_POLARIZATION_ALPHA_E_LINE_CENTERS
+        near_first_line = (
+            np.abs(alpha_e - first_line) <= alpha_e_line_half_width
+        )
+        near_second_line = (
+            np.abs(alpha_e - second_line) <= alpha_e_line_half_width
+        )
+        midpoint = (
+            ~(near_first_line | near_second_line)
+            & (alpha_e >= first_line)
+            & (alpha_e < second_line)
+        )
+        endpoint = ~(near_first_line | midpoint | near_second_line)
+        strata = (
+            ("0/pi", 0.0, endpoint, 1),
+            (
+                "pi/4 line",
+                first_line,
+                near_first_line,
+                W_POLARIZATION_ALPHA_E_STRATUM_CLUSTERS[1],
+            ),
+            ("pi/2", np.pi / 2.0, midpoint, 1),
+            (
+                "3pi/4 line",
+                second_line,
+                near_second_line,
+                W_POLARIZATION_ALPHA_E_STRATUM_CLUSTERS[3],
+            ),
+        )
+        return strata, "W narrow alpha_e capture bands"
+
+    if SCAN_KEY == "GHZ":
+        boundaries = np.asarray(alpha_e_boundaries, dtype=float)
+        expected_cluster_count = (
+            (len(boundaries) - 1)
+            * GHZ_ALPHA_P_CLUSTERS_PER_ALPHA_E_REGION
+        )
+        if cluster_count != expected_cluster_count:
+            raise ValueError(
+                f"GHZ polarization cluster count must be "
+                f"{expected_cluster_count} for alpha_e boundaries "
+                f"{tuple(boundaries)}."
+            )
+        strata = []
+        for region_index, (lower, upper) in enumerate(
+            zip(boundaries[:-1], boundaries[1:])
+        ):
+            if region_index + 1 == len(boundaries) - 1:
+                mask = (alpha_e >= lower) & (alpha_e <= upper)
+                closing = "]"
+            else:
+                mask = (alpha_e >= lower) & (alpha_e < upper)
+                closing = ")"
+            region_name = (
+                f"[{_pi_quarter_label(lower)},"
+                f"{_pi_quarter_label(upper)}{closing}"
+            )
+            strata.append(
+                (
+                    region_name,
+                    0.5 * (lower + upper),
+                    mask,
+                    GHZ_ALPHA_P_CLUSTERS_PER_ALPHA_E_REGION,
+                )
+            )
+        return tuple(strata), "GHZ alpha_e boundary regions"
+
+    raise ValueError(f"No polarization clustering algorithm for {SCAN_KEY!r}.")
+
+
+def _polarization_configuration_label(alpha_e_region, center):
+    """Return one state-specific polarization configuration label."""
+    if SCAN_KEY == "GHZ":
+        return (
+            f"alpha_e in {alpha_e_region},"
+            f"alpha_p~{_pi_quarter_label(center[1])}"
+        )
+    return (
+        f"alpha_e~{_pi_quarter_label(center[0])},"
+        f"alpha_p~{_pi_quarter_label(center[1])}"
+    )
+
+
 def _cluster_polarization_minima(
     rows,
     lepton_name,
@@ -1101,8 +1256,9 @@ def _cluster_polarization_minima(
     cluster_count,
     random_seed,
     alpha_e_line_half_width,
+    alpha_e_boundaries,
 ):
-    """Classify minima using narrow quarter-pi alpha_e capture bands."""
+    """Classify minima using the active state's alpha_e partition."""
     values = _objective_values(rows, lepton_name)
     optimum = float(np.min(values))
     eligible_indices = np.flatnonzero(
@@ -1122,52 +1278,32 @@ def _cluster_polarization_minima(
         ],
         dtype=float,
     )
-    expected_cluster_count = sum(POLARIZATION_ALPHA_E_STRATUM_CLUSTERS)
-    if cluster_count != expected_cluster_count:
-        raise ValueError(
-            f"polarization cluster count must be {expected_cluster_count} "
-            "when using narrow alpha_e capture bands around pi/4 and 3pi/4."
-        )
     alpha_e = angles[:, 0]
-    first_line, second_line = POLARIZATION_ALPHA_E_LINE_CENTERS
-    near_first_line = (
-        np.abs(alpha_e - first_line) <= alpha_e_line_half_width
-    )
-    near_second_line = (
-        np.abs(alpha_e - second_line) <= alpha_e_line_half_width
-    )
-    midpoint = (
-        ~(near_first_line | near_second_line)
-        & (alpha_e >= first_line)
-        & (alpha_e < second_line)
-    )
-    endpoint = ~(near_first_line | midpoint | near_second_line)
-    strata = (
-        ("0/pi", 0.0, endpoint),
-        ("pi/4", first_line, near_first_line),
-        ("pi/2", np.pi / 2.0, midpoint),
-        ("3pi/4", second_line, near_second_line),
+    strata, clustering_scheme = _polarization_alpha_e_strata(
+        alpha_e,
+        cluster_count=cluster_count,
+        alpha_e_line_half_width=alpha_e_line_half_width,
+        alpha_e_boundaries=alpha_e_boundaries,
     )
 
     assignments = {}
     members_by_cluster = {}
     centers = {}
+    alpha_e_regions = {}
     next_cluster_id = 0
     for stratum_id, (
         stratum_name,
         alpha_e_center,
         stratum_mask,
+        stratum_cluster_count,
     ) in enumerate(strata):
         stratum_positions = np.flatnonzero(stratum_mask)
-        stratum_cluster_count = POLARIZATION_ALPHA_E_STRATUM_CLUSTERS[
-            stratum_id
-        ]
         if len(stratum_positions) < stratum_cluster_count:
             raise RuntimeError(
                 f"The alpha_e={stratum_name} stratum retained "
                 f"{len(stratum_positions)} minima, fewer than its requested "
-                f"{stratum_cluster_count} clusters. Increase the line width "
-                "or the objective cut."
+                f"{stratum_cluster_count} clusters. Increase the objective "
+                "cut or revise the state-specific alpha_e partition."
             )
 
         alpha_p = angles[stratum_positions, 1]
@@ -1211,6 +1347,7 @@ def _cluster_polarization_minima(
             centers[cluster_id] = np.asarray(
                 (alpha_e_center, alpha_p_centers[raw_id])
             )
+            alpha_e_regions[cluster_id] = stratum_name
             assignments.update(
                 {row_index: cluster_id for row_index in members}
             )
@@ -1237,13 +1374,15 @@ def _cluster_polarization_minima(
                     "polarization_cluster_distance": "",
                     "polarization_cluster_representative": False,
                     "polarization_configuration": "",
+                    "polarization_alpha_e_region": "",
+                    "polarization_clustering_scheme": clustering_scheme,
                 }
             )
         else:
             center = centers[cluster_id]
-            configuration = (
-                f"alpha_e~{_pi_quarter_label(center[0])},"
-                f"alpha_p~{_pi_quarter_label(center[1])}"
+            configuration = _polarization_configuration_label(
+                alpha_e_regions[cluster_id],
+                center,
             )
             item.update(
                 {
@@ -1259,6 +1398,10 @@ def _cluster_polarization_minima(
                         row_index == representatives[cluster_id]
                     ),
                     "polarization_configuration": configuration,
+                    "polarization_alpha_e_region": (
+                        alpha_e_regions[cluster_id]
+                    ),
+                    "polarization_clustering_scheme": clustering_scheme,
                 }
             )
         annotated.append(item)
@@ -1274,9 +1417,13 @@ def _cluster_polarization_minima(
             {
                 "polarization_cluster_id": cluster_id,
                 "polarization_configuration": (
-                    f"alpha_e~{_pi_quarter_label(center[0])},"
-                    f"alpha_p~{_pi_quarter_label(center[1])}"
+                    _polarization_configuration_label(
+                        alpha_e_regions[cluster_id],
+                        center,
+                    )
                 ),
+                "polarization_alpha_e_region": alpha_e_regions[cluster_id],
+                "polarization_clustering_scheme": clustering_scheme,
                 "member_count": len(members),
                 "representative_local_minimum_id": representative.get(
                     "local_minimum_id",
@@ -1294,13 +1441,34 @@ def _cluster_polarization_minima(
                 "color": color,
                 "marker": marker,
                 "random_seed": random_seed,
-                "alpha_e_line_half_width": alpha_e_line_half_width,
+                "alpha_e_line_half_width": (
+                    ""
+                    if alpha_e_line_half_width is None
+                    else alpha_e_line_half_width
+                ),
                 "alpha_e_line_half_width_over_pi": (
-                    alpha_e_line_half_width / np.pi
+                    ""
+                    if alpha_e_line_half_width is None
+                    else alpha_e_line_half_width / np.pi
+                ),
+                "alpha_e_boundaries": (
+                    ""
+                    if alpha_e_boundaries is None
+                    else ",".join(
+                        f"{float(boundary):.17g}"
+                        for boundary in alpha_e_boundaries
+                    )
                 ),
                 "distance_coordinates": (
-                    "alpha_e (narrow pi/4 and 3pi/4 capture bands), "
-                    "alpha_p (pi-periodic)"
+                    (
+                        "alpha_e (narrow pi/4 and 3pi/4 capture bands), "
+                        "alpha_p (pi-periodic)"
+                    )
+                    if SCAN_KEY == "W"
+                    else (
+                        "alpha_e (regions bounded by 0, pi/2, pi), "
+                        "alpha_p (pi-periodic within each region)"
+                    )
                 ),
                 objective_key: float(representative[objective_key]),
             }
@@ -1308,24 +1476,56 @@ def _cluster_polarization_minima(
     return annotated, summary, optimum
 
 
-def _draw_alpha_e_capture_bands(
+def _draw_alpha_e_cluster_guides(
     ax,
     x_name,
     y_name,
     alpha_e_line_half_width,
+    alpha_e_boundaries,
 ):
-    """Draw the narrow alpha_e line-cluster bands on a projection."""
+    """Draw the active state's alpha_e partition on one projection."""
+    if SCAN_KEY == "W":
+        if x_name == "alpha_e":
+            for alpha_e_line in W_POLARIZATION_ALPHA_E_LINE_CENTERS:
+                ax.axvspan(
+                    alpha_e_line - alpha_e_line_half_width,
+                    alpha_e_line + alpha_e_line_half_width,
+                    color="black",
+                    alpha=0.06,
+                    zorder=0,
+                )
+                ax.axvline(
+                    alpha_e_line,
+                    color="black",
+                    linestyle="--",
+                    linewidth=1.0,
+                    alpha=0.7,
+                    zorder=1,
+                )
+        if y_name == "alpha_e":
+            for alpha_e_line in W_POLARIZATION_ALPHA_E_LINE_CENTERS:
+                ax.axhspan(
+                    alpha_e_line - alpha_e_line_half_width,
+                    alpha_e_line + alpha_e_line_half_width,
+                    color="black",
+                    alpha=0.06,
+                    zorder=0,
+                )
+                ax.axhline(
+                    alpha_e_line,
+                    color="black",
+                    linestyle="--",
+                    linewidth=1.0,
+                    alpha=0.7,
+                    zorder=1,
+                )
+        return
+
+    interior_boundaries = tuple(alpha_e_boundaries[1:-1])
     if x_name == "alpha_e":
-        for alpha_e_line in POLARIZATION_ALPHA_E_LINE_CENTERS:
-            ax.axvspan(
-                alpha_e_line - alpha_e_line_half_width,
-                alpha_e_line + alpha_e_line_half_width,
-                color="black",
-                alpha=0.06,
-                zorder=0,
-            )
+        for boundary in interior_boundaries:
             ax.axvline(
-                alpha_e_line,
+                boundary,
                 color="black",
                 linestyle="--",
                 linewidth=1.0,
@@ -1333,16 +1533,9 @@ def _draw_alpha_e_capture_bands(
                 zorder=1,
             )
     if y_name == "alpha_e":
-        for alpha_e_line in POLARIZATION_ALPHA_E_LINE_CENTERS:
-            ax.axhspan(
-                alpha_e_line - alpha_e_line_half_width,
-                alpha_e_line + alpha_e_line_half_width,
-                color="black",
-                alpha=0.06,
-                zorder=0,
-            )
+        for boundary in interior_boundaries:
             ax.axhline(
-                alpha_e_line,
+                boundary,
                 color="black",
                 linestyle="--",
                 linewidth=1.0,
@@ -1358,6 +1551,7 @@ def _polarization_cluster_plot(
     objective_cut,
     optimum,
     alpha_e_line_half_width,
+    alpha_e_boundaries,
     path,
 ):
     """Plot the cluster overview followed by one page per cluster."""
@@ -1407,13 +1601,26 @@ def _polarization_cluster_plot(
                 )
                 if ax is axes.ravel()[0]:
                     legend_handles[cluster_id] = artist
-                    legend_labels[cluster_id] = (
-                        rf"$P_{{{cluster_id + 1}}}: "
-                        rf"(\alpha_e,\alpha_p)\approx"
-                        rf"({_pi_quarter_math_label(float(cluster['alpha_e_center']))},"
-                        rf"{_pi_quarter_math_label(float(cluster['alpha_p_center']))})$ "
-                        f"(n={cluster['member_count']})"
-                    )
+                    if SCAN_KEY == "GHZ":
+                        alpha_e_region_math = str(
+                            cluster["polarization_alpha_e_region"]
+                        ).replace("pi", r"\pi")
+                        legend_labels[cluster_id] = (
+                            rf"$P_{{{cluster_id + 1}}}: "
+                            rf"\alpha_e\in"
+                            f"{alpha_e_region_math}, "
+                            rf"\alpha_p\approx"
+                            rf"{_pi_quarter_math_label(float(cluster['alpha_p_center']))}$ "
+                            f"(n={cluster['member_count']})"
+                        )
+                    else:
+                        legend_labels[cluster_id] = (
+                            rf"$P_{{{cluster_id + 1}}}: "
+                            rf"(\alpha_e,\alpha_p)\approx"
+                            rf"({_pi_quarter_math_label(float(cluster['alpha_e_center']))},"
+                            rf"{_pi_quarter_math_label(float(cluster['alpha_p_center']))})$ "
+                            f"(n={cluster['member_count']})"
+                        )
             ax.scatter(
                 [float(best_row[x_name])],
                 [float(best_row[y_name])],
@@ -1426,11 +1633,12 @@ def _polarization_cluster_plot(
             )
             ax.set_xlabel(x_label, fontsize=11)
             ax.set_ylabel(y_label, fontsize=11)
-            _draw_alpha_e_capture_bands(
+            _draw_alpha_e_cluster_guides(
                 ax,
                 x_name,
                 y_name,
                 alpha_e_line_half_width,
+                alpha_e_boundaries,
             )
             configure_named_angle_axes(ax, x_name, y_name)
             ax.tick_params(labelsize=10)
@@ -1446,6 +1654,17 @@ def _polarization_cluster_plot(
             fontsize=9,
             handletextpad=0.8,
         )
+        if SCAN_KEY == "W":
+            alpha_e_partition_text = (
+                rf"$\alpha_e$ line half-width="
+                rf"${alpha_e_line_half_width / np.pi:.4g}\pi$; "
+                r"$\alpha_p$ has period $\pi$"
+            )
+        else:
+            alpha_e_partition_text = (
+                r"$\alpha_e$ boundaries: $0,\pi/2,\pi$; "
+                r"two periodic $\alpha_p$ groups per region"
+            )
         summary_ax.text(
             0.0,
             0.03,
@@ -1457,9 +1676,7 @@ def _polarization_cluster_plot(
                 "\n"
                 f"{len(selected_rows)}/{len(rows)} minima retained"
                 "\n"
-                rf"$\alpha_e$ line half-width="
-                rf"${alpha_e_line_half_width / np.pi:.4g}\pi$; "
-                r"$\alpha_p$ has period $\pi$"
+                + alpha_e_partition_text
             ),
             transform=summary_ax.transAxes,
             va="bottom",
@@ -1546,11 +1763,12 @@ def _polarization_cluster_plot(
                 ax.set_ylim(*full_limits[y_name])
                 ax.set_xlabel(x_label, fontsize=11)
                 ax.set_ylabel(y_label, fontsize=11)
-                _draw_alpha_e_capture_bands(
+                _draw_alpha_e_cluster_guides(
                     ax,
                     x_name,
                     y_name,
                     alpha_e_line_half_width,
+                    alpha_e_boundaries,
                 )
                 configure_named_angle_axes(ax, x_name, y_name)
                 ax.tick_params(labelsize=10)
@@ -1593,8 +1811,18 @@ def _polarization_cluster_plot(
                 f"mean normalized distance = {distances.mean():.8g}",
                 f"max normalized distance = {distances.max():.8g}",
                 (
-                    "alpha_e line half-width/pi = "
-                    f"{alpha_e_line_half_width / np.pi:.8g}"
+                    (
+                        "alpha_e line half-width/pi = "
+                        f"{alpha_e_line_half_width / np.pi:.8g}"
+                    )
+                    if SCAN_KEY == "W"
+                    else (
+                        "alpha_e boundaries/pi = "
+                        + ", ".join(
+                            f"{float(boundary) / np.pi:.8g}"
+                            for boundary in alpha_e_boundaries
+                        )
+                    )
                 ),
             ]
             cluster_summary.text(
@@ -1631,7 +1859,7 @@ def _configuration_rows(minimum_rows, lepton_name):
         row = dict(source)
         value = float(row[key])
         parent_id = int(row["polarization_cluster_id"])
-        minimum_id = int(row.get("local_minimum_id", index))
+        minimum_id = int(row["local_minimum_id"])
         row.update(
             {
                 "selected_observable": OBJECTIVE_NAME,
@@ -1935,7 +2163,7 @@ def _write_configuration_plot(
             )
             fig.suptitle(
                 f"{lepton_name}: polarization cluster P{parent_id + 1}, "
-                f"local minimum {row.get('local_minimum_id', selected_index)}; "
+                f"local minimum {row['local_minimum_id']}; "
                 "pairwise projections of the 8D "
                 rf"${OBJECTIVE_LATEX}="
                 rf"({OBJECTIVE_LATEX})_{{\mathrm{{local}}}}"
@@ -2141,7 +2369,7 @@ def _species_tasks(lepton_name):
     phase_scan._configure_lepton(lepton_name)
     species_seed = (
         ENTANGLEMENT_GRADIENT_RANDOM_SEED
-        + tuple(LEPTON_SPECS).index(lepton_name)
+        + GRADIENT_LEPTON_NAMES.index(lepton_name)
     )
     latin_starts = qmc.LatinHypercube(
         d=SCAN_DIMENSION,
@@ -2221,9 +2449,13 @@ def _physics_reference_rows(lepton_name):
 def scan_species_minima(lepton_name, results=None):
     """Find and save every distinct verified minimum for one species."""
     phase_scan._configure_lepton(lepton_name)
+    # Validate deterministic references before starting the expensive Sobol
+    # screening and optimization.  A stale frame-dependent anchor must fail
+    # immediately rather than after every optimization run has completed.
+    reference_rows = _physics_reference_rows(lepton_name)
     minimum_scan_started = perf_counter()
-    tasks = _species_tasks(lepton_name)
     if results is None:
+        tasks = _species_tasks(lepton_name)
         results = _run_tasks(tasks)
     minima = _deduplicate_minima(results)
     minimum_scan_seconds = perf_counter() - minimum_scan_started
@@ -2242,11 +2474,9 @@ def scan_species_minima(lepton_name, results=None):
         scan_data_dir / "optimization_runs.csv",
         [result[0] for result in results],
     )
-    reference_rows = _physics_reference_rows(lepton_name)
-    references_path = _write_csv(
-        scan_data_dir / "physics_reference_points.csv",
-        reference_rows,
-    )
+    references_path = scan_data_dir / "physics_reference_points.csv"
+    if reference_rows:
+        _write_csv(references_path, reference_rows)
     minimum_rows = []
     for minimum_index, (_run, _unit_point, row) in enumerate(minima):
         item = dict(row)
@@ -2271,20 +2501,30 @@ def scan_species_minima(lepton_name, results=None):
         bool(result[0]["local_minimum_verified"])
         for result in results
     )
-    latin_count = sum(task[3] == "latin_hypercube" for task in tasks)
-    screened_count = sum(task[3] == "sobol_screened" for task in tasks)
-    anchor_count = sum(
-        str(task[3]).startswith("physics_anchor:")
-        for task in tasks
+    latin_count = sum(
+        result[0]["start_source"] == "latin_hypercube"
+        for result in results
     )
+    screened_count = sum(
+        result[0]["start_source"] == "sobol_screened"
+        for result in results
+    )
+    anchor_count = sum(
+        str(result[0]["start_source"]).startswith("physics_anchor:")
+        for result in results
+    )
+    screening_key = _run_objective_key("screening")
     screened_values = [
-        float(task[4])
-        for task in tasks
-        if task[3] == "sobol_screened" and np.isfinite(task[4])
+        float(result[0][screening_key])
+        for result in results
+        if (
+            result[0]["start_source"] == "sobol_screened"
+            and np.isfinite(float(result[0][screening_key]))
+        )
     ]
     report_lines = [
         f"Hybrid global gradient {OBJECTIVE_NAME} search ({lepton_name})",
-        f"  optimization starts: {len(tasks)}",
+        f"  optimization starts: {len(results)}",
         f"  Latin-hypercube starts: {latin_count}",
         (
             f"  Sobol screening: "
@@ -2299,13 +2539,17 @@ def scan_species_minima(lepton_name, results=None):
         ),
         f"  deterministic physics anchors: {anchor_count}",
         f"  shared optimization workers: {GRADIENT_WORKERS}",
-        f"  L-BFGS-B-converged runs: {lbfgs_converged}/{len(tasks)}",
-        f"  multiscale-verified runs: {verified}/{len(tasks)}",
+        f"  L-BFGS-B-converged runs: {lbfgs_converged}/{len(results)}",
+        f"  multiscale-verified runs: {verified}/{len(results)}",
         f"  distinct finite minima: {len(minima)}",
         f"  minimum scan time: {minimum_scan_seconds:.3f} s",
         f"  best {OBJECTIVE_NAME}: {optimum:.10g}",
         f"  optimization runs: {run_path}",
-        f"  exact physics reference points: {references_path}",
+        (
+            f"  exact physics reference points: {references_path}"
+            if reference_rows
+            else "  exact physics reference points: none configured"
+        ),
         f"  local minima: {minima_path}",
         f"  all-local-minima plot: {minima_plot}",
     ]
@@ -2321,7 +2565,9 @@ def remake_species_minima_plot(lepton_name):
         output_dirs["scan_data"] / "physics_reference_points.csv"
     )
     reference_rows = (
-        _read_csv(references_path) if references_path.exists() else []
+        _read_csv(references_path)
+        if PHYSICS_ANCHOR_STARTS.get(lepton_name) and references_path.exists()
+        else []
     )
     plot_started = perf_counter()
     minima_plot = _plot_all_local_minima(
@@ -2350,6 +2596,7 @@ def cluster_species_minima(
     polarization_cluster_count,
     polarization_cluster_seed,
     polarization_alpha_e_line_half_width,
+    polarization_alpha_e_boundaries,
 ):
     """Cluster low-objective minima only in polarization space."""
     output_dirs = species_output_dirs(lepton_name)
@@ -2363,6 +2610,7 @@ def cluster_species_minima(
         cluster_count=polarization_cluster_count,
         random_seed=polarization_cluster_seed,
         alpha_e_line_half_width=polarization_alpha_e_line_half_width,
+        alpha_e_boundaries=polarization_alpha_e_boundaries,
     )
     polarization_path = _write_csv(
         output_dirs["cluster_data"] / "polarization_clusters.csv",
@@ -2375,6 +2623,7 @@ def cluster_species_minima(
         polarization_objective_cut,
         optimum,
         polarization_alpha_e_line_half_width,
+        polarization_alpha_e_boundaries,
         output_dirs["plots"] / "polarization_cluster_phase_space.pdf",
     )
     retained = sum(
@@ -2400,13 +2649,24 @@ def cluster_species_minima(
             ),
             f"  minima passing polarization cut: {retained}",
             (
-                f"  narrow-alpha_e-band polarization clusters: "
+                f"  {SCAN_KEY} polarization clusters: "
                 f"{len(polarization_clusters)}"
             ),
             (
-                "  alpha_e line half-width: "
-                f"{polarization_alpha_e_line_half_width:.8g} rad "
-                f"({polarization_alpha_e_line_half_width / np.pi:.8g}pi)"
+                (
+                    "  alpha_e line half-width: "
+                    f"{polarization_alpha_e_line_half_width:.8g} rad "
+                    f"({polarization_alpha_e_line_half_width / np.pi:.8g}pi)"
+                )
+                if SCAN_KEY == "W"
+                else (
+                    "  alpha_e boundaries: "
+                    + ", ".join(
+                        f"{float(boundary):.8g}"
+                        for boundary in polarization_alpha_e_boundaries
+                    )
+                    + " rad"
+                )
             ),
             (
                 "  one best-objective representative selected per "
@@ -2572,7 +2832,7 @@ def _validate_scan_settings():
             "The gradient phase-space tool requires "
             "SCAN_INITIAL_MIXING_ANGLES=True."
         )
-    unknown = set(LEPTONS_TO_PROCESS) - set(LEPTON_SPECS)
+    unknown = set(LEPTONS_TO_PROCESS) - set(GRADIENT_LEPTON_SPECS)
     if unknown:
         raise ValueError(f"Unknown lepton species: {sorted(unknown)}")
     if not LEPTONS_TO_PROCESS:
@@ -2685,7 +2945,7 @@ def _validate_scan_settings():
             "non-negative."
         )
     for lepton_name, anchors in PHYSICS_ANCHOR_STARTS.items():
-        if lepton_name not in LEPTON_SPECS:
+        if lepton_name not in GRADIENT_LEPTON_SPECS:
             raise ValueError(
                 f"Unknown physics-anchor lepton species: {lepton_name!r}"
             )
@@ -2724,7 +2984,7 @@ def _validate_stage_runtime():
             "The gradient workflow requires "
             "SCAN_INITIAL_MIXING_ANGLES=True."
         )
-    unknown = set(LEPTONS_TO_PROCESS) - set(LEPTON_SPECS)
+    unknown = set(LEPTONS_TO_PROCESS) - set(GRADIENT_LEPTON_SPECS)
     if unknown:
         raise ValueError(f"Unknown lepton species: {sorted(unknown)}")
     if not LEPTONS_TO_PROCESS:
@@ -2818,6 +3078,7 @@ def run_phase_space_clustering(
     polarization_cluster_count,
     polarization_cluster_seed,
     polarization_alpha_e_line_half_width,
+    polarization_alpha_e_boundaries,
 ):
     """Cluster phase space and optionally classify low-objective polarization."""
     if not isinstance(polarization_cluster_count, int):
@@ -2829,12 +3090,6 @@ def run_phase_space_clustering(
             f"At most {len(POLARIZATION_CLUSTER_STYLES)} distinct "
             "polarization marker/color styles are available."
         )
-    expected_cluster_count = sum(POLARIZATION_ALPHA_E_STRATUM_CLUSTERS)
-    if polarization_cluster_count != expected_cluster_count:
-        raise ValueError(
-            f"polarization_cluster_count must be {expected_cluster_count} "
-            "for the narrow alpha_e capture-band layout."
-        )
     if (
         polarization_objective_cut is None
         or not np.isfinite(polarization_objective_cut)
@@ -2845,14 +3100,61 @@ def run_phase_space_clustering(
         )
     if not isinstance(polarization_cluster_seed, int):
         raise TypeError("polarization_cluster_seed must be an int.")
-    if (
-        not np.isfinite(polarization_alpha_e_line_half_width)
-        or polarization_alpha_e_line_half_width <= 0.0
-        or polarization_alpha_e_line_half_width >= np.pi / 4.0
-    ):
+    if definition.key == "W":
+        expected_cluster_count = sum(
+            W_POLARIZATION_ALPHA_E_STRATUM_CLUSTERS
+        )
+        if polarization_cluster_count != expected_cluster_count:
+            raise ValueError(
+                f"W polarization_cluster_count must be "
+                f"{expected_cluster_count}."
+            )
+        if (
+            not np.isfinite(polarization_alpha_e_line_half_width)
+            or polarization_alpha_e_line_half_width <= 0.0
+            or polarization_alpha_e_line_half_width >= np.pi / 4.0
+        ):
+            raise ValueError(
+                "W polarization_alpha_e_line_half_width must be finite and "
+                "strictly between 0 and pi/4."
+            )
+        if polarization_alpha_e_boundaries is not None:
+            raise ValueError("W polarization_alpha_e_boundaries must be None.")
+    elif definition.key == "GHZ":
+        boundaries = np.asarray(
+            polarization_alpha_e_boundaries,
+            dtype=float,
+        )
+        required_boundaries = np.asarray((0.0, np.pi / 2.0, np.pi))
+        if (
+            boundaries.shape != required_boundaries.shape
+            or not np.allclose(
+                boundaries,
+                required_boundaries,
+                rtol=0.0,
+                atol=1.0e-15,
+            )
+        ):
+            raise ValueError(
+                "GHZ polarization_alpha_e_boundaries must be "
+                "(0, pi/2, pi)."
+            )
+        expected_cluster_count = (
+            (len(boundaries) - 1)
+            * GHZ_ALPHA_P_CLUSTERS_PER_ALPHA_E_REGION
+        )
+        if polarization_cluster_count != expected_cluster_count:
+            raise ValueError(
+                f"GHZ polarization_cluster_count must be "
+                f"{expected_cluster_count}."
+            )
+        if polarization_alpha_e_line_half_width is not None:
+            raise ValueError(
+                "GHZ polarization_alpha_e_line_half_width must be None."
+            )
+    else:
         raise ValueError(
-            "polarization_alpha_e_line_half_width must be finite and "
-            "strictly between 0 and pi/4."
+            f"No polarization clustering setup for {definition.key!r}."
         )
     configure_scan(
         definition,
@@ -2868,6 +3170,9 @@ def run_phase_space_clustering(
             polarization_cluster_seed=polarization_cluster_seed,
             polarization_alpha_e_line_half_width=(
                 polarization_alpha_e_line_half_width
+            ),
+            polarization_alpha_e_boundaries=(
+                polarization_alpha_e_boundaries
             ),
         )
         for lepton_name in LEPTONS_TO_PROCESS

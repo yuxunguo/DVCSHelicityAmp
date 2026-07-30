@@ -1,0 +1,6 @@
+Remade gradient D_W minima plot (muon)
+  source minima: Output\GradientPhaseSpaceScan\muon\Data\W\scan\local_minima.csv
+  local minima loaded: 1296
+  plot generation time: 1.034 s
+  all-local-minima plot: Output\GradientPhaseSpaceScan\muon\Plots\W\all_local_minima.pdf
+  screening and gradient optimization were not rerun

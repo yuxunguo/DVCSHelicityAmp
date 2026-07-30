@@ -5,8 +5,8 @@ along ``-z``.  The independent variables are
 
 ``(s, qOut, theta_p_out, phi_p_out, theta_gamma_out, phi_gamma_out)``.
 
-The final proton and real photon share the production-plane polar angle
-independent polar and azimuthal angles.  The outgoing-lepton momentum
+The final proton and real photon have independent polar and azimuthal angles.
+The outgoing-lepton momentum
 follows from three-momentum conservation, while the final-proton magnitude
 ``pOut`` is solved from energy conservation.
 

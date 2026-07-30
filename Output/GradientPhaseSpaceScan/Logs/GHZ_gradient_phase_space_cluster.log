@@ -1,0 +1,12 @@
+Gradient dGHZ polarization clustering (electron)
+  source minima: Output\GradientPhaseSpaceScan\electron\Data\GHZ\scan\local_minima.csv
+  local minima loaded: 579
+  polarization cut: dGHZ - dGHZ_min <= 0.05
+  minima passing polarization cut: 376
+  GHZ polarization clusters: 4
+  alpha_e boundaries: 0, 1.5707963, 3.1415927 rad
+  one best-objective representative selected per polarization cluster
+  clustering time: 3.415 s
+  clustered minima: Output\GradientPhaseSpaceScan\electron\Data\GHZ\cluster\clustered_minima.csv
+  polarization cluster summary: Output\GradientPhaseSpaceScan\electron\Data\GHZ\cluster\polarization_clusters.csv
+  polarization phase-space plot: Output\GradientPhaseSpaceScan\electron\Plots\GHZ\polarization_cluster_phase_space.pdf

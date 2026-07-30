@@ -10,8 +10,8 @@ import sys
 from config import SCAN_WORKERS
 
 
-SCANS_TO_RUN = ("W", "GHZ")
-LEPTONS_TO_CONFIGURE = ("electron", "muon")
+SCANS_TO_RUN = ("GHZ", "W")
+LEPTONS_TO_CONFIGURE = ("electron",)
 # Contour evaluation uses lightweight workers that do not import SciPy, so all
 # configured CPU workers can run without exhausting the Windows paging file.
 CONFIG_WORKERS = SCAN_WORKERS

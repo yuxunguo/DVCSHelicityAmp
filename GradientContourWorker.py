@@ -163,7 +163,8 @@ def configuration_contour_task(task):
     (
         row_index,
         chunk_index,
-        row,
+        center,
+        base_value,
         lepton_name,
         lepton_mass,
         objective_name,
@@ -173,14 +174,8 @@ def configuration_contour_task(task):
         bisection_iterations,
     ) = task
     phase_scan._configure_lepton(lepton_name)
-    center = np.asarray(
-        [
-            float(row[f"final_u{index}"])
-            for index in range(SCAN_DIMENSION)
-        ],
-        dtype=float,
-    )
-    base_value = float(row[_objective_key(lepton_name, objective_name)])
+    center = np.asarray(center, dtype=float)
+    base_value = float(base_value)
     evaluation_id = row_index * 10_000_000 + chunk_index * 100_000
     evaluation_count = 0
 
