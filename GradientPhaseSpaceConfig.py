@@ -1,4 +1,4 @@
-"""Stage 3: configure every minimum in each polarization cluster.
+"""Stage 4: configure every minimum in each polarization cluster.
 
 Edit the explicit globals below, then run
 
@@ -12,13 +12,11 @@ from config import SCAN_WORKERS
 
 SCANS_TO_RUN = ("W",)
 LEPTONS_TO_CONFIGURE = ("muon",)
-# Contour evaluation uses lightweight workers that do not import SciPy, so all
-# configured CPU workers can run without exhausting the Windows paging file.
+# Workers are used by configuration reconstruction; contours are loaded from
+# the raw-minimum package generated before clustering.
 CONFIG_WORKERS = SCAN_WORKERS
 # One-based polarization-cluster numbers. Use None to configure every cluster.
 POLARIZATION_CLUSTERS_TO_CONFIGURE = (2, 5, 6)
-SAVE_CONTOUR_DATA = True
-USE_SAVED_CONTOUR_DATA = False
 
 
 def run_selected_configs():
@@ -29,10 +27,6 @@ def run_selected_configs():
     scan_definitions = definitions.selected_definitions(SCANS_TO_RUN)
     leptons = definitions.validated_leptons(LEPTONS_TO_CONFIGURE)
     workers = definitions.validated_workers(CONFIG_WORKERS)
-    if not isinstance(SAVE_CONTOUR_DATA, bool):
-        raise TypeError("SAVE_CONTOUR_DATA must be a bool.")
-    if not isinstance(USE_SAVED_CONTOUR_DATA, bool):
-        raise TypeError("USE_SAVED_CONTOUR_DATA must be a bool.")
     if POLARIZATION_CLUSTERS_TO_CONFIGURE is not None:
         if (
             not POLARIZATION_CLUSTERS_TO_CONFIGURE
@@ -63,14 +57,12 @@ def run_selected_configs():
             polarization_clusters_to_configure=(
                 POLARIZATION_CLUSTERS_TO_CONFIGURE
             ),
-            save_contour_data=SAVE_CONTOUR_DATA,
-            use_saved_contour_data=USE_SAVED_CONTOUR_DATA,
         )
     return reports
 
 
 def main():
-    """Run stage 3 using only the explicit global controls."""
+    """Run stage 4 using only the explicit global controls."""
     if len(sys.argv) != 1:
         raise SystemExit(
             "GradientPhaseSpaceConfig.py accepts no command-line arguments; "

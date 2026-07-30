@@ -195,9 +195,27 @@ def species_output_dirs(lepton_name):
         "root": root,
         "data": root / "Data" / SCAN_KEY,
         "scan_data": root / "Data" / SCAN_KEY / "scan",
+        "contour_data": root / "Data" / SCAN_KEY / "contour",
         "cluster_data": root / "Data" / SCAN_KEY / "cluster",
         "plots": root / "Plots" / SCAN_KEY,
     }
+
+
+def minimum_contour_data_paths(lepton_name):
+    """Return the pre-cluster contour package keyed by raw minimum ID."""
+    contour_dir = species_output_dirs(lepton_name)["contour_data"]
+    return {
+        "minima": contour_dir / "local_minima",
+        "index": contour_dir / "local_minimum_contour_index.csv",
+    }
+
+
+def minimum_contour_data_path(lepton_name, minimum_id):
+    """Return one raw minimum's only authoritative contour file."""
+    return (
+        minimum_contour_data_paths(lepton_name)["minima"]
+        / f"local_minimum_{int(minimum_id):04d}_contour_samples.csv"
+    )
 
 
 def configuration_data_paths(lepton_name, polarization_cluster_id):
@@ -223,7 +241,6 @@ def configuration_data_paths(lepton_name, polarization_cluster_id):
             combined_dir
             / f"{prefix}_final_state_amplitude_decomposition.csv"
         ),
-        "contours": combined_dir / f"{prefix}_contour_samples.csv",
     }
 
 
@@ -739,7 +756,9 @@ def _contour_csv_rows(selected_rows, contours):
         base = {
             "objective_name": OBJECTIVE_NAME,
             "objective_file_tag": OBJECTIVE_FILE_TAG,
-            "local_minimum_index": row_index,
+            # This remains stable when independently generated per-minimum
+            # files are combined or later reordered by clustering.
+            "local_minimum_index": minimum_id,
             "local_minimum_id": minimum_id,
             "contour_delta": PHASE_SPACE_CONFIG_CONTOUR_DELTA,
             "configured_direction_count": PHASE_SPACE_CONFIG_CONTOUR_SAMPLES,
@@ -778,13 +797,14 @@ def _contour_csv_rows(selected_rows, contours):
     return csv_rows
 
 
-def _write_contour_data(path, selected_rows, contours):
-    """Save reusable contour samples before generating their PDF."""
-    return _write_csv(path, _contour_csv_rows(selected_rows, contours))
-
-
-def _load_contour_data(path, selected_rows):
-    """Load selected minima from saved contours, allowing unused extra rows."""
+def _load_contour_data(
+    path,
+    selected_rows,
+    *,
+    return_settings=False,
+):
+    """Load contours by minimum ID and validate their saved metadata."""
+    path = Path(path)
     saved_rows = _read_csv(path)
     metadata = {}
     samples = {}
@@ -800,37 +820,47 @@ def _load_contour_data(path, selected_rows):
                 f"Saved contour tag {saved['objective_file_tag']!r} does "
                 f"not match active tag {OBJECTIVE_FILE_TAG!r}: {path}"
             )
+        saved_delta = float(saved["contour_delta"])
+        if not np.isfinite(saved_delta) or saved_delta <= 0.0:
+            raise ValueError(
+                f"Saved contour delta must be finite and positive: {path}"
+            )
+        saved_direction_count = int(saved["configured_direction_count"])
+        if saved_direction_count < 2 * SCAN_DIMENSION:
+            raise ValueError(
+                f"Saved contour direction count must be at least "
+                f"{2 * SCAN_DIMENSION}: {path}"
+            )
         if not np.isclose(
-            float(saved["contour_delta"]),
+            saved_delta,
             PHASE_SPACE_CONFIG_CONTOUR_DELTA,
             rtol=0.0,
             atol=1.0e-15,
         ):
             raise ValueError(
-                "Saved contour delta does not match "
-                f"PHASE_SPACE_CONFIG_CONTOUR_DELTA: {path}"
+                "Saved contour delta does not match the current contour "
+                f"generation setting: {path}"
             )
         if (
-            int(saved["configured_direction_count"])
-            != PHASE_SPACE_CONFIG_CONTOUR_SAMPLES
+            saved_direction_count != PHASE_SPACE_CONFIG_CONTOUR_SAMPLES
         ):
             raise ValueError(
-                "Saved contour direction count does not match "
-                f"PHASE_SPACE_CONFIG_CONTOUR_SAMPLES: {path}"
+                "Saved contour direction count does not match the current "
+                f"contour generation setting: {path}"
             )
-        row_index = int(saved["local_minimum_index"])
-        samples.setdefault(row_index, [])
-        sample_ids.setdefault(row_index, [])
+        minimum_id = str(saved["local_minimum_id"])
+        samples.setdefault(minimum_id, [])
+        sample_ids.setdefault(minimum_id, [])
         if saved["record_type"] == "minimum":
-            if row_index in metadata:
+            if minimum_id in metadata:
                 raise ValueError(
-                    f"Saved contour repeats metadata for minimum "
-                    f"{row_index}: {path}"
+                    f"Saved contour repeats metadata for local-minimum ID "
+                    f"{minimum_id!r}: {path}"
                 )
-            metadata[row_index] = saved
+            metadata[minimum_id] = saved
         elif saved["record_type"] == "sample":
-            sample_ids[row_index].append(int(saved["contour_sample_id"]))
-            samples[row_index].append(
+            sample_ids[minimum_id].append(int(saved["contour_sample_id"]))
+            samples[minimum_id].append(
                 np.asarray(
                     [
                         float(saved[f"u{coordinate}"])
@@ -845,25 +875,16 @@ def _load_contour_data(path, selected_rows):
                 f"{saved['record_type']!r}: {path}"
             )
 
-    saved_index_by_id = {}
-    for saved_index, saved in metadata.items():
-        saved_id = saved["local_minimum_id"]
-        if saved_id in saved_index_by_id:
-            raise ValueError(
-                f"Saved contour repeats local-minimum ID {saved_id!r}: {path}"
-            )
-        saved_index_by_id[saved_id] = saved_index
-
     loaded = {}
+    settings = {}
     for output_index, row in enumerate(selected_rows):
         expected_id = str(row["local_minimum_id"])
-        if expected_id not in saved_index_by_id:
+        if expected_id not in metadata:
             raise ValueError(
                 f"Saved contour data is missing local-minimum ID "
                 f"{expected_id!r}: {path}"
             )
-        saved_index = saved_index_by_id[expected_id]
-        saved = metadata[saved_index]
+        saved = metadata[expected_id]
         saved_center = np.asarray(
             [
                 float(saved[f"center_u{coordinate}"])
@@ -882,16 +903,43 @@ def _load_contour_data(path, selected_rows):
                 f"{expected_id}: {path}"
             )
         expected_count = int(saved["contour_point_count"])
-        if sample_ids[saved_index] != list(range(expected_count)):
+        if sample_ids[expected_id] != list(range(expected_count)):
             raise ValueError(
                 f"Saved contour samples for minimum {expected_id} are "
                 f"incomplete or out of order: {path}"
             )
         loaded[output_index] = np.asarray(
-            samples[saved_index],
+            samples[expected_id],
             dtype=float,
         ).reshape((-1, SCAN_DIMENSION))
+        settings[output_index] = {
+            "contour_delta": float(saved["contour_delta"]),
+            "configured_direction_count": int(
+                saved["configured_direction_count"]
+            ),
+        }
+    if return_settings:
+        return loaded, settings
     return loaded
+
+
+def _load_minimum_contour_data(lepton_name, selected_rows):
+    """Load each contour from its raw-minimum-owned CSV."""
+    loaded = {}
+    settings = {}
+    for output_index, row in enumerate(selected_rows):
+        path = minimum_contour_data_path(
+            lepton_name,
+            row["local_minimum_id"],
+        )
+        one_loaded, one_settings = _load_contour_data(
+            path,
+            [row],
+            return_settings=True,
+        )
+        loaded[output_index] = one_loaded[0]
+        settings[output_index] = one_settings[0]
+    return loaded, settings
 
 
 def _unwrap_about_center(values, center, period):
@@ -1920,6 +1968,7 @@ def _write_configuration_plot(
     optimum,
     path,
     contours,
+    contour_settings,
 ):
     """Write configuration pages from supplied 8D contour samples."""
     plt, PdfPages = config_gen._require_matplotlib()
@@ -1927,6 +1976,10 @@ def _write_configuration_plot(
     if len(selected_rows) != len(detail_rows):
         raise ValueError(
             "Selected local-minimum rows and configuration details disagree."
+        )
+    if set(contour_settings) != set(range(len(selected_rows))):
+        raise ValueError(
+            "Every selected minimum must have saved contour settings."
         )
     full_limits = _full_phase_space_plot_limits(lepton_name)
     objective_key = _objective_key(lepton_name)
@@ -2003,6 +2056,18 @@ def _write_configuration_plot(
 
         overview_summary = overview_axes[2, 2]
         overview_summary.axis("off")
+        overview_deltas = sorted(
+            {
+                settings["contour_delta"]
+                for settings in contour_settings.values()
+            }
+        )
+        overview_direction_counts = sorted(
+            {
+                settings["configured_direction_count"]
+                for settings in contour_settings.values()
+            }
+        )
         overview_lines = [
             (
                 f"polarization cluster P{parent_id + 1}: "
@@ -2010,11 +2075,12 @@ def _write_configuration_plot(
             ),
             f"{len(selected_rows)} local minima in this polarization cluster",
             (
-                f"contour delta={PHASE_SPACE_CONFIG_CONTOUR_DELTA:g}"
+                "contour delta/minimum="
+                + ",".join(f"{value:g}" for value in overview_deltas)
             ),
             (
-                f"configured 8D samples/minimum="
-                f"{PHASE_SPACE_CONFIG_CONTOUR_SAMPLES}"
+                "configured 8D directions/minimum="
+                + ",".join(str(value) for value in overview_direction_counts)
             ),
             (
                 f"{OBJECTIVE_NAME} range="
@@ -2057,6 +2123,10 @@ def _write_configuration_plot(
             config_scan._save_mixing_detail_pages(pdf, plt, [display_detail])
             center = _unit_point_from_minimum_row(row)
             boundary_points = contours[selected_index]
+            contour_delta = contour_settings[selected_index]["contour_delta"]
+            configured_direction_count = contour_settings[selected_index][
+                "configured_direction_count"
+            ]
             local_value = float(row[objective_key])
             fig, axes = plt.subplots(
                 3, 3, figsize=(14.5, 11.5), constrained_layout=True
@@ -2110,7 +2180,7 @@ def _write_configuration_plot(
                         label=(
                             rf"${OBJECTIVE_LATEX}="
                             rf"({OBJECTIVE_LATEX})_{{\mathrm{{local}}}}"
-                            rf"+{PHASE_SPACE_CONFIG_CONTOUR_DELTA:g}$ projection"
+                            rf"+{contour_delta:g}$ projection"
                             if panel_index == 0 else None
                         ),
                         zorder=2,
@@ -2151,13 +2221,14 @@ def _write_configuration_plot(
                 f"{OBJECTIVE_NAME}(local) = {local_value:.8g}",
                 (
                     f"{OBJECTIVE_NAME} contour = "
-                    f"{local_value + PHASE_SPACE_CONFIG_CONTOUR_DELTA:.8g}"
+                    f"{local_value + contour_delta:.8g}"
                 ),
                 (
                     f"above global minimum = "
                     f"{local_value - optimum:.8g}"
                 ),
                 f"8D contour samples = {len(boundary_points)}",
+                f"configured 8D directions = {configured_direction_count}",
                 "",
                 "selected phase-space point:",
             ]
@@ -2190,7 +2261,7 @@ def _write_configuration_plot(
                 "pairwise projections of the 8D "
                 rf"${OBJECTIVE_LATEX}="
                 rf"({OBJECTIVE_LATEX})_{{\mathrm{{local}}}}"
-                rf"+{PHASE_SPACE_CONFIG_CONTOUR_DELTA:g}$ contour"
+                rf"+{contour_delta:g}$ contour"
             )
             pdf.savefig(fig)
             plt.close(fig)
@@ -2202,11 +2273,8 @@ def _write_configurations(
     polarization_cluster_id,
     selected_minimum_rows,
     optimum,
-    *,
-    save_contour_data,
-    use_saved_contour_data,
 ):
-    """Generate one parent polarization's data and PDF package."""
+    """Generate one cluster package from pre-cluster minimum contours."""
     paths = configuration_data_paths(
         lepton_name,
         polarization_cluster_id,
@@ -2228,28 +2296,15 @@ def _write_configurations(
         paths["amplitudes"], config_scan._mixing_amplitude_rows(details)
     )
     contour_started = perf_counter()
-    if use_saved_contour_data:
-        contours = _load_contour_data(
-            paths["contours"],
-            selected_minimum_rows,
-        )
-        contour_source = f"loaded saved contour samples: {paths['contours']}"
-        contour_timing_label = "contour data load time"
-    else:
-        contours = _configuration_contours(
-            selected_minimum_rows,
-            lepton_name,
-        )
-        if save_contour_data:
-            _write_contour_data(
-                paths["contours"],
-                selected_minimum_rows,
-                contours,
-            )
-            contour_source = f"saved contour samples: {paths['contours']}"
-        else:
-            contour_source = "saved contour samples: disabled"
-        contour_timing_label = "contour generation time"
+    contours, contour_settings = _load_minimum_contour_data(
+        lepton_name,
+        selected_minimum_rows,
+    )
+    contour_source = (
+        "loaded pre-cluster per-minimum contour samples by "
+        "local_minimum_id"
+    )
+    contour_timing_label = "pre-cluster contour data load time"
     contour_seconds = perf_counter() - contour_started
     plot_path = _configuration_plot_path(
         lepton_name,
@@ -2262,6 +2317,7 @@ def _write_configurations(
         optimum,
         plot_path,
         contours,
+        contour_settings,
     )
     return (
         paths,
@@ -2612,6 +2668,99 @@ def remake_species_minima_plot(lepton_name):
     )
 
 
+def contour_species_minima(lepton_name, *, reuse_saved_minima):
+    """Generate resumable contours for raw minima before any clustering."""
+    output_dirs = species_output_dirs(lepton_name)
+    minima_path = output_dirs["scan_data"] / "local_minima.csv"
+    minimum_rows = _read_csv(minima_path)
+    if "local_minimum_id" not in minimum_rows[0]:
+        raise ValueError(
+            f"Raw minima are missing local_minimum_id: {minima_path}"
+        )
+    minimum_ids = [str(row["local_minimum_id"]) for row in minimum_rows]
+    if len(set(minimum_ids)) != len(minimum_ids):
+        raise ValueError(
+            f"Raw minima repeat local_minimum_id values: {minima_path}"
+        )
+
+    paths = minimum_contour_data_paths(lepton_name)
+    index_rows = []
+    generated_count = 0
+    reused_count = 0
+    contour_started = perf_counter()
+    for minimum_number, row in enumerate(minimum_rows, start=1):
+        minimum_id = str(row["local_minimum_id"])
+        minimum_path = minimum_contour_data_path(lepton_name, minimum_id)
+        minimum_started = perf_counter()
+        if reuse_saved_minima and minimum_path.exists():
+            _load_contour_data(minimum_path, [row])
+            minimum_csv_rows = _read_csv(minimum_path)
+            reused_count += 1
+            action = "reused"
+        else:
+            contours = _configuration_contours([row], lepton_name)
+            minimum_csv_rows = _contour_csv_rows([row], contours)
+            _write_csv(minimum_path, minimum_csv_rows)
+            generated_count += 1
+            action = "generated"
+        metadata = next(
+            item
+            for item in minimum_csv_rows
+            if item["record_type"] == "minimum"
+        )
+        index_rows.append(
+            {
+                "local_minimum_id": minimum_id,
+                "contour_status": "complete",
+                "contour_file": str(minimum_path),
+                "contour_point_count": metadata["contour_point_count"],
+                "configured_direction_count": (
+                    metadata["configured_direction_count"]
+                ),
+                "contour_delta": metadata["contour_delta"],
+            }
+        )
+        # Refresh the lightweight index after each minimum. The authoritative
+        # numerical samples remain in their per-minimum files.
+        _write_csv(paths["index"], index_rows)
+        elapsed = perf_counter() - contour_started
+        average = elapsed / minimum_number
+        remaining = average * (len(minimum_rows) - minimum_number)
+        print(
+            f"[{minimum_number}/{len(minimum_rows)}] {action} contour for "
+            f"local_minimum_id={minimum_id} in "
+            f"{perf_counter() - minimum_started:.3f} s; "
+            f"ETA {remaining / 60.0:.1f} min",
+            flush=True,
+        )
+
+    contour_seconds = perf_counter() - contour_started
+    return "\n".join(
+        (
+            f"Gradient {OBJECTIVE_NAME} pre-cluster contours ({lepton_name})",
+            f"  source raw minima: {minima_path}",
+            f"  local minima loaded: {len(minimum_rows)}",
+            f"  contours generated: {generated_count}",
+            f"  contours reused after validation: {reused_count}",
+            (
+                f"  directions per minimum: "
+                f"{PHASE_SPACE_CONFIG_CONTOUR_SAMPLES}"
+            ),
+            (
+                "  local-minimum contour settings: read from each "
+                "minimum-owned contour file"
+            ),
+            f"  contour generation time: {contour_seconds:.3f} s",
+            f"  per-minimum contour data: {paths['minima']}",
+            f"  contour index: {paths['index']}",
+            (
+                "  ownership key: local_minimum_id from the raw "
+                "local_minima.csv"
+            ),
+        )
+    )
+
+
 def cluster_species_minima(
     lepton_name,
     *,
@@ -2707,8 +2856,6 @@ def configure_species_clusters(
     lepton_name,
     *,
     polarization_clusters_to_configure,
-    save_contour_data,
-    use_saved_contour_data,
 ):
     """Configure every member of every polarization cluster."""
     output_dirs = species_output_dirs(lepton_name)
@@ -2784,8 +2931,6 @@ def configure_species_clusters(
             parent_id,
             selected_rows,
             optimum,
-            save_contour_data=save_contour_data,
-            use_saved_contour_data=use_saved_contour_data,
         )
         total_selected += len(selected_rows)
         total_contour_seconds += contour_seconds
@@ -3203,20 +3348,40 @@ def run_phase_space_clustering(
     return _write_stage_report("cluster", reports)
 
 
+def run_minimum_contours(
+    definition,
+    *,
+    leptons_to_contour,
+    contour_workers,
+    reuse_saved_minima,
+):
+    """Generate contours for raw local minima before clustering."""
+    if not isinstance(reuse_saved_minima, bool):
+        raise TypeError("reuse_saved_minima must be a bool.")
+    configure_scan(
+        definition,
+        leptons_to_process=leptons_to_contour,
+        gradient_workers=contour_workers,
+    )
+    _validate_config_settings()
+    reports = [
+        contour_species_minima(
+            lepton_name,
+            reuse_saved_minima=reuse_saved_minima,
+        )
+        for lepton_name in LEPTONS_TO_PROCESS
+    ]
+    return _write_stage_report("contour", reports)
+
+
 def run_cluster_configgen(
     definition,
     *,
     leptons_to_configure,
     config_workers,
     polarization_clusters_to_configure,
-    save_contour_data,
-    use_saved_contour_data,
 ):
-    """Run only ConfigGen and contour plotting from clustered minima."""
-    if not isinstance(save_contour_data, bool):
-        raise TypeError("save_contour_data must be a bool.")
-    if not isinstance(use_saved_contour_data, bool):
-        raise TypeError("use_saved_contour_data must be a bool.")
+    """Run ConfigGen from clusters and pre-cluster contour samples."""
     configure_scan(
         definition,
         leptons_to_process=leptons_to_configure,
@@ -3229,8 +3394,6 @@ def run_cluster_configgen(
             polarization_clusters_to_configure=(
                 polarization_clusters_to_configure
             ),
-            save_contour_data=save_contour_data,
-            use_saved_contour_data=use_saved_contour_data,
         )
         for lepton_name in LEPTONS_TO_PROCESS
     ]

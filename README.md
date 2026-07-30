@@ -27,8 +27,9 @@ python3 ConfigGen.py         # selected configurations from AlignmentScan
 python3 PhaseSpaceScan.py    # adaptive all-observable/all-lepton phase-space scan
 python3 PhaseSpaceConfigScan.py  # ConfigGen packages from PhaseSpaceScan results
 python3 GradientPhaseSpaceScan.py # stage 1: W/GHZ local-minimum searches
-python3 GradientPhaseSpaceCluster.py # stage 2: cluster saved minima
-python3 GradientPhaseSpaceConfig.py # stage 3: configs/contours from clusters
+python3 GradientPhaseSpaceContour.py # stage 2: contours of raw minima
+python3 GradientPhaseSpaceCluster.py # stage 3: cluster saved minima
+python3 GradientPhaseSpaceConfig.py # stage 4: configs from clusters/contours
 python3 GradientCanonicalConfigCollect.py # canonical W/GHZ PDFs by cluster
 python3 EpCMEntanglementScan.py   # reference-centered electron ep-CM scan
 python3 EpCMConfigGen.py          # config packages from the focused ep-CM scan
@@ -54,10 +55,11 @@ PhaseSpaceScan.py      Adaptive eight-dimensional kinematic/polarization scan
 PhaseSpaceConfigScan.py ConfigGen-style packages from PhaseSpaceScan results
 GradientPhaseSpaceDefinitions.py Shared W/GHZ objectives, anchors, and root
 GradientPhaseSpaceScan.py Stage 1 local-minimum search interface
-GradientPhaseSpaceCluster.py Stage 2 phase-space clustering interface
-GradientPhaseSpaceConfig.py Stage 3 cluster ConfigGen/contour interface
+GradientPhaseSpaceContour.py Stage 2 raw-minimum contour interface
+GradientPhaseSpaceCluster.py Stage 3 phase-space clustering interface
+GradientPhaseSpaceConfig.py Stage 4 cluster ConfigGen/contour-plot interface
 GradientCanonicalConfigCollect.py Canonical-component PDFs and indexes by cluster
-GradientPhaseSpaceScanTool.py Shared implementation for all three stages
+GradientPhaseSpaceScanTool.py Shared implementation for all four stages
 EpCMEntanglementScan.py Exact ep-CM scan with a slow final proton
 EpCMConfigGen.py      ConfigGen packages for the focused ep-CM scan
 ProtonVirtualPhotonAmp.py Proton helicity/current decomposition into T-/T+/L virtual photons
@@ -349,7 +351,7 @@ and high `E_gamma` bands before configuration selection. Outputs are written und
 Because it inherits the same ConfigGen targets, it also writes maximum-magic
 packages under `Data/m2_magic/`.
 
-The gradient workflow has three independent, sequential stages. Every stage
+The gradient workflow has four independent, sequential stages. Every stage
 uses explicit globals and accepts no command-line arguments.
 
 1. `GradientPhaseSpaceScan.py` performs the expensive search. Randomized
@@ -357,7 +359,13 @@ uses explicit globals and accepts no command-line arguments.
    optimized with bounded L-BFGS-B and multiscale local polling. It writes
    `optimization_runs.csv`, raw `local_minima.csv`, and
    `all_local_minima.pdf`; it does not cluster or call ConfigGen.
-2. `GradientPhaseSpaceCluster.py` reads `local_minima.csv`, applies the
+2. `GradientPhaseSpaceContour.py` reads the raw `local_minima.csv` and
+   generates the full eight-dimensional contour for every minimum before any
+   cluster assignment exists. It saves one authoritative, resumable file per
+   minimum under `contour/local_minima/`, keyed by raw `local_minimum_id`, so
+   changing a later polarization cut, seed, or cluster partition does not
+   change contour ownership.
+3. `GradientPhaseSpaceCluster.py` reads `local_minima.csv`, applies the
    objective cut, and applies a state-specific polarization partition. W
    retains narrow tunable `alpha_e` bands around `pi/4` and `3pi/4` and finds
    six `alpha_p`-periodic configurations. GHZ uses the `alpha_e` boundaries
@@ -367,7 +375,8 @@ uses explicit globals and accepts no command-line arguments.
    configuration representative. It writes the assignments and polarization
    summary without performing optimization or ConfigGen work. Every assigned
    minimum is passed to the configuration stage.
-3. `GradientPhaseSpaceConfig.py` reads `clustered_minima.csv` and generates a
+4. `GradientPhaseSpaceConfig.py` reads `clustered_minima.csv`, joins each row
+   to the pre-cluster contour data by `local_minimum_id`, and generates a
    separate data package and configuration PDF for every parent polarization
    cluster. Each PDF starts with a summary plot containing every member's
    contour, followed by a reconstructed configuration page and an 8D contour
@@ -379,12 +388,13 @@ at the top of each stage script, then run:
 
 ```sh
 python3 GradientPhaseSpaceScan.py
+python3 GradientPhaseSpaceContour.py
 python3 GradientPhaseSpaceCluster.py
 python3 GradientPhaseSpaceConfig.py
 python3 GradientCanonicalConfigCollect.py
 ```
 
-After stage 3, `GradientCanonicalConfigCollect.py` reads the saved
+After stage 4, `GradientCanonicalConfigCollect.py` reads the saved
 configuration and amplitude-decomposition CSVs without rerunning the search or
 contours. It collects configurations with exactly three retained components
 for W and exactly two retained components for GHZ. "Retained" uses
@@ -406,6 +416,7 @@ L-BFGS-B, or multiscale local search.
 Each stage stops with a missing-file error if its required predecessor output
 does not exist. Separate logs are written as
 `<state>_gradient_phase_space_scan.log`,
+`<state>_gradient_phase_space_contour.log`,
 `<state>_gradient_phase_space_cluster.log`, and
 `<state>_gradient_phase_space_config.log`.
 
@@ -418,7 +429,7 @@ The normalized gradient and local-verification resolution is controlled by
 `ENTANGLEMENT_GRADIENT_SCAN_PRECISION`; the other
 `ENTANGLEMENT_GRADIENT_*` and `ENTANGLEMENT_LOCAL_SEARCH_*` settings control
 starts, convergence, basin separation, and multiscale polishing.
-Stage 2 is polarization-first. The explicit `POLARIZATION_CLUSTER_CUT` and
+Stage 3 is polarization-first. The explicit `POLARIZATION_CLUSTER_CUT` and
 `POLARIZATION_CLUSTER_SEED` globals are shared. W uses
 `W_POLARIZATION_CLUSTER_COUNT = 6` and
 `W_ALPHA_E_LINE_HALF_WIDTH`, while GHZ uses
@@ -442,17 +453,16 @@ assigned to a polarization cluster receives reconstructed configuration,
 momentum, coherent final-state amplitude, contour data, and PDF pages.
 The contour level and number of sampled radial directions are controlled by
 `PHASE_SPACE_CONFIG_CONTOUR_DELTA` and
-`PHASE_SPACE_CONFIG_CONTOUR_SAMPLES`; the production default is `3 ** 8`
-directions per minimum.
-Stage 3 exposes `SAVE_CONTOUR_DATA` and `USE_SAVED_CONTOUR_DATA`.
-The first saves newly calculated samples to
-`min_<objective>_contour_samples.csv`; the second rebuilds the configuration
-PDF from that CSV without evaluating the contour again. Saved objective,
-contour settings, minimum IDs, and centers are validated before reuse.
-Stage 3 uses all `CONFIG_WORKERS` through `GradientContourWorker.py`. That
+`PHASE_SPACE_CONFIG_CONTOUR_SAMPLES`; the production default is 1536
+directions per minimum. Stage 2 exposes
+`REUSE_SAVED_MINIMUM_CONTOURS`. When enabled, valid completed per-minimum
+files are reused after an interrupted run, and the lightweight contour index
+is refreshed after each completed minimum. Saved objective, contour settings,
+minimum IDs, and centers are validated before reuse.
+Stage 2 uses all `CONTOUR_WORKERS` through `GradientContourWorker.py`. That
 lightweight process entrypoint intentionally avoids SciPy imports, preventing
 Windows process-spawn duplication of the optimizer DLLs while allowing
-`CONFIG_WORKERS = SCAN_WORKERS`.
+`CONTOUR_WORKERS = SCAN_WORKERS`.
 Set `POLARIZATION_CLUSTERS_TO_CONFIGURE` to `None` for every cluster or to a
 tuple of one-based cluster numbers, such as `(1, 4)`, for isolated runs.
 All angular scan and configuration plots use the shared `PlotUtils.py`
@@ -471,6 +481,7 @@ Output/GradientPhaseSpaceScan/
     Data/
       W/
         scan/
+        contour/
         cluster/
         dw/
           polarization_cluster_01/combined/
@@ -479,6 +490,7 @@ Output/GradientPhaseSpaceScan/
           polarization_cluster_06/combined/
       GHZ/
         scan/
+        contour/
         cluster/
         dghz/
           polarization_cluster_01/combined/
@@ -500,8 +512,9 @@ Output/GradientPhaseSpaceScan/
 ```
 
 Only electron and muon are accepted by the gradient workflow. Raw scan CSVs
-are under `Data/<state>/scan/`, stage-2 outputs under
-`Data/<state>/cluster/`, and each parent polarization cluster receives its own
+are under `Data/<state>/scan/`, stage-2 contours under
+`Data/<state>/contour/`, stage-3 outputs under `Data/<state>/cluster/`, and
+each parent polarization cluster receives its own
 objective data folder and PDF folder. Every polarization-cluster member
 receives a configuration page and pairwise projections of
 `objective = objective(local minimum) + PHASE_SPACE_CONFIG_CONTOUR_DELTA`.

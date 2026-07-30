@@ -1,4 +1,4 @@
-"""Stage 2: cluster saved minima by incoming polarization.
+"""Stage 3: cluster saved minima by incoming polarization.
 
 Edit the explicit globals below, then run
 
@@ -67,7 +67,7 @@ def run_selected_clusters():
 
 
 def main():
-    """Run stage 2 using only the explicit global controls."""
+    """Run stage 3 using only the explicit global controls."""
     if len(sys.argv) != 1:
         raise SystemExit(
             "GradientPhaseSpaceCluster.py accepts no command-line arguments; "
