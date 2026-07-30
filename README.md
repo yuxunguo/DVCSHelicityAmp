@@ -29,7 +29,7 @@ python3 PhaseSpaceConfigScan.py  # ConfigGen packages from PhaseSpaceScan result
 python3 GradientPhaseSpaceScan.py # stage 1: W/GHZ local-minimum searches
 python3 GradientPhaseSpaceCluster.py # stage 2: cluster saved minima
 python3 GradientPhaseSpaceConfig.py # stage 3: configs/contours from clusters
-python3 GradientCanonicalConfigCollect.py # canonical W/GHZ aggregate PDFs
+python3 GradientCanonicalConfigCollect.py # canonical W/GHZ PDFs by cluster
 python3 EpCMEntanglementScan.py   # reference-centered electron ep-CM scan
 python3 EpCMConfigGen.py          # config packages from the focused ep-CM scan
 python3 ProtonVirtualPhotonAmp.py # proton-current virtual-photon decomposition
@@ -56,7 +56,7 @@ GradientPhaseSpaceDefinitions.py Shared W/GHZ objectives, anchors, and root
 GradientPhaseSpaceScan.py Stage 1 local-minimum search interface
 GradientPhaseSpaceCluster.py Stage 2 phase-space clustering interface
 GradientPhaseSpaceConfig.py Stage 3 cluster ConfigGen/contour interface
-GradientCanonicalConfigCollect.py Canonical-component aggregate PDFs and indexes
+GradientCanonicalConfigCollect.py Canonical-component PDFs and indexes by cluster
 GradientPhaseSpaceScanTool.py Shared implementation for all three stages
 EpCMEntanglementScan.py Exact ep-CM scan with a slow final proton
 EpCMConfigGen.py      ConfigGen packages for the focused ep-CM scan
@@ -389,9 +389,13 @@ configuration and amplitude-decomposition CSVs without rerunning the search or
 contours. It collects configurations with exactly three retained components
 for W and exactly two retained components for GHZ. "Retained" uses
 `AMPLITUDE_MIN_FRACTION` (2% by default), so the PDF cover states the cutoff
-explicitly. Each aggregate PDF contains one cover followed by one compact
+explicitly. Each per-cluster PDF contains one cover followed by one compact
 momentum, kinematic-summary, and normalized-amplitude page per matching
-configuration. Companion CSV indexes preserve every included `detail_id`.
+configuration. One PDF is written inside every polarization cluster's plot
+folder, directly beside the full configuration PDF, and its companion CSV
+index is written in that cluster's `combined/` data folder. A cluster with no
+canonical match receives a cover-only PDF and an empty CSV index so the
+per-cluster package remains complete.
 
 Stage 1 exposes `REMAKE_MINIMA_PLOT_FROM_CSV`. Leave it `False` for a new
 search. Set it to `True` to read the existing
@@ -469,24 +473,24 @@ Output/GradientPhaseSpaceScan/
         scan/
         cluster/
         dw/
-          canonical/canonical_dw_configurations_electron.csv
           polarization_cluster_01/combined/
+            canonical_dw_polarization_cluster_01_configurations_electron.csv
           ...
           polarization_cluster_06/combined/
       GHZ/
         scan/
         cluster/
         dghz/
-          canonical/canonical_dghz_configurations_electron.csv
           polarization_cluster_01/combined/
+            canonical_dghz_polarization_cluster_01_configurations_electron.csv
           ...
     Plots/
-      W/Canonical_W_Configurations_Electron.pdf
       W/polarization_cluster_01/
+        Canonical_W_Configurations_Electron_Polarization_Cluster_01.pdf
       ...
       W/polarization_cluster_06/
-      GHZ/Canonical_GHZ_Configurations_Electron.pdf
       GHZ/polarization_cluster_01/
+        Canonical_GHZ_Configurations_Electron_Polarization_Cluster_01.pdf
   muon/
     Data/W/
     Data/GHZ/

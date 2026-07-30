@@ -10,13 +10,13 @@ import sys
 from config import SCAN_WORKERS
 
 
-SCANS_TO_RUN = ("GHZ", "W")
-LEPTONS_TO_CONFIGURE = ("electron",)
+SCANS_TO_RUN = ("W",)
+LEPTONS_TO_CONFIGURE = ("muon",)
 # Contour evaluation uses lightweight workers that do not import SciPy, so all
 # configured CPU workers can run without exhausting the Windows paging file.
 CONFIG_WORKERS = SCAN_WORKERS
 # One-based polarization-cluster numbers. Use None to configure every cluster.
-POLARIZATION_CLUSTERS_TO_CONFIGURE = None
+POLARIZATION_CLUSTERS_TO_CONFIGURE = (2, 5, 6)
 SAVE_CONTOUR_DATA = True
 USE_SAVED_CONTOUR_DATA = False
 

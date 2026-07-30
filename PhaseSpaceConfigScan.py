@@ -713,6 +713,58 @@ def _gradient_ghz_diagnostic_lines(row):
     ]
 
 
+def _helicity_mechanism_diagnostic_lines(row):
+    """Report canonical-GHZ helicity and virtual-photon power diagnostics."""
+    mechanism = row.get("helicity_mechanism", "")
+    if not mechanism:
+        return []
+    flip_ratio = config.parse_float(
+        row.get("full_chain_flip_to_conserving_ratio")
+    )
+    flip_fraction = config.parse_float(row.get("helicity_flip_fraction"))
+    conserving_fraction = config.parse_float(
+        row.get("helicity_conserving_fraction")
+    )
+    longitudinal_ratio = config.parse_float(
+        row.get("full_chain_longitudinal_to_transverse_ratio")
+    )
+    transverse_fraction = config.parse_float(
+        row.get("virtual_photon_transverse_fraction")
+    )
+    longitudinal_fraction = config.parse_float(
+        row.get("virtual_photon_longitudinal_fraction")
+    )
+    helicity_interference = config.parse_float(
+        row.get("helicity_interference_relative")
+    )
+    polarization_interference = config.parse_float(
+        row.get("virtual_photon_interference_relative")
+    )
+    return [
+        "",
+        (
+            "GHZ mechanism: "
+            f"{mechanism.replace('_', ' ')} (full H G C)"
+        ),
+        (
+            f"helicity powers: flip {flip_fraction:.3%}, "
+            f"conserve {conserving_fraction:.3%}"
+        ),
+        (
+            f"R_flip/conserve={flip_ratio:.3e}; "
+            f"I_h={helicity_interference:+.3e}"
+        ),
+        (
+            f"virtual-photon powers: T {transverse_fraction:.3%}, "
+            f"L {longitudinal_fraction:.3%}"
+        ),
+        (
+            f"R_L/T={longitudinal_ratio:.3e}; "
+            f"I_TL={polarization_interference:+.3e}"
+        ),
+    ]
+
+
 def _plot_mixing_configuration_text(ax, row, kin):
     """Draw the old ConfigGen kinematic summary with coherent-angle metadata."""
     ax.axis("off")
@@ -779,6 +831,7 @@ def _plot_mixing_configuration_text(ax, row, kin):
     )
     lines.extend(_gradient_w_diagnostic_lines(row))
     lines.extend(_gradient_ghz_diagnostic_lines(row))
+    lines.extend(_helicity_mechanism_diagnostic_lines(row))
     ax.text(
         0.0, 1.0, "\n".join(lines),
         va="top",

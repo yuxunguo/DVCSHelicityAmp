@@ -12,8 +12,8 @@ import GradientPhaseSpaceDefinitions as definitions
 import GradientPhaseSpaceScanTool as gradient_tool
 
 
-SCANS_TO_RUN = ("W", "GHZ")
-LEPTONS_TO_SCAN = ("electron", "muon")
+SCANS_TO_RUN = ("GHZ",)
+LEPTONS_TO_SCAN = ("muon",)
 GRADIENT_WORKERS = SCAN_WORKERS
 # True reads scan/local_minima.csv and only rebuilds all_local_minima.pdf.
 REMAKE_MINIMA_PLOT_FROM_CSV = False
