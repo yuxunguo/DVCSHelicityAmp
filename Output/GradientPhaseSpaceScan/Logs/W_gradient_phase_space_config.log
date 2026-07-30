@@ -4,13 +4,13 @@ Gradient D_W cluster ConfigGen (electron)
   parent polarization PDFs: 6
   configured polarization-cluster minima: 1156
   local-minimum contour delta: 0.05
-  total contour processing time: 22825.460 s
+  total contour processing time: 27.601 s
   P1: alpha_e~0,alpha_p~pi/2
     retained minima: 350
     configured local minima: 350
     selected minima: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_01\combined\min_dw_polarization_cluster_01_selected_minima.csv
-    saved contour samples: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_01\combined\min_dw_polarization_cluster_01_contour_samples.csv
-    contour generation time: 7410.832 s
+    loaded saved contour samples: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_01\combined\min_dw_polarization_cluster_01_contour_samples.csv
+    contour data load time: 8.430 s
     configuration examples: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_01\combined\min_dw_polarization_cluster_01_configuration_examples.csv
     cluster summary: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_01\combined\min_dw_polarization_cluster_01_cluster_summary.csv
     momentum configurations: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_01\combined\min_dw_polarization_cluster_01_momentum_configurations.csv
@@ -20,8 +20,8 @@ Gradient D_W cluster ConfigGen (electron)
     retained minima: 84
     configured local minima: 84
     selected minima: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_02\combined\min_dw_polarization_cluster_02_selected_minima.csv
-    saved contour samples: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_02\combined\min_dw_polarization_cluster_02_contour_samples.csv
-    contour generation time: 1393.596 s
+    loaded saved contour samples: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_02\combined\min_dw_polarization_cluster_02_contour_samples.csv
+    contour data load time: 2.169 s
     configuration examples: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_02\combined\min_dw_polarization_cluster_02_configuration_examples.csv
     cluster summary: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_02\combined\min_dw_polarization_cluster_02_cluster_summary.csv
     momentum configurations: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_02\combined\min_dw_polarization_cluster_02_momentum_configurations.csv
@@ -31,8 +31,8 @@ Gradient D_W cluster ConfigGen (electron)
     retained minima: 94
     configured local minima: 94
     selected minima: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_03\combined\min_dw_polarization_cluster_03_selected_minima.csv
-    saved contour samples: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_03\combined\min_dw_polarization_cluster_03_contour_samples.csv
-    contour generation time: 1535.525 s
+    loaded saved contour samples: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_03\combined\min_dw_polarization_cluster_03_contour_samples.csv
+    contour data load time: 1.763 s
     configuration examples: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_03\combined\min_dw_polarization_cluster_03_configuration_examples.csv
     cluster summary: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_03\combined\min_dw_polarization_cluster_03_cluster_summary.csv
     momentum configurations: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_03\combined\min_dw_polarization_cluster_03_momentum_configurations.csv
@@ -42,8 +42,8 @@ Gradient D_W cluster ConfigGen (electron)
     retained minima: 470
     configured local minima: 470
     selected minima: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_04\combined\min_dw_polarization_cluster_04_selected_minima.csv
-    saved contour samples: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_04\combined\min_dw_polarization_cluster_04_contour_samples.csv
-    contour generation time: 9832.567 s
+    loaded saved contour samples: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_04\combined\min_dw_polarization_cluster_04_contour_samples.csv
+    contour data load time: 11.531 s
     configuration examples: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_04\combined\min_dw_polarization_cluster_04_configuration_examples.csv
     cluster summary: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_04\combined\min_dw_polarization_cluster_04_cluster_summary.csv
     momentum configurations: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_04\combined\min_dw_polarization_cluster_04_momentum_configurations.csv
@@ -53,8 +53,8 @@ Gradient D_W cluster ConfigGen (electron)
     retained minima: 76
     configured local minima: 76
     selected minima: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_05\combined\min_dw_polarization_cluster_05_selected_minima.csv
-    saved contour samples: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_05\combined\min_dw_polarization_cluster_05_contour_samples.csv
-    contour generation time: 1289.793 s
+    loaded saved contour samples: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_05\combined\min_dw_polarization_cluster_05_contour_samples.csv
+    contour data load time: 1.796 s
     configuration examples: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_05\combined\min_dw_polarization_cluster_05_configuration_examples.csv
     cluster summary: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_05\combined\min_dw_polarization_cluster_05_cluster_summary.csv
     momentum configurations: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_05\combined\min_dw_polarization_cluster_05_momentum_configurations.csv
@@ -64,8 +64,8 @@ Gradient D_W cluster ConfigGen (electron)
     retained minima: 82
     configured local minima: 82
     selected minima: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_06\combined\min_dw_polarization_cluster_06_selected_minima.csv
-    saved contour samples: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_06\combined\min_dw_polarization_cluster_06_contour_samples.csv
-    contour generation time: 1363.147 s
+    loaded saved contour samples: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_06\combined\min_dw_polarization_cluster_06_contour_samples.csv
+    contour data load time: 1.912 s
     configuration examples: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_06\combined\min_dw_polarization_cluster_06_configuration_examples.csv
     cluster summary: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_06\combined\min_dw_polarization_cluster_06_cluster_summary.csv
     momentum configurations: Output\GradientPhaseSpaceScan\electron\Data\W\dw\polarization_cluster_06\combined\min_dw_polarization_cluster_06_momentum_configurations.csv

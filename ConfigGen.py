@@ -88,6 +88,14 @@ AMPLITUDE_MIN_FRACTION = 0.02
 AMPLITUDE_MAX_COMPONENTS = 8
 
 DISPLAY_MOMENTA = ("k", "p", "kp", "pp", "qout")
+MOMENTUM_VECTOR_LABEL_FONTSIZE = 16
+MOMENTUM_TITLE_FONTSIZE = 18
+MOMENTUM_AXIS_LABEL_FONTSIZE = 16
+MOMENTUM_TICK_FONTSIZE = 14
+CONFIGURATION_TEXT_FONTSIZE = 14
+CONFIGURATION_SUPTITLE_FONTSIZE = 18
+AMPLITUDE_TITLE_FONTSIZE = 12
+AMPLITUDE_AXIS_FONTSIZE = 11
 MOMENTUM_DISPLAY_LABELS = {
     "k": r"$\ell$", "p": r"$P$", "kp": r"$\ell'$",
     "pp": r"$P'$", "qout": r"$q_\gamma$",
@@ -1077,9 +1085,16 @@ def _plot_wavy_2d(ax, start, end, color, amplitude):
     _plot_arrow_2d(ax, wave[-8], end, color, linewidth=1.2)
 
 
-def _plot_vector_2d(ax, vector, label, color, line_scale):
-    """Draw one styled transverse momentum vector."""
-    end = np.asarray(vector, dtype=float)[1:3]
+def _plot_vector_2d(
+    ax,
+    vector,
+    label,
+    color,
+    line_scale,
+    component_indices,
+):
+    """Draw one styled momentum vector in a selected two-dimensional plane."""
+    end = np.asarray(vector, dtype=float)[list(component_indices)]
     start = np.zeros(2)
     kind = MOMENTUM_KIND.get(label, "other")
     if kind == "photon":
@@ -1088,8 +1103,14 @@ def _plot_vector_2d(ax, vector, label, color, line_scale):
         _plot_arrow_2d(ax, start, end, color,
                        linestyle="--" if kind == "lepton" else "-",
                        linewidth=1.75 if kind == "proton" else 1.65)
-    ax.text(end[0], end[1], f" {MOMENTUM_DISPLAY_LABELS.get(label, label)}",
-            color=color, fontsize=11, va="center")
+    ax.text(
+        end[0],
+        end[1],
+        f" {MOMENTUM_DISPLAY_LABELS.get(label, label)}",
+        color=color,
+        fontsize=MOMENTUM_VECTOR_LABEL_FONTSIZE,
+        va="center",
+    )
 
 
 def _plot_line_arrow_3d(ax, start, end, color, linestyle="-", linewidth=1.5):
@@ -1130,51 +1151,118 @@ def _plot_vector_3d(ax, vector, label, color, line_scale):
             color=color, fontsize=9)
 
 
-def plot_transverse_momenta(ax, kin, title="Transverse plane"):
-    """Draw transverse momenta with limits fitted to the current point."""
+def plot_momentum_projection(
+    ax,
+    kin,
+    component_indices,
+    title,
+    xlabel,
+    ylabel,
+    line_scale=None,
+):
+    """Draw a 2D momentum projection with limits fitted to the current point."""
     momenta = kin["momenta"]
-    transverse = np.asarray([momenta[name][1:3] for name in DISPLAY_MOMENTA])
-    max_component = float(np.nanmax(np.abs(transverse)))
+    projected = np.asarray(
+        [
+            np.asarray(momenta[name], dtype=float)[list(component_indices)]
+            for name in DISPLAY_MOMENTA
+        ]
+    )
+    max_component = float(np.nanmax(np.abs(projected)))
     if not np.isfinite(max_component):
-        raise ValueError("Transverse momentum components must be finite.")
-    # Keep equal x/y units so vector directions are not distorted, but scale
-    # each configuration independently instead of imposing a +/-1 GeV floor.
-    line_scale = max(1.0e-9, max_component * 1.20)
+        raise ValueError("Projected momentum components must be finite.")
+    # Keep equal units so vector directions are not distorted, but scale each
+    # configuration independently instead of imposing a +/-1 GeV floor.
+    if line_scale is None:
+        line_scale = max(1.0e-9, max_component * 1.20)
+    else:
+        line_scale = float(line_scale)
+        if not np.isfinite(line_scale) or line_scale <= 0.0:
+            raise ValueError("The momentum projection scale must be positive.")
     for name in DISPLAY_MOMENTA:
-        _plot_vector_2d(ax, momenta[name], name, MOMENTUM_COLORS[name], line_scale)
+        _plot_vector_2d(
+            ax,
+            momenta[name],
+            name,
+            MOMENTUM_COLORS[name],
+            line_scale,
+            component_indices,
+        )
     ax.set_xlim(-line_scale, line_scale)
     ax.set_ylim(-line_scale, line_scale)
     ax.axhline(0.0, color="0.82", linewidth=0.8)
     ax.axvline(0.0, color="0.82", linewidth=0.8)
     ax.set_aspect(1.0, adjustable="box")
-    ax.set_title(title)
-    ax.set_xlabel(r"$p_x$ [GeV]")
-    ax.set_ylabel(r"$p_y$ [GeV]")
+    ax.set_title(title, fontsize=MOMENTUM_TITLE_FONTSIZE)
+    ax.set_xlabel(xlabel, fontsize=MOMENTUM_AXIS_LABEL_FONTSIZE)
+    ax.set_ylabel(ylabel, fontsize=MOMENTUM_AXIS_LABEL_FONTSIZE)
+    ax.tick_params(axis="both", labelsize=MOMENTUM_TICK_FONTSIZE)
+
+
+def plot_transverse_momenta(
+    ax,
+    kin,
+    title=r"$x$--$y$ plane",
+    line_scale=None,
+):
+    """Draw the x--y momentum projection."""
+    plot_momentum_projection(
+        ax,
+        kin,
+        component_indices=(1, 2),
+        title=title,
+        xlabel=r"$p_x$ [GeV]",
+        ylabel=r"$p_y$ [GeV]",
+        line_scale=line_scale,
+    )
+
+
+def plot_longitudinal_momenta(
+    ax,
+    kin,
+    title=r"$z$--$x$ plane",
+    line_scale=None,
+):
+    """Draw the z--x momentum projection."""
+    plot_momentum_projection(
+        ax,
+        kin,
+        component_indices=(1, 3),
+        title=title,
+        xlabel=r"$p_x$ [GeV]",
+        ylabel=r"$p_z$ [GeV]",
+        line_scale=line_scale,
+    )
 
 
 def plot_momentum_panels(fig, grid_spec, kin):
-    """Draw momentum panels with per-configuration, undistorted scaling."""
+    """Draw large z--x and x--y momentum panels without axis distortion."""
     momenta = kin["momenta"]
     vectors = np.asarray([momenta[name][1:4] for name in DISPLAY_MOMENTA])
     max_component = float(np.nanmax(np.abs(vectors)))
     if not np.isfinite(max_component):
         raise ValueError("Three-dimensional momentum components must be finite.")
-    # Fit the axes to the momentum scale of this configuration. Identical
-    # limits and a cubic plot box preserve a 1:1:1 x/y/z aspect ratio.
-    line_scale = max(1.0e-9, max_component * 1.15)
-    ax3d = fig.add_subplot(grid_spec[0, 0], projection="3d")
-    ax2d = fig.add_subplot(grid_spec[1, 0])
-    for name in DISPLAY_MOMENTA:
-        _plot_vector_3d(ax3d, momenta[name], name, MOMENTUM_COLORS[name], line_scale)
-    ax3d.set_xlim(-line_scale, line_scale)
-    ax3d.set_ylim(-line_scale, line_scale)
-    ax3d.set_zlim(-line_scale, line_scale)
-    ax3d.set_box_aspect((1.0, 1.0, 1.0))
-    ax3d.set_title("3D momenta")
-    ax3d.set_xlabel(r"$p_x$ [GeV]")
-    ax3d.set_ylabel(r"$p_y$ [GeV]")
-    ax3d.set_zlabel(r"$p_z$ [GeV]")
-    plot_transverse_momenta(ax2d, kin)
+    # Fit the axes to the momentum scale of this configuration. Both
+    # projections share one scale so their vector lengths are directly
+    # comparable.
+    projection_scale = max(1.0e-9, max_component * 1.20)
+    momentum_grid = grid_spec[:, 0].subgridspec(
+        2,
+        1,
+        hspace=0.04,
+    )
+    ax_zx = fig.add_subplot(momentum_grid[0, 0])
+    ax_xy = fig.add_subplot(momentum_grid[1, 0])
+    plot_longitudinal_momenta(
+        ax_zx,
+        kin,
+        line_scale=projection_scale,
+    )
+    plot_transverse_momenta(
+        ax_xy,
+        kin,
+        line_scale=projection_scale,
+    )
 
 
 def format_vector_line(name, vector):
@@ -1195,7 +1283,8 @@ def plot_configuration_text(ax, row, kin):
     if np.isfinite(row["pair_delta_xy"]):
         region_line += f"  final-pair delta_xy={row['pair_delta_xy']:.6g} rad"
     lines = [
-        f"{row['detail_id']}  {label}={row['selected_concurrence']:.6g}",
+        f"{row['detail_id']}",
+        f"{label}={row['selected_concurrence']:.6g}",
         region_line,
         f"outgoing-state purity: {row['selected_purity']:.6g}",
         f"kinematic point: {row.get('kinematic_point', '')}",
@@ -1225,7 +1314,15 @@ def plot_configuration_text(ax, row, kin):
         r"four-momenta [$E$, $p_x$, $p_y$, $p_z$] GeV:",
     ]
     lines.extend(format_vector_line(name, momenta[name]) for name in DISPLAY_MOMENTA)
-    ax.text(0.0, 1.0, "\n".join(lines), va="top", ha="left", family="monospace", fontsize=9)
+    ax.text(
+        0.0,
+        1.0,
+        "\n".join(lines),
+        va="top",
+        ha="left",
+        family="monospace",
+        fontsize=CONFIGURATION_TEXT_FONTSIZE,
+    )
 
 
 def egamma_target_pdf_path(group_name, target, spin_case):
@@ -1353,8 +1450,45 @@ def save_all_egamma_target_region_pdfs(rows, input_path=None):
     return outputs, detail_rows
 
 
+def normalized_amplitude_values(records):
+    """Return normalized component magnitudes and phases from plot records."""
+    fractions = np.asarray(
+        [parse_float(item["fraction"]) for item in records],
+        dtype=float,
+    )
+    phases = np.asarray(
+        [parse_float(item["amplitude_phase"]) for item in records],
+        dtype=float,
+    )
+    if (
+        not np.all(np.isfinite(fractions))
+        or np.any(fractions < -1.0e-14)
+        or not np.all(np.isfinite(phases))
+    ):
+        raise ValueError("Amplitude fractions and phases must be finite.")
+    return np.sqrt(np.clip(fractions, 0.0, None)), phases
+
+
+def normalized_amplitude_bar_colors(phases):
+    """Map normalized-amplitude phases in [-pi, pi] to twilight colors."""
+    from matplotlib import colormaps
+    from matplotlib.colors import Normalize
+
+    return colormaps["twilight"](
+        Normalize(vmin=-np.pi, vmax=np.pi, clip=True)(phases)
+    )
+
+
+def normalized_amplitude_annotation(magnitude, phase):
+    """Format one normalized magnitude and phase label."""
+    return (
+        rf"  $|\widetilde{{A}}|={magnitude:.4f}$, "
+        rf"$\arg(\widetilde{{A}})={phase / np.pi:+.3f}\pi$"
+    )
+
+
 def plot_amplitude_decomposition(ax, row):
-    """Draw ensemble-weighted final-state amplitude fractions and phases."""
+    """Draw normalized ensemble-component amplitude magnitudes and phases."""
     records = amplitude_decomposition(row)
     labels = [
         rf"$h_e$={format_helicity(item['hOut'])}, "
@@ -1362,40 +1496,47 @@ def plot_amplitude_decomposition(ax, row):
         rf"$h_\gamma$={format_helicity(item['lambda'])}" + "\n" + item["initial_component"]
         for item in records
     ]
-    fractions = np.asarray([parse_float(item["fraction"]) for item in records], dtype=float)
-    phases = np.asarray([parse_float(item["amplitude_phase"]) for item in records], dtype=float)
+    magnitudes, phases = normalized_amplitude_values(records)
     y_pos = np.arange(len(records))
-    bars = ax.barh(y_pos, fractions, color="tab:blue", alpha=0.72)
+    bars = ax.barh(
+        y_pos,
+        magnitudes,
+        color=normalized_amplitude_bar_colors(phases),
+        alpha=0.85,
+    )
     ax.set_yticks(y_pos, labels)
     ax.invert_yaxis()
-    ax.set_xlabel("ensemble-weighted final-state |A|^2 fraction")
+    ax.set_xlabel(r"normalized component magnitude $|\widetilde{A}|$")
     retained = parse_float(records[0]["retained_fraction_total"])
     ax.set_title(
-        "Leading initial-ensemble/final-state components "
+        "Leading normalized initial-ensemble/final-state\ncomponents "
         f"(N={len(records)}, retained={retained:.1%})"
     )
-    ax.set_xlim(0.0, max(0.08, float(np.nanmax(fractions)) * 1.25))
-    for bar, item, phase in zip(bars, records, phases):
+    ax.set_xlim(0.0, max(0.08, float(np.nanmax(magnitudes)) * 1.55))
+    for bar, magnitude, phase in zip(bars, magnitudes, phases):
         ax.text(
             bar.get_width(),
             bar.get_y() + 0.5 * bar.get_height(),
-            (
-                f"  phase={phase:.2f}, "
-                f"Re={parse_float(item['amplitude_real']):.2e}, "
-                f"Im={parse_float(item['amplitude_imag']):.2e}"
-            ),
+            normalized_amplitude_annotation(magnitude, phase),
             va="center",
-            fontsize=8,
+            fontsize=AMPLITUDE_AXIS_FONTSIZE,
         )
-    ax.tick_params(axis="y", labelsize=8)
+    ax.tick_params(axis="both", labelsize=AMPLITUDE_AXIS_FONTSIZE)
+    ax.xaxis.label.set_size(AMPLITUDE_AXIS_FONTSIZE)
+    ax.title.set_size(AMPLITUDE_TITLE_FONTSIZE)
 
 
 def save_detail_pages(pdf, plt, detail_rows):
     """Append one momentum/amplitude page for every representative row."""
     for row in detail_rows:
         kin = kinematics_from_config_row(row)
-        fig = plt.figure(figsize=(13.2, 8.2), constrained_layout=True)
-        grid = fig.add_gridspec(2, 3, width_ratios=(1.05, 1.05, 1.25))
+        fig = plt.figure(figsize=(15.5, 11.0), constrained_layout=True)
+        grid = fig.add_gridspec(
+            2,
+            3,
+            width_ratios=(1.80, 0.95, 1.15),
+            height_ratios=(1.45, 0.75),
+        )
         plot_momentum_panels(fig, grid, kin)
         text_ax = fig.add_subplot(grid[0, 1:])
         plot_configuration_text(text_ax, row, kin)
@@ -1407,7 +1548,7 @@ def save_detail_pages(pdf, plt, detail_rows):
                 f"{observable_optimum_word(row['selected_observable'])} "
                 f"{observable_math_label(row['selected_observable'])} configuration"
             ),
-            fontsize=16,
+            fontsize=CONFIGURATION_SUPTITLE_FONTSIZE,
         )
         pdf.savefig(fig)
         plt.close(fig)

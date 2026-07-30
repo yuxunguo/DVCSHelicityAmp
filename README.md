@@ -29,6 +29,7 @@ python3 PhaseSpaceConfigScan.py  # ConfigGen packages from PhaseSpaceScan result
 python3 GradientPhaseSpaceScan.py # stage 1: W/GHZ local-minimum searches
 python3 GradientPhaseSpaceCluster.py # stage 2: cluster saved minima
 python3 GradientPhaseSpaceConfig.py # stage 3: configs/contours from clusters
+python3 GradientCanonicalConfigCollect.py # canonical W/GHZ aggregate PDFs
 python3 EpCMEntanglementScan.py   # reference-centered electron ep-CM scan
 python3 EpCMConfigGen.py          # config packages from the focused ep-CM scan
 python3 ProtonVirtualPhotonAmp.py # proton-current virtual-photon decomposition
@@ -55,6 +56,7 @@ GradientPhaseSpaceDefinitions.py Shared W/GHZ objectives, anchors, and root
 GradientPhaseSpaceScan.py Stage 1 local-minimum search interface
 GradientPhaseSpaceCluster.py Stage 2 phase-space clustering interface
 GradientPhaseSpaceConfig.py Stage 3 cluster ConfigGen/contour interface
+GradientCanonicalConfigCollect.py Canonical-component aggregate PDFs and indexes
 GradientPhaseSpaceScanTool.py Shared implementation for all three stages
 EpCMEntanglementScan.py Exact ep-CM scan with a slow final proton
 EpCMConfigGen.py      ConfigGen packages for the focused ep-CM scan
@@ -379,7 +381,17 @@ at the top of each stage script, then run:
 python3 GradientPhaseSpaceScan.py
 python3 GradientPhaseSpaceCluster.py
 python3 GradientPhaseSpaceConfig.py
+python3 GradientCanonicalConfigCollect.py
 ```
+
+After stage 3, `GradientCanonicalConfigCollect.py` reads the saved
+configuration and amplitude-decomposition CSVs without rerunning the search or
+contours. It collects configurations with exactly three retained components
+for W and exactly two retained components for GHZ. "Retained" uses
+`AMPLITUDE_MIN_FRACTION` (2% by default), so the PDF cover states the cutoff
+explicitly. Each aggregate PDF contains one cover followed by one compact
+momentum, kinematic-summary, and normalized-amplitude page per matching
+configuration. Companion CSV indexes preserve every included `detail_id`.
 
 Stage 1 exposes `REMAKE_MINIMA_PLOT_FROM_CSV`. Leave it `False` for a new
 search. Set it to `True` to read the existing
@@ -442,8 +454,9 @@ tuple of one-based cluster numbers, such as `(1, 4)`, for isolated runs.
 All angular scan and configuration plots use the shared `PlotUtils.py`
 formatting: polar axes span `0` to `pi` with quarter-pi ticks, azimuthal axes
 span `0` to `2*pi` with half-pi ticks, and major grid lines coincide with
-those tick positions. A small unlabeled margin outside each physical endpoint
-keeps markers centered at `0`, `pi`, or `2*pi` fully visible.
+those tick positions. Every phase-space projection adds a small unlabeled
+margin outside its physical kinematic bounds, keeping endpoint markers and
+contours fully visible.
 
 W and GHZ outputs share one main root and use a lepton-first,
 artifact-type-first hierarchy:
@@ -456,6 +469,7 @@ Output/GradientPhaseSpaceScan/
         scan/
         cluster/
         dw/
+          canonical/canonical_dw_configurations_electron.csv
           polarization_cluster_01/combined/
           ...
           polarization_cluster_06/combined/
@@ -463,12 +477,15 @@ Output/GradientPhaseSpaceScan/
         scan/
         cluster/
         dghz/
+          canonical/canonical_dghz_configurations_electron.csv
           polarization_cluster_01/combined/
           ...
     Plots/
+      W/Canonical_W_Configurations_Electron.pdf
       W/polarization_cluster_01/
       ...
       W/polarization_cluster_06/
+      GHZ/Canonical_GHZ_Configurations_Electron.pdf
       GHZ/polarization_cluster_01/
   muon/
     Data/W/

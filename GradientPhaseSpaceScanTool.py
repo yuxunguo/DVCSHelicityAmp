@@ -71,6 +71,10 @@ SCAN_DIMENSION = 8
 PERIODIC_UNIT_COORDINATES = (4, 5, 6, 7)
 CONFIG_CONTOUR_BISECTION_ITERATIONS = 8
 CONFIG_CONTOUR_INITIAL_RADIUS = 0.01
+PHASE_SPACE_PLOT_PADDING_FRACTION = 0.025
+CONTOUR_AXIS_LABEL_FONTSIZE = 13
+CONTOUR_TICK_FONTSIZE = 12
+CONTOUR_SUMMARY_FONTSIZE = 12
 PLOT_PANELS = (
     ("theta_p_out", "theta_gamma_out", r"$\theta_{p'}$", r"$\theta_\gamma$"),
     ("sqrt_s", "qOut", r"$\sqrt{s}$ [GeV]", r"$E_\gamma$ [GeV]"),
@@ -987,14 +991,23 @@ def _split_wrapped_projection(
     return np.asarray(split_x), np.asarray(split_y)
 
 
+def _padded_plot_limits(limits):
+    """Return finite ordered limits with marker-safe padding on both sides."""
+    lower, upper = (float(value) for value in limits)
+    if not np.isfinite(lower) or not np.isfinite(upper) or upper <= lower:
+        raise ValueError("Plot limits must be finite and strictly increasing.")
+    padding = PHASE_SPACE_PLOT_PADDING_FRACTION * (upper - lower)
+    return lower - padding, upper + padding
+
+
 def _full_phase_space_plot_limits(lepton_name):
-    """Return the complete configured physical range for every plot axis."""
+    """Return every physical plot range with marker-safe boundary padding."""
     phase_scan._configure_lepton(lepton_name)
     qout_upper = max(
         phase_scan._qout_max(sqrt_s**2)
         for sqrt_s in phase_scan.SQRT_S_RANGE
     ) * phase_scan.QOUT_FRACTION_RANGE[1]
-    return {
+    physical_limits = {
         "sqrt_s": tuple(phase_scan.SQRT_S_RANGE),
         "theta_p_out": tuple(phase_scan.THETA_P_OUT_RANGE),
         "theta_gamma_out": tuple(phase_scan.THETA_GAMMA_OUT_RANGE),
@@ -1003,6 +1016,10 @@ def _full_phase_space_plot_limits(lepton_name):
         "phi_gamma_out": tuple(phase_scan.AZIMUTH_RANGE),
         "alpha_e": tuple(phase_scan.ALPHA_E_RANGE),
         "alpha_p": tuple(phase_scan.ALPHA_P_RANGE),
+    }
+    return {
+        coordinate: _padded_plot_limits(limits)
+        for coordinate, limits in physical_limits.items()
     }
 
 
@@ -1925,7 +1942,7 @@ def _write_configuration_plot(
     path.parent.mkdir(parents=True, exist_ok=True)
     with PdfPages(path) as pdf:
         overview_fig, overview_axes = plt.subplots(
-            3, 3, figsize=(14.0, 11.5), constrained_layout=True
+            3, 3, figsize=(14.5, 11.5), constrained_layout=True
         )
         overview_colors = plt.get_cmap("tab20")(
             np.linspace(0.0, 1.0, max(1, len(selected_rows)))
@@ -1979,10 +1996,10 @@ def _write_configuration_plot(
                 )
             ax.set_xlim(*full_limits[x_name])
             ax.set_ylim(*full_limits[y_name])
-            ax.set_xlabel(x_label, fontsize=11)
-            ax.set_ylabel(y_label, fontsize=11)
+            ax.set_xlabel(x_label, fontsize=CONTOUR_AXIS_LABEL_FONTSIZE)
+            ax.set_ylabel(y_label, fontsize=CONTOUR_AXIS_LABEL_FONTSIZE)
             configure_named_angle_axes(ax, x_name, y_name)
-            ax.tick_params(labelsize=10)
+            ax.tick_params(labelsize=CONTOUR_TICK_FONTSIZE)
 
         overview_summary = overview_axes[2, 2]
         overview_summary.axis("off")
@@ -2019,7 +2036,7 @@ def _write_configuration_plot(
             transform=overview_summary.transAxes,
             va="top",
             ha="left",
-            fontsize=7.5,
+            fontsize=CONTOUR_SUMMARY_FONTSIZE,
             family="monospace",
         )
         overview_fig.suptitle(
@@ -2042,7 +2059,7 @@ def _write_configuration_plot(
             boundary_points = contours[selected_index]
             local_value = float(row[objective_key])
             fig, axes = plt.subplots(
-                3, 3, figsize=(14.0, 11.5), constrained_layout=True
+                3, 3, figsize=(14.5, 11.5), constrained_layout=True
             )
             for panel_index, (
                 ax,
@@ -2113,10 +2130,16 @@ def _write_configuration_plot(
                 )
                 ax.set_xlim(*full_limits[x_name])
                 ax.set_ylim(*full_limits[y_name])
-                ax.set_xlabel(x_label, fontsize=11)
-                ax.set_ylabel(y_label, fontsize=11)
+                ax.set_xlabel(
+                    x_label,
+                    fontsize=CONTOUR_AXIS_LABEL_FONTSIZE,
+                )
+                ax.set_ylabel(
+                    y_label,
+                    fontsize=CONTOUR_AXIS_LABEL_FONTSIZE,
+                )
                 configure_named_angle_axes(ax, x_name, y_name)
-                ax.tick_params(labelsize=10)
+                ax.tick_params(labelsize=CONTOUR_TICK_FONTSIZE)
 
             axes[0, 0].legend(fontsize=8)
             summary_ax = axes[2, 2]
@@ -2158,7 +2181,7 @@ def _write_configuration_plot(
                 transform=summary_ax.transAxes,
                 va="top",
                 ha="left",
-                fontsize=10,
+                fontsize=CONTOUR_SUMMARY_FONTSIZE,
                 family="monospace",
             )
             fig.suptitle(

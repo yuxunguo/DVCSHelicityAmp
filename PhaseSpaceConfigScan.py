@@ -727,12 +727,16 @@ def _plot_mixing_configuration_text(ax, row, kin):
     proton_plus = np.cos(alpha_p)
     proton_minus = np.sin(alpha_p)
     lines = [
+        f"{row['detail_id']}",
         (
-            f"{row['detail_id']}  {row['selected_observable_label']}="
-            f"{row['selected_concurrence']:.6g}"
+            f"{row['selected_observable_label']}="
+            f"{config.parse_float(row['selected_concurrence']):.6g}"
         ),
         region_line,
-        f"outgoing-state purity: {row['selected_purity']:.6g}",
+        (
+            "outgoing-state purity: "
+            f"{config.parse_float(row['selected_purity']):.6g}"
+        ),
         f"kinematic point: {row.get('kinematic_point', '')}",
         f"lepton mixing angle: alpha_e={alpha_e:.8g} rad",
         (
@@ -777,7 +781,10 @@ def _plot_mixing_configuration_text(ax, row, kin):
     lines.extend(_gradient_ghz_diagnostic_lines(row))
     ax.text(
         0.0, 1.0, "\n".join(lines),
-        va="top", ha="left", family="monospace", fontsize=10.2,
+        va="top",
+        ha="left",
+        family="monospace",
+        fontsize=config.CONFIGURATION_TEXT_FONTSIZE,
     )
 
 
@@ -795,46 +802,46 @@ def _plot_mixing_amplitude_decomposition(ax, row):
         )
         for item in records
     ]
-    fractions = np.asarray(
-        [config.parse_float(item["fraction"]) for item in records],
-        dtype=float,
-    )
+    magnitudes, phases = config.normalized_amplitude_values(records)
     y_pos = np.arange(len(records))
-    bars = ax.barh(y_pos, fractions, color="tab:blue", alpha=0.72)
+    bars = ax.barh(
+        y_pos,
+        magnitudes,
+        color=config.normalized_amplitude_bar_colors(phases),
+        alpha=0.85,
+    )
     ax.set_yticks(y_pos, labels)
     ax.invert_yaxis()
-    ax.set_xlabel(r"coherent final-state $|A|^2$ fraction")
+    ax.set_xlabel(r"normalized amplitude magnitude $|\widetilde{A}|$")
     retained = config.parse_float(records[0]["retained_fraction_total"])
     ax.set_title(
-        f"Leading final-state amplitudes "
+        "Leading normalized final-state amplitudes\n"
         f"(N={len(records)}, retained={retained:.1%})"
     )
-    ax.set_xlim(0.0, max(0.08, float(np.nanmax(fractions)) * 1.25))
-    for bar, item in zip(bars, records):
-        real = config.parse_float(item["amplitude_real"])
-        imag = config.parse_float(item["amplitude_imag"])
+    ax.set_xlim(0.0, max(0.08, float(np.nanmax(magnitudes)) * 1.55))
+    for bar, magnitude, phase in zip(bars, magnitudes, phases):
         ax.text(
             bar.get_width(),
             bar.get_y() + 0.5 * bar.get_height(),
-            f"  A={real:.2e}{imag:+.2e}i",
+            config.normalized_amplitude_annotation(magnitude, phase),
             va="center",
-            fontsize=9.5,
+            fontsize=config.AMPLITUDE_AXIS_FONTSIZE,
         )
-    ax.tick_params(axis="both", labelsize=10)
-    ax.xaxis.label.set_size(11)
-    ax.title.set_size(12)
+    ax.tick_params(axis="both", labelsize=config.AMPLITUDE_AXIS_FONTSIZE)
+    ax.xaxis.label.set_size(config.AMPLITUDE_AXIS_FONTSIZE)
+    ax.title.set_size(config.AMPLITUDE_TITLE_FONTSIZE)
 
 
 def _save_mixing_detail_pages(pdf, plt, detail_rows):
     """Append the old momentum/text/amplitude page for every selected optimum."""
     for row in detail_rows:
         kin = config.kinematics_from_config_row(row)
-        fig = plt.figure(figsize=(16.0, 11.5), constrained_layout=True)
+        fig = plt.figure(figsize=(15.5, 11.0), constrained_layout=True)
         grid = fig.add_gridspec(
             2,
             3,
-            width_ratios=(1.05, 1.05, 1.25),
-            height_ratios=(1.25, 1.0),
+            width_ratios=(1.80, 0.95, 1.15),
+            height_ratios=(1.45, 0.75),
         )
         config.plot_momentum_panels(fig, grid, kin)
         text_ax = fig.add_subplot(grid[0, 1:])
@@ -848,7 +855,7 @@ def _save_mixing_detail_pages(pdf, plt, detail_rows):
                 f"{config.observable_math_label(row['selected_observable'])} "
                 f"configuration ({row.get('qOut_regime', '')})"
             ),
-            fontsize=16,
+            fontsize=config.CONFIGURATION_SUPTITLE_FONTSIZE,
         )
         pdf.savefig(fig)
         plt.close(fig)
