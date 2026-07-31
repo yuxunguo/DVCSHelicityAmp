@@ -1,0 +1,16 @@
+Hybrid global gradient dGHZ search (muon)
+  optimization starts: 2048
+  Latin-hypercube starts: 1024
+  Sobol screening: 32768 candidates -> 1024 optimized starts
+  best screened dGHZ: 0.03284744619
+  deterministic physics anchors: 0
+  shared optimization workers: 24
+  L-BFGS-B-converged runs: 1256/2048
+  multiscale-verified runs: 1114/2048
+  distinct finite minima: 953
+  minimum scan time: 22663.555 s
+  best dGHZ: 4.970386355e-07
+  optimization runs: Output\GradientPhaseSpaceScan\muon\Data\GHZ\scan\optimization_runs.csv
+  exact physics reference points: none configured
+  local minima: Output\GradientPhaseSpaceScan\muon\Data\GHZ\scan\local_minima.csv
+  all-local-minima plot: Output\GradientPhaseSpaceScan\muon\Plots\GHZ\all_local_minima.pdf
