@@ -6,7 +6,26 @@ Gradient dGHZ polarization clustering (electron)
   GHZ polarization clusters: 4
   alpha_e boundaries: 0, 1.5707963, 3.1415927 rad
   one best-objective representative selected per polarization cluster
-  clustering time: 3.415 s
+  clustering time: 6.020 s
   clustered minima: Output\GradientPhaseSpaceScan\electron\Data\GHZ\cluster\clustered_minima.csv
   polarization cluster summary: Output\GradientPhaseSpaceScan\electron\Data\GHZ\cluster\polarization_clusters.csv
   polarization phase-space plot: Output\GradientPhaseSpaceScan\electron\Plots\GHZ\polarization_cluster_phase_space.pdf
+  separate correlation PDFs: 16 (Output\GradientPhaseSpaceScan\electron\Plots\GHZ\polarization_correlations)
+  correlation plot index: Output\GradientPhaseSpaceScan\electron\Data\GHZ\cluster\polarization_correlation_plot_index.csv
+  starred representative configuration PDFs: 1 (Output\GradientPhaseSpaceScan\electron\Plots\GHZ\polarization_correlations\representative_configurations)
+
+Gradient dGHZ polarization clustering (muon)
+  source minima: Output\GradientPhaseSpaceScan\muon\Data\GHZ\scan\local_minima.csv
+  local minima loaded: 953
+  polarization cut: dGHZ - dGHZ_min <= 0.05
+  minima passing polarization cut: 797
+  GHZ polarization clusters: 4
+  alpha_e boundaries: 0, 1.5707963, 3.1415927 rad
+  one best-objective representative selected per polarization cluster
+  clustering time: 26.549 s
+  clustered minima: Output\GradientPhaseSpaceScan\muon\Data\GHZ\cluster\clustered_minima.csv
+  polarization cluster summary: Output\GradientPhaseSpaceScan\muon\Data\GHZ\cluster\polarization_clusters.csv
+  polarization phase-space plot: Output\GradientPhaseSpaceScan\muon\Plots\GHZ\polarization_cluster_phase_space.pdf
+  separate correlation PDFs: 16 (Output\GradientPhaseSpaceScan\muon\Plots\GHZ\polarization_correlations)
+  correlation plot index: Output\GradientPhaseSpaceScan\muon\Data\GHZ\cluster\polarization_correlation_plot_index.csv
+  starred representative configuration PDFs: 1 (Output\GradientPhaseSpaceScan\muon\Plots\GHZ\polarization_correlations\representative_configurations)

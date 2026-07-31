@@ -1,0 +1,7 @@
+Exhaustive LU fidelity distributions with stage-3 objective cuts
+  electron/W: retained 1156/1219 at D_W-min <= 0.05; plot=Output\GradientPhaseSpaceScan\electron\Plots\W\fidelity\local_unitary_fidelity_distribution_after_objective_cut.pdf
+  electron/GHZ: retained 376/579 at dGHZ-min <= 0.05; plot=Output\GradientPhaseSpaceScan\electron\Plots\GHZ\fidelity\local_unitary_fidelity_distribution_after_objective_cut.pdf
+  muon/W: retained 1143/1296 at D_W-min <= 0.05; plot=Output\GradientPhaseSpaceScan\muon\Plots\W\fidelity\local_unitary_fidelity_distribution_after_objective_cut.pdf
+  muon/GHZ: retained 797/953 at dGHZ-min <= 0.05; plot=Output\GradientPhaseSpaceScan\muon\Plots\GHZ\fidelity\local_unitary_fidelity_distribution_after_objective_cut.pdf
+Combined summary: Output\GradientPhaseSpaceScan\Fidelity\local_unitary_fidelity_summary.csv
+Combined summary plot: Output\GradientPhaseSpaceScan\Fidelity\local_unitary_fidelity_summary.pdf

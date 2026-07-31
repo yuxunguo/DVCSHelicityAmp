@@ -18,6 +18,7 @@ import GradientPhaseSpaceScanTool as gradient_tool
 
 # The active muon GHZ search must finish first. The queued contour run then
 # generates GHZ contours followed by a clean W contour regeneration.
+# Valid keys include W, GHZ, CEP, CEGAMMA, and CPGAMMA.
 SCANS_TO_RUN = ("GHZ", "W")
 LEPTONS_TO_CONTOUR = ("muon",)
 CONTOUR_WORKERS = SCAN_WORKERS

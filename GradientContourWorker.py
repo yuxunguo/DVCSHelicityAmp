@@ -8,20 +8,13 @@ file while loading SciPy DLLs.
 
 import numpy as np
 
+from GradientObjective import objective_value
 import PhaseSpaceScan as phase_scan
 
 
 INVALID_OBJECTIVE = 1.0e3
 SCAN_DIMENSION = 8
 PERIODIC_UNIT_COORDINATES = (4, 5, 6, 7)
-
-
-def _objective_key(lepton_name, objective_name):
-    """Return the coherent mixing-angle objective column."""
-    return (
-        f"lepton_{lepton_name}_alpha_e_mix_proton_alpha_p_mix_"
-        f"{objective_name}"
-    )
 
 
 def _normalized_to_point(unit_point):
@@ -83,8 +76,10 @@ def _objective_evaluation(
     )
     if result is None or result[1] is None:
         return INVALID_OBJECTIVE
-    value = float(
-        result[1].get(_objective_key(lepton_name, objective_name), np.nan)
+    value = objective_value(
+        result[1],
+        f"lepton_{lepton_name}_alpha_e_mix_proton_alpha_p_mix",
+        objective_name,
     )
     return value if np.isfinite(value) else INVALID_OBJECTIVE
 

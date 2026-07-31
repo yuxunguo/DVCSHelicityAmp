@@ -15,7 +15,9 @@ import GradientPhaseSpaceScanTool as gradient_tool
 
 SCANS_TO_RUN = ("W", "GHZ")
 LEPTONS_TO_CLUSTER = ("electron", "muon")
-# The objective cut is measured above the global minimum. W uses narrow
+# The objective cut is measured above the global minimum. For concurrence,
+# this is exactly the amount below the global maximum because the minimized
+# objective is 1-C. W uses narrow
 # alpha_e capture bands around pi/4 and 3pi/4. GHZ instead uses the two
 # alpha_e regions bounded by 0, pi/2, and pi, with two periodic alpha_p
 # clusters in each region.
@@ -27,6 +29,7 @@ W_POLARIZATION_CLUSTER_COUNT = 6
 W_ALPHA_E_LINE_HALF_WIDTH = np.pi / 24.0
 GHZ_POLARIZATION_CLUSTER_COUNT = 4
 GHZ_ALPHA_E_BOUNDARIES = (0.0, np.pi / 2.0, np.pi)
+PAIRWISE_CONCURRENCE_POLARIZATION_CLUSTER_COUNT = 6
 
 
 def run_selected_clusters():
@@ -43,6 +46,10 @@ def run_selected_clusters():
             cluster_count = GHZ_POLARIZATION_CLUSTER_COUNT
             alpha_e_line_half_width = None
             alpha_e_boundaries = GHZ_ALPHA_E_BOUNDARIES
+        elif definition.key in definitions.PAIRWISE_CONCURRENCE_SCAN_KEYS:
+            cluster_count = PAIRWISE_CONCURRENCE_POLARIZATION_CLUSTER_COUNT
+            alpha_e_line_half_width = None
+            alpha_e_boundaries = None
         else:
             raise ValueError(
                 f"No polarization clustering setup for {definition.key!r}."

@@ -1,4 +1,4 @@
-"""Stage 1: find and save every verified local W/GHZ minimum.
+"""Stage 1: find and save every verified entanglement-objective minimum.
 
 Edit the explicit globals below, then run
 
@@ -12,6 +12,8 @@ import GradientPhaseSpaceDefinitions as definitions
 import GradientPhaseSpaceScanTool as gradient_tool
 
 
+# Valid keys include W, GHZ, CEP, CEGAMMA, and CPGAMMA.  The concurrence
+# searches maximize C by minimizing the saved one_minus_C objective.
 SCANS_TO_RUN = ("GHZ",)
 LEPTONS_TO_SCAN = ("muon",)
 GRADIENT_WORKERS = SCAN_WORKERS

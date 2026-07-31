@@ -1,3 +1,19 @@
+Gradient D_W polarization clustering (electron)
+  source minima: Output\GradientPhaseSpaceScan\electron\Data\W\scan\local_minima.csv
+  local minima loaded: 1219
+  polarization cut: D_W - D_W_min <= 0.05
+  minima passing polarization cut: 1156
+  W polarization clusters: 6
+  alpha_e line half-width: 0.13089969 rad (0.041666667pi)
+  one best-objective representative selected per polarization cluster
+  clustering time: 7.583 s
+  clustered minima: Output\GradientPhaseSpaceScan\electron\Data\W\cluster\clustered_minima.csv
+  polarization cluster summary: Output\GradientPhaseSpaceScan\electron\Data\W\cluster\polarization_clusters.csv
+  polarization phase-space plot: Output\GradientPhaseSpaceScan\electron\Plots\W\polarization_cluster_phase_space.pdf
+  separate correlation PDFs: 16 (Output\GradientPhaseSpaceScan\electron\Plots\W\polarization_correlations)
+  correlation plot index: Output\GradientPhaseSpaceScan\electron\Data\W\cluster\polarization_correlation_plot_index.csv
+  starred representative configuration PDFs: 1 (Output\GradientPhaseSpaceScan\electron\Plots\W\polarization_correlations\representative_configurations)
+
 Gradient D_W polarization clustering (muon)
   source minima: Output\GradientPhaseSpaceScan\muon\Data\W\scan\local_minima.csv
   local minima loaded: 1296
@@ -6,7 +22,10 @@ Gradient D_W polarization clustering (muon)
   W polarization clusters: 6
   alpha_e line half-width: 0.13089969 rad (0.041666667pi)
   one best-objective representative selected per polarization cluster
-  clustering time: 4.069 s
+  clustering time: 34.631 s
   clustered minima: Output\GradientPhaseSpaceScan\muon\Data\W\cluster\clustered_minima.csv
   polarization cluster summary: Output\GradientPhaseSpaceScan\muon\Data\W\cluster\polarization_clusters.csv
   polarization phase-space plot: Output\GradientPhaseSpaceScan\muon\Plots\W\polarization_cluster_phase_space.pdf
+  separate correlation PDFs: 16 (Output\GradientPhaseSpaceScan\muon\Plots\W\polarization_correlations)
+  correlation plot index: Output\GradientPhaseSpaceScan\muon\Data\W\cluster\polarization_correlation_plot_index.csv
+  starred representative configuration PDFs: 1 (Output\GradientPhaseSpaceScan\muon\Plots\W\polarization_correlations\representative_configurations)

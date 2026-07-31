@@ -15,6 +15,9 @@ from concurrent.futures.process import BrokenProcessPool
 import csv
 from dataclasses import dataclass
 from pathlib import Path
+import shutil
+import subprocess
+import tempfile
 from time import perf_counter
 
 import numpy as np
@@ -49,6 +52,11 @@ from config import (
     SCAN_WORKERS,
 )
 from PlotUtils import configure_named_angle_axes, print_console_text
+from GradientObjective import (
+    PAIRWISE_CONCURRENCE_NAMES,
+    objective_value,
+    source_observable_name,
+)
 
 
 # Runtime state is populated only through :func:`configure_scan`.
@@ -63,6 +71,7 @@ OBJECTIVE_NAME = ""
 OBJECTIVE_FILE_TAG = ""
 OBJECTIVE_LATEX = ""
 OBJECTIVE_STATE_FILE_LABEL = ""
+TARGET_OBSERVABLE_NAME = ""
 SCAN_KEY = ""
 PHYSICS_ANCHOR_STARTS = {}
 
@@ -99,6 +108,17 @@ POLARIZATION_CLUSTER_STYLES = (
     ("#7A1FA2", "v"),
     ("#00A6A6", "X"),
 )
+# High-contrast, color-blind-safe styles used by the standalone correlation
+# PDFs.  These are intentionally independent of the compact summary-page
+# styles, where smaller markers work better in the 3x3 layout.
+POLARIZATION_CORRELATION_STYLES = (
+    ("#0072B2", "o"),
+    ("#D55E00", "s"),
+    ("#009E73", "^"),
+    ("#CC79A7", "D"),
+    ("#E69F00", "P"),
+    ("#000000", "X"),
+)
 POLARIZATION_CLUSTER_RESTARTS = 16
 W_POLARIZATION_ALPHA_E_LINE_CENTERS = (
     np.pi / 4.0,
@@ -132,7 +152,7 @@ def configure_scan(
         raise TypeError("definition must be a GradientScanDefinition.")
 
     global OBJECTIVE_NAME, OBJECTIVE_FILE_TAG, OBJECTIVE_LATEX
-    global OBJECTIVE_STATE_FILE_LABEL, SCAN_KEY
+    global OBJECTIVE_STATE_FILE_LABEL, TARGET_OBSERVABLE_NAME, SCAN_KEY
     global OUTPUT_ROOT
     global PHYSICS_ANCHOR_STARTS
     global LEPTONS_TO_PROCESS, GRADIENT_WORKERS
@@ -141,6 +161,7 @@ def configure_scan(
     OBJECTIVE_FILE_TAG = str(definition.file_tag)
     OBJECTIVE_LATEX = str(definition.latex)
     OBJECTIVE_STATE_FILE_LABEL = str(definition.state_file_label)
+    TARGET_OBSERVABLE_NAME = source_observable_name(OBJECTIVE_NAME)
     SCAN_KEY = str(definition.key)
     OUTPUT_ROOT = Path(definition.output_root)
     PHYSICS_ANCHOR_STARTS = {
@@ -309,8 +330,12 @@ def _objective_evaluation(
     if result is None or result[1] is None:
         return INVALID_OBJECTIVE, None
     row = result[1]
-    key = _objective_key(lepton_name, objective_name)
-    value = float(row.get(key, np.nan))
+    value = objective_value(
+        row,
+        config_scan.mixing_prefix(lepton_name),
+        objective_name or OBJECTIVE_NAME,
+        store=True,
+    )
     if not np.isfinite(value):
         return INVALID_OBJECTIVE, None
     return value, row
@@ -392,6 +417,19 @@ def _optimize_start(task):
         _run_objective_key("final", objective_name): final_value,
         **local_search,
     }
+    target_name = source_observable_name(objective_name)
+    if target_name != objective_name:
+        target_key = _objective_key(lepton_name, target_name)
+        for stage, stage_row in (
+            ("initial", _start_row),
+            ("lbfgs", _lbfgs_row),
+            ("final", final_row),
+        ):
+            run[_run_objective_key(stage, target_name)] = (
+                np.nan
+                if stage_row is None
+                else float(stage_row.get(target_key, np.nan))
+            )
     for index, value in enumerate(start):
         run[f"initial_u{index}"] = float(value)
     for index, value in enumerate(final_point):
@@ -1172,6 +1210,9 @@ def _circular_mixing_center(angles):
 def _mixing_distance(angle, center):
     """Return distance with a periodic endpoint and periodic alpha_p."""
     difference = np.abs(np.asarray(angle) - np.asarray(center))
+    if TARGET_OBSERVABLE_NAME in PAIRWISE_CONCURRENCE_NAMES:
+        difference = np.minimum(difference, np.pi - difference)
+        return float(np.linalg.norm(difference / np.pi))
     if np.isclose(np.mod(center[0], np.pi), 0.0):
         difference[0] = min(difference[0], np.pi - difference[0])
     difference[1] = min(difference[1], np.pi - difference[1])
@@ -1297,6 +1338,12 @@ def _polarization_alpha_e_strata(
             )
         return tuple(strata), "GHZ alpha_e boundary regions"
 
+    if TARGET_OBSERVABLE_NAME in PAIRWISE_CONCURRENCE_NAMES:
+        return (
+            ("full periodic plane", np.nan, np.ones_like(alpha_e, dtype=bool),
+             cluster_count),
+        ), "pairwise-concurrence periodic (alpha_e, alpha_p) k-means"
+
     raise ValueError(f"No polarization clustering algorithm for {SCAN_KEY!r}.")
 
 
@@ -1371,31 +1418,39 @@ def _cluster_polarization_minima(
                 "cut or revise the state-specific alpha_e partition."
             )
 
-        alpha_p = angles[stratum_positions, 1]
-        embedded_alpha_p = np.column_stack(
-            (np.cos(2.0 * alpha_p), np.sin(2.0 * alpha_p))
-        )
+        stratum_angles = angles[stratum_positions]
+        alpha_p = stratum_angles[:, 1]
+        if TARGET_OBSERVABLE_NAME in PAIRWISE_CONCURRENCE_NAMES:
+            embedded_angles = np.column_stack(
+                (
+                    np.cos(2.0 * stratum_angles[:, 0]),
+                    np.sin(2.0 * stratum_angles[:, 0]),
+                    np.cos(2.0 * alpha_p),
+                    np.sin(2.0 * alpha_p),
+                )
+            )
+        else:
+            embedded_angles = np.column_stack(
+                (np.cos(2.0 * alpha_p), np.sin(2.0 * alpha_p))
+            )
         stratum_labels = _best_periodic_kmeans_labels(
-            embedded_alpha_p,
+            embedded_angles,
             stratum_cluster_count,
             random_seed + stratum_id,
         )
         raw_ids = sorted(set(int(label) for label in stratum_labels))
-        alpha_p_centers = {
-            raw_id: float(
-                _circular_mixing_center(
-                    angles[
-                        stratum_positions[stratum_labels == raw_id]
-                    ]
-                )[1]
+        circular_centers = {
+            raw_id: _circular_mixing_center(
+                angles[stratum_positions[stratum_labels == raw_id]]
             )
             for raw_id in raw_ids
         }
         ordered_raw_ids = sorted(
             raw_ids,
             key=lambda raw_id: (
-                int(np.rint(4.0 * alpha_p_centers[raw_id] / np.pi)),
-                alpha_p_centers[raw_id],
+                int(np.rint(4.0 * circular_centers[raw_id][0] / np.pi)),
+                int(np.rint(4.0 * circular_centers[raw_id][1] / np.pi)),
+                *circular_centers[raw_id],
             ),
         )
         for raw_id in ordered_raw_ids:
@@ -1409,9 +1464,12 @@ def _cluster_polarization_minima(
                 for position in member_positions
             ]
             members_by_cluster[cluster_id] = members
-            centers[cluster_id] = np.asarray(
-                (alpha_e_center, alpha_p_centers[raw_id])
-            )
+            if TARGET_OBSERVABLE_NAME in PAIRWISE_CONCURRENCE_NAMES:
+                centers[cluster_id] = circular_centers[raw_id]
+            else:
+                centers[cluster_id] = np.asarray(
+                    (alpha_e_center, circular_centers[raw_id][1])
+                )
             alpha_e_regions[cluster_id] = stratum_name
             assignments.update(
                 {row_index: cluster_id for row_index in members}
@@ -1534,6 +1592,8 @@ def _cluster_polarization_minima(
                         "alpha_e (regions bounded by 0, pi/2, pi), "
                         "alpha_p (pi-periodic within each region)"
                     )
+                    if SCAN_KEY == "GHZ"
+                    else "alpha_e and alpha_p (both pi-periodic)"
                 ),
                 objective_key: float(representative[objective_key]),
             }
@@ -1584,6 +1644,9 @@ def _draw_alpha_e_cluster_guides(
                     alpha=0.7,
                     zorder=1,
                 )
+        return
+
+    if TARGET_OBSERVABLE_NAME in PAIRWISE_CONCURRENCE_NAMES:
         return
 
     interior_boundaries = tuple(alpha_e_boundaries[1:-1])
@@ -1725,10 +1788,14 @@ def _polarization_cluster_plot(
                 rf"${alpha_e_line_half_width / np.pi:.4g}\pi$; "
                 r"$\alpha_p$ has period $\pi$"
             )
-        else:
+        elif SCAN_KEY == "GHZ":
             alpha_e_partition_text = (
                 r"$\alpha_e$ boundaries: $0,\pi/2,\pi$; "
                 r"two periodic $\alpha_p$ groups per region"
+            )
+        else:
+            alpha_e_partition_text = (
+                r"periodic k-means in the full $(\alpha_e,\alpha_p)$ plane"
             )
         summary_ax.text(
             0.0,
@@ -1888,6 +1955,8 @@ def _polarization_cluster_plot(
                             for boundary in alpha_e_boundaries
                         )
                     )
+                    if SCAN_KEY == "GHZ"
+                    else "alpha_e and alpha_p are both pi-periodic"
                 ),
             ]
             cluster_summary.text(
@@ -1915,10 +1984,190 @@ def _polarization_cluster_plot(
     return path
 
 
+def _write_polarization_correlation_pdfs(
+    rows,
+    polarization_clusters,
+    lepton_name,
+    objective_cut,
+    optimum,
+    alpha_e_line_half_width,
+    alpha_e_boundaries,
+    output_dir,
+):
+    """Export each overview projection as clustered/unclustered PDFs."""
+    plt, _PdfPages = config_gen._require_matplotlib()
+    selected_rows = [
+        row for row in rows
+        if _as_bool(row["within_polarization_cluster_cut"])
+    ]
+    if not selected_rows:
+        raise RuntimeError("No rows passed the polarization-cluster cut.")
+    representative_rows = [
+        row for row in selected_rows
+        if _as_bool(row["polarization_cluster_representative"])
+    ]
+    representative_ids = {
+        int(row["polarization_cluster_id"]) for row in representative_rows
+    }
+    expected_ids = {
+        int(cluster["polarization_cluster_id"])
+        for cluster in polarization_clusters
+    }
+    if representative_ids != expected_ids or (
+        len(representative_rows) != len(expected_ids)
+    ):
+        raise RuntimeError(
+            "Expected exactly one representative minimum per polarization "
+            "cluster."
+        )
+    example_cluster_id = 1 if SCAN_KEY == "GHZ" else 3
+    example_row = next(
+        row for row in representative_rows
+        if int(row["polarization_cluster_id"]) == example_cluster_id
+    )
+    output_dir = Path(output_dir)
+    index_rows = []
+    plot_order = sorted(
+        polarization_clusters,
+        key=lambda cluster: int(cluster["member_count"]),
+        reverse=True,
+    )
+
+    for mode in ("clustered", "unclustered"):
+        mode_dir = output_dir / mode
+        mode_dir.mkdir(parents=True, exist_ok=True)
+        for panel_index, (x_name, y_name, x_label, y_label) in enumerate(
+            PLOT_PANELS,
+            start=1,
+        ):
+            fig, ax = plt.subplots(
+                figsize=(5.0, 4.5),
+                constrained_layout=True,
+            )
+            if mode == "clustered":
+                for draw_index, cluster in enumerate(plot_order):
+                    cluster_id = int(cluster["polarization_cluster_id"])
+                    cluster_rows = [
+                        row for row in selected_rows
+                        if int(row["polarization_cluster_id"]) == cluster_id
+                    ]
+                    color, marker = POLARIZATION_CORRELATION_STYLES[cluster_id]
+                    ax.scatter(
+                        [float(row[x_name]) for row in cluster_rows],
+                        [float(row[y_name]) for row in cluster_rows],
+                        s=58,
+                        marker=marker,
+                        color=color,
+                        edgecolors="black",
+                        linewidths=0.7,
+                        alpha=0.84 if len(cluster_rows) > 100 else 0.98,
+                        rasterized=True,
+                        zorder=2 + draw_index,
+                    )
+            else:
+                unclustered_style_index = {
+                    "GHZ": 1,  # match clustered P2
+                    "W": 3,    # match clustered P4
+                }.get(SCAN_KEY, 0)
+                unclustered_color, unclustered_marker = (
+                    POLARIZATION_CORRELATION_STYLES[
+                        unclustered_style_index
+                    ]
+                )
+                ax.scatter(
+                    [float(row[x_name]) for row in selected_rows],
+                    [float(row[y_name]) for row in selected_rows],
+                    s=52,
+                    marker=unclustered_marker,
+                    color=unclustered_color,
+                    edgecolors="black",
+                    linewidths=0.6,
+                    alpha=0.78 if len(selected_rows) > 100 else 0.95,
+                    rasterized=True,
+                    zorder=2,
+                )
+
+            displayed_representatives = (
+                representative_rows if mode == "clustered" else [example_row]
+            )
+            for representative in displayed_representatives:
+                ax.scatter(
+                    [float(representative[x_name])],
+                    [float(representative[y_name])],
+                    marker="*",
+                    s=230,
+                    color="gold",
+                    edgecolors="black",
+                    linewidths=0.9,
+                    label="Example" if mode == "unclustered" else None,
+                    zorder=20,
+                )
+            _draw_alpha_e_cluster_guides(
+                ax,
+                x_name,
+                y_name,
+                alpha_e_line_half_width,
+                alpha_e_boundaries,
+            )
+            ax.set_xlabel(x_label, fontsize=13)
+            ax.set_ylabel(y_label, fontsize=13)
+            configure_named_angle_axes(ax, x_name, y_name)
+            ax.tick_params(labelsize=11)
+            ax.grid(alpha=0.22)
+            ax.margins(0.06)
+            if mode == "unclustered":
+                ax.legend(
+                    loc="upper right",
+                    fontsize=10,
+                    frameon=True,
+                    framealpha=0.88,
+                    edgecolor="0.65",
+                )
+            '''
+            ax.set_title(
+                f"{lepton_name} / {SCAN_KEY}: {y_name} versus {x_name}\n"
+                + (
+                    "polarization clusters shown by color and marker"
+                    if mode == "clustered"
+                    else "polarization cluster labels hidden"
+                ),
+                fontsize=13,
+            )
+            '''
+            filename = (
+                f"{panel_index:02d}_{y_name}_vs_{x_name}_{mode}.pdf"
+            )
+            path = mode_dir / filename
+            fig.savefig(path)
+            plt.close(fig)
+            index_rows.append(
+                {
+                    "panel_index": panel_index,
+                    "mode": mode,
+                    "x_name": x_name,
+                    "y_name": y_name,
+                    "x_label": x_label,
+                    "y_label": y_label,
+                    "retained_minima": len(selected_rows),
+                    "polarization_clusters": len(polarization_clusters),
+                    "representative_minima": len(displayed_representatives),
+                    "example_polarization_cluster": (
+                        f"P{example_cluster_id + 1}"
+                        if mode == "unclustered" else ""
+                    ),
+                    "objective_name": OBJECTIVE_NAME,
+                    "objective_cut_above_global_minimum": objective_cut,
+                    "global_minimum": optimum,
+                    "plot_path": str(path),
+                }
+            )
+    return index_rows
+
+
 def _configuration_rows(minimum_rows, lepton_name):
     """Annotate every polarization-cluster member for ConfigGen."""
     prefix = config_scan.mixing_prefix(lepton_name)
-    key = _objective_key(lepton_name)
+    key = f"{prefix}_{TARGET_OBSERVABLE_NAME}"
     details = []
     for index, source in enumerate(minimum_rows):
         row = dict(source)
@@ -1927,9 +2176,9 @@ def _configuration_rows(minimum_rows, lepton_name):
         minimum_id = int(row["local_minimum_id"])
         row.update(
             {
-                "selected_observable": OBJECTIVE_NAME,
+                "selected_observable": TARGET_OBSERVABLE_NAME,
                 "selected_observable_label": config_gen.observable_label(
-                    OBJECTIVE_NAME
+                    TARGET_OBSERVABLE_NAME
                 ),
                 "selected_spin_case": "mixing_angles",
                 "selected_spin_label": (
@@ -2266,6 +2515,145 @@ def _write_configuration_plot(
             pdf.savefig(fig)
             plt.close(fig)
     return path
+
+
+def _write_representative_configuration_pdfs(
+    rows,
+    lepton_name,
+    optimum,
+    output_dir,
+):
+    """Extract two configuration pages for the starred unclustered example."""
+    # Contour centers are normalized with species-dependent sqrt(s) bounds.
+    # Reassert the requested species because plotting another species can
+    # legitimately change PhaseSpaceScan's active global range.
+    phase_scan._configure_lepton(lepton_name)
+    pdfseparate = shutil.which("pdfseparate")
+    pdfunite = shutil.which("pdfunite")
+    if pdfseparate is None or pdfunite is None:
+        raise RuntimeError(
+            "Representative configuration extraction requires pdfseparate "
+            "and pdfunite on PATH."
+        )
+
+    example_cluster_id = 1 if SCAN_KEY == "GHZ" else 3
+    representatives = [
+        row for row in rows
+        if _as_bool(row.get("within_polarization_cluster_cut"))
+        and _as_bool(row.get("polarization_cluster_representative"))
+        and int(row["polarization_cluster_id"]) == example_cluster_id
+    ]
+    if len(representatives) != 1:
+        raise RuntimeError(
+            f"Expected one P{example_cluster_id + 1} representative example."
+        )
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for pattern in (
+        "P??_local_minimum_*_representative_configuration.pdf",
+        "Example_P??_local_minimum_*_configuration.pdf",
+    ):
+        for stale_path in output_dir.glob(pattern):
+            stale_path.unlink()
+    index_rows = []
+    for representative in representatives:
+        cluster_id = int(representative["polarization_cluster_id"])
+        minimum_id = int(representative["local_minimum_id"])
+        details = _configuration_rows([representative], lepton_name)
+        try:
+            contours, contour_settings = _load_minimum_contour_data(
+                lepton_name,
+                [representative],
+            )
+            contour_source = "validated saved local-minimum contour"
+        except (FileNotFoundError, ValueError):
+            # A scan rerun can make an older normalized contour center stale.
+            # Recompute only this single displayed example; do not silently
+            # reuse a contour belonging to a different physical point.
+            phase_scan._configure_lepton(lepton_name)
+            global GRADIENT_WORKERS
+            clustering_worker_count = GRADIENT_WORKERS
+            try:
+                GRADIENT_WORKERS = SCAN_WORKERS
+                contours = _configuration_contours(
+                    [representative],
+                    lepton_name,
+                )
+            finally:
+                GRADIENT_WORKERS = clustering_worker_count
+            contour_settings = {
+                0: {
+                    "contour_delta": PHASE_SPACE_CONFIG_CONTOUR_DELTA,
+                    "configured_direction_count": (
+                        PHASE_SPACE_CONFIG_CONTOUR_SAMPLES
+                    ),
+                }
+            }
+            contour_source = "fresh contour for displayed example"
+        filename = (
+            f"Example_P{cluster_id + 1:02d}_local_minimum_{minimum_id:04d}_"
+            "configuration.pdf"
+        )
+        output_path = output_dir / filename
+
+        with tempfile.TemporaryDirectory(
+            prefix="gradient_representative_config_"
+        ) as temporary_directory:
+            temporary_directory = Path(temporary_directory)
+            temporary_package = temporary_directory / "package.pdf"
+            _write_configuration_plot(
+                [representative],
+                details,
+                lepton_name,
+                optimum,
+                temporary_package,
+                contours,
+                contour_settings,
+            )
+            page_pattern = temporary_directory / "page-%d.pdf"
+            subprocess.run(
+                [
+                    pdfseparate,
+                    "-f",
+                    "2",
+                    "-l",
+                    "3",
+                    str(temporary_package),
+                    str(page_pattern),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            output_path.unlink(missing_ok=True)
+            subprocess.run(
+                [
+                    pdfunite,
+                    str(temporary_directory / "page-2.pdf"),
+                    str(temporary_directory / "page-3.pdf"),
+                    str(output_path),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+        index_rows.append(
+            {
+                "polarization_cluster_id": cluster_id,
+                "polarization_cluster_label": f"P{cluster_id + 1}",
+                "local_minimum_id": minimum_id,
+                "page_count": 2,
+                "page_1": "reconstructed configuration and amplitudes",
+                "page_2": "pairwise projections of the 8D contour",
+                "contour_source": contour_source,
+                "configuration_path": str(output_path),
+            }
+        )
+
+    _write_csv(output_dir / "representative_configuration_index.csv", index_rows)
+    return index_rows
 
 
 def _write_configurations(
@@ -2623,6 +3011,11 @@ def scan_species_minima(lepton_name, results=None):
         f"  distinct finite minima: {len(minima)}",
         f"  minimum scan time: {minimum_scan_seconds:.3f} s",
         f"  best {OBJECTIVE_NAME}: {optimum:.10g}",
+        *(
+            (f"  maximum {TARGET_OBSERVABLE_NAME}: {1.0 - optimum:.10g}",)
+            if TARGET_OBSERVABLE_NAME != OBJECTIVE_NAME
+            else ()
+        ),
         f"  optimization runs: {run_path}",
         (
             f"  exact physics reference points: {references_path}"
@@ -2798,6 +3191,43 @@ def cluster_species_minima(
         polarization_alpha_e_boundaries,
         output_dirs["plots"] / "polarization_cluster_phase_space.pdf",
     )
+    correlation_rows = _write_polarization_correlation_pdfs(
+        clustered_rows,
+        polarization_clusters,
+        lepton_name,
+        polarization_objective_cut,
+        optimum,
+        polarization_alpha_e_line_half_width,
+        polarization_alpha_e_boundaries,
+        output_dirs["plots"] / "polarization_correlations",
+    )
+    representative_configuration_dir = (
+        output_dirs["plots"]
+        / "polarization_correlations"
+        / "unclustered"
+    )
+    representative_configuration_rows = (
+        _write_representative_configuration_pdfs(
+            clustered_rows,
+            lepton_name,
+            optimum,
+            representative_configuration_dir,
+        )
+    )
+    example_configuration_path = representative_configuration_rows[0][
+        "configuration_path"
+    ]
+    for correlation_row in correlation_rows:
+        correlation_row["example_configuration_path"] = (
+            example_configuration_path
+            if correlation_row["mode"] == "unclustered"
+            else ""
+        )
+    correlation_index_path = _write_csv(
+        output_dirs["cluster_data"]
+        / "polarization_correlation_plot_index.csv",
+        correlation_rows,
+    )
     retained = sum(
         _as_bool(row["within_polarization_cluster_cut"])
         for row in clustered_rows
@@ -2839,6 +3269,11 @@ def cluster_species_minima(
                     )
                     + " rad"
                 )
+                if SCAN_KEY == "GHZ"
+                else (
+                    "  polarization clustering: periodic k-means in "
+                    "(alpha_e, alpha_p)"
+                )
             ),
             (
                 "  one best-objective representative selected per "
@@ -2848,6 +3283,16 @@ def cluster_species_minima(
             f"  clustered minima: {clustered_path}",
             f"  polarization cluster summary: {polarization_path}",
             f"  polarization phase-space plot: {polarization_plot}",
+            (
+                f"  separate correlation PDFs: {len(correlation_rows)} "
+                f"({output_dirs['plots'] / 'polarization_correlations'})"
+            ),
+            f"  correlation plot index: {correlation_index_path}",
+            (
+                "  starred representative configuration PDFs: "
+                f"{len(representative_configuration_rows)} "
+                f"({representative_configuration_dir})"
+            ),
         )
     )
 
@@ -3319,6 +3764,20 @@ def run_phase_space_clustering(
         if polarization_alpha_e_line_half_width is not None:
             raise ValueError(
                 "GHZ polarization_alpha_e_line_half_width must be None."
+            )
+    elif (
+        source_observable_name(definition.objective_name)
+        in PAIRWISE_CONCURRENCE_NAMES
+    ):
+        if polarization_alpha_e_line_half_width is not None:
+            raise ValueError(
+                "Pairwise-concurrence polarization_alpha_e_line_half_width "
+                "must be None."
+            )
+        if polarization_alpha_e_boundaries is not None:
+            raise ValueError(
+                "Pairwise-concurrence polarization_alpha_e_boundaries must "
+                "be None."
             )
     else:
         raise ValueError(

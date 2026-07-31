@@ -1,4 +1,4 @@
-"""Shared W/GHZ definitions for the three gradient workflow stages."""
+"""Shared entanglement definitions for the gradient workflow stages."""
 
 from numbers import Integral
 from pathlib import Path
@@ -6,9 +6,16 @@ from pathlib import Path
 import numpy as np
 
 import GradientPhaseSpaceScanTool as gradient_tool
+from GradientObjective import PAIRWISE_CONCURRENCE_NAMES
 
 
 GRADIENT_OUTPUT_ROOT = Path("Output") / "GradientPhaseSpaceScan"
+
+PAIRWISE_CONCURRENCE_SCAN_KEYS = (
+    "CEP",
+    "CEGAMMA",
+    "CPGAMMA",
+)
 
 W_PHYSICS_ANCHORS = {
     "electron": (
@@ -56,7 +63,40 @@ SCAN_DEFINITIONS = {
         output_root=GRADIENT_OUTPUT_ROOT,
         physics_anchor_starts={},
     ),
+    "CEP": gradient_tool.GradientScanDefinition(
+        key="CEP",
+        objective_name="one_minus_C_e_p",
+        file_tag="max_c_ep",
+        latex=r"1-C_{ep}",
+        state_file_label="Cep",
+        output_root=GRADIENT_OUTPUT_ROOT,
+        physics_anchor_starts={},
+    ),
+    "CEGAMMA": gradient_tool.GradientScanDefinition(
+        key="CEGAMMA",
+        objective_name="one_minus_C_e_gamma",
+        file_tag="max_c_e_gamma",
+        latex=r"1-C_{e\gamma}",
+        state_file_label="Cegamma",
+        output_root=GRADIENT_OUTPUT_ROOT,
+        physics_anchor_starts={},
+    ),
+    "CPGAMMA": gradient_tool.GradientScanDefinition(
+        key="CPGAMMA",
+        objective_name="one_minus_C_p_gamma",
+        file_tag="max_c_p_gamma",
+        latex=r"1-C_{p\gamma}",
+        state_file_label="Cpgamma",
+        output_root=GRADIENT_OUTPUT_ROOT,
+        physics_anchor_starts={},
+    ),
 }
+
+if {
+    SCAN_DEFINITIONS[key].objective_name.removeprefix("one_minus_")
+    for key in PAIRWISE_CONCURRENCE_SCAN_KEYS
+} != set(PAIRWISE_CONCURRENCE_NAMES):
+    raise RuntimeError("Pairwise concurrence gradient definitions are incomplete.")
 
 
 def selected_definitions(scan_keys):

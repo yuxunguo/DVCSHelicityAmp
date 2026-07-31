@@ -26,10 +26,11 @@ python3 AlignmentScan.py     # angular alignment and entanglement scan
 python3 ConfigGen.py         # selected configurations from AlignmentScan
 python3 PhaseSpaceScan.py    # adaptive all-observable/all-lepton phase-space scan
 python3 PhaseSpaceConfigScan.py  # ConfigGen packages from PhaseSpaceScan results
-python3 GradientPhaseSpaceScan.py # stage 1: W/GHZ local-minimum searches
+python3 GradientPhaseSpaceScan.py # stage 1: entanglement gradient searches
 python3 GradientPhaseSpaceContour.py # stage 2: contours of raw minima
 python3 GradientPhaseSpaceCluster.py # stage 3: cluster saved minima
 python3 GradientPhaseSpaceConfig.py # stage 4: configs from clusters/contours
+python3 GradientLocalUnitaryFidelity.py # post-process W/GHZ LU fidelities
 python3 GradientCanonicalConfigCollect.py # canonical W/GHZ PDFs by cluster
 python3 EpCMEntanglementScan.py   # reference-centered electron ep-CM scan
 python3 EpCMConfigGen.py          # config packages from the focused ep-CM scan
@@ -53,11 +54,12 @@ AlignmentScan.py      Fine angular scan at characteristic kinematics
 ConfigGen.py          Ranked-region configuration and plot generator
 PhaseSpaceScan.py      Adaptive eight-dimensional kinematic/polarization scan
 PhaseSpaceConfigScan.py ConfigGen-style packages from PhaseSpaceScan results
-GradientPhaseSpaceDefinitions.py Shared W/GHZ objectives, anchors, and root
+GradientPhaseSpaceDefinitions.py Shared gradient objectives, anchors, and root
 GradientPhaseSpaceScan.py Stage 1 local-minimum search interface
 GradientPhaseSpaceContour.py Stage 2 raw-minimum contour interface
 GradientPhaseSpaceCluster.py Stage 3 phase-space clustering interface
 GradientPhaseSpaceConfig.py Stage 4 cluster ConfigGen/contour-plot interface
+GradientLocalUnitaryFidelity.py Canonical W/GHZ fidelity after local rotations
 GradientCanonicalConfigCollect.py Canonical-component PDFs and indexes by cluster
 GradientPhaseSpaceScanTool.py Shared implementation for all four stages
 EpCMEntanglementScan.py Exact ep-CM scan with a slow final proton
@@ -370,7 +372,10 @@ uses explicit globals and accepts no command-line arguments.
    retains narrow tunable `alpha_e` bands around `pi/4` and `3pi/4` and finds
    six `alpha_p`-periodic configurations. GHZ uses the `alpha_e` boundaries
    `(0, pi/2, pi)` and finds two periodic `alpha_p` groups inside each of the
-   two resulting regions, for four configurations. The minimum with the best
+   two resulting regions, for four configurations. Pairwise-concurrence scans
+   cluster the full periodic
+   `(alpha_e, alpha_p)` plane into six configurations without imposing the W
+   or GHZ partitions. The minimum with the best
    objective in each cluster is marked as that polarization cluster's
    configuration representative. It writes the assignments and polarization
    summary without performing optimization or ConfigGen work. Every assigned
@@ -382,21 +387,61 @@ uses explicit globals and accepts no command-line arguments.
    contour, followed by a reconstructed configuration page and an 8D contour
    page for every minimum in that polarization cluster.
 
-The shared W/GHZ definitions, anchors, labels, and output root live in
-`GradientPhaseSpaceDefinitions.py`. Select states and leptons independently
-at the top of each stage script, then run:
+The shared definitions, anchors, labels, and output root live in
+`GradientPhaseSpaceDefinitions.py`. Valid scan keys are `W`, `GHZ`, `CEP`,
+`CEGAMMA`, and `CPGAMMA`. The last three maximize `C_e_p`, `C_e_gamma`, and
+`C_p_gamma` by minimizing the bounded loss `1-C`; both the physical
+concurrence and derived loss are retained in the saved rows. Select objectives
+and leptons independently at the top of each stage script. For example, use
+`SCANS_TO_RUN = ("CEP", "CEGAMMA", "CPGAMMA")`, then run:
 
 ```sh
 python3 GradientPhaseSpaceScan.py
 python3 GradientPhaseSpaceContour.py
 python3 GradientPhaseSpaceCluster.py
 python3 GradientPhaseSpaceConfig.py
-python3 GradientCanonicalConfigCollect.py
 ```
 
-After stage 4, `GradientCanonicalConfigCollect.py` reads the saved
-configuration and amplitude-decomposition CSVs without rerunning the search or
-contours. It collects configurations with exactly three retained components
+`GradientLocalUnitaryFidelity.py` is an independent post-processing check over
+the saved stage-1 minima. For every selected scan and lepton, it reconstructs
+the normalized pure final state in `(e_out, p_out, gamma_out)` order and
+maximizes the canonical W and GHZ fidelities over
+`U_e tensor U_p tensor U_gamma`. Each SU(2) acts in the `(-,+)` helicity basis.
+The per-minimum CSV saves both fidelities, the unrotated fixed-basis
+fidelities, optimizer diagnostics, and every rotation as Z-Y-Z Euler angles
+and complex 2-by-2 matrix entries.
+
+By default, `CANDIDATES_PER_TARGET_PER_SCAN = None` checks every saved
+minimum. Set it to a positive integer for a faster screened run: each target
+then selects that many minima with the smallest matching LU-invariant distance
+(`D_W` or `dGHZ`), and their union is checked against both targets. Missing
+selected scan inputs are recorded explicitly in the combined summary and can
+instead be made fatal with
+`SKIP_MISSING_SCAN_INPUTS = False`. Run:
+
+```sh
+python3 GradientLocalUnitaryFidelity.py
+```
+
+Per-scan outputs are written under
+`Data/<state>/fidelity/local_unitary_fidelity_by_minimum.csv` and
+`Data/<state>/fidelity/local_unitary_fidelity_summary.csv`. The combined CSV,
+comparison PDF, and log are written under
+`Output/GradientPhaseSpaceScan/Fidelity/`. Set
+`REMAKE_SUMMARY_PLOT_FROM_CSV = True` to rebuild only the combined PDF.
+Each available species/scan also receives
+`Plots/<state>/fidelity/local_unitary_fidelity_distribution.pdf`. These
+distribution PDFs show histograms and empirical CDFs of the infidelity
+`1-F_LU` on logarithmic axes; exact numerical zeros are displayed at a
+documented `1e-15` plotting floor without changing the saved CSV values.
+Beside each all-minima PDF, the workflow writes
+`local_unitary_fidelity_distribution_after_objective_cut.pdf`, applying the
+same stage-3 rule `objective - objective_min <= POLARIZATION_CLUSTER_CUT`
+before plotting. For W and GHZ this is respectively the `D_W` and `dGHZ` cut.
+
+For W and GHZ only, after stage 4, `GradientCanonicalConfigCollect.py` reads
+the saved configuration and amplitude-decomposition CSVs without rerunning
+the search or contours. It collects configurations with exactly three retained components
 for W and exactly two retained components for GHZ. "Retained" uses
 `AMPLITUDE_MIN_FRACTION` (2% by default), so the PDF cover states the cutoff
 explicitly. Each per-cluster PDF contains one cover followed by one compact
@@ -436,7 +481,10 @@ Stage 3 is polarization-first. The explicit `POLARIZATION_CLUSTER_CUT` and
 `GHZ_POLARIZATION_CLUSTER_COUNT = 4` and
 `GHZ_ALPHA_E_BOUNDARIES = (0, pi/2, pi)`. The default objective cut retains
 minima with `objective - objective_min <= 0.05`; `alpha_p` is clustered with
-period `pi` inside each state-specific `alpha_e` region. The best-objective
+period `pi` inside each state-specific `alpha_e` region. Pairwise concurrence
+uses `PAIRWISE_CONCURRENCE_POLARIZATION_CLUSTER_COUNT = 6` and periodic
+k-means in both mixing angles; its same `0.05` loss cut means
+`C_max - C <= 0.05`. The best-objective
 member is still identified in the summary, but every cluster member is
 configured. The assignments are saved in `clustered_minima.csv`, while parent
 regions, centers, sizes, and representative IDs are saved in
@@ -444,6 +492,20 @@ regions, centers, sizes, and representative IDs are saved in
 `polarization_cluster_phase_space.pdf` is the all-cluster overview; each
 following page shows all phase-space projections for one cluster, colored by
 the objective value.
+The eight correlation panels from the overview are also exported as separate
+one-page PDFs under `Plots/<state>/polarization_correlations/`. The
+`clustered/` version uses the same P1...Pn colors and markers, while the
+`unclustered/` version plots the identical retained minima with cluster labels
+hidden. GHZ unclustered panels use exactly the P2 marker/color and W
+unclustered panels use exactly the P4 marker/color. Clustered panels mark each
+cluster representative with a gold star. Each unclustered panel instead marks
+only the P2 (GHZ) or P4 (W) representative and labels it `Example`; objective-cut
+text is omitted. That example's two configuration pages are extracted to
+the same `polarization_correlations/unclustered/` folder, with an index CSV in
+that directory. Each unclustered row in
+`Data/<state>/cluster/polarization_correlation_plot_index.csv` records the
+matching `example_configuration_path` in addition to the axes, mode, cut,
+retained count, and plot path.
 
 The eight coordinates are `sqrt(s)`, `theta_p_out`, `theta_gamma_out`, the
 physical `E_gamma` fraction, the final-proton and photon azimuths, `alpha_e`,
@@ -472,7 +534,7 @@ those tick positions. Every phase-space projection adds a small unlabeled
 margin outside its physical kinematic bounds, keeping endpoint markers and
 contours fully visible.
 
-W and GHZ outputs share one main root and use a lepton-first,
+All gradient objectives share one main root and use a lepton-first,
 artifact-type-first hierarchy:
 
 ```text
@@ -496,6 +558,21 @@ Output/GradientPhaseSpaceScan/
           polarization_cluster_01/combined/
             canonical_dghz_polarization_cluster_01_configurations_electron.csv
           ...
+      CEP/
+        scan/
+        contour/
+        cluster/
+        max_c_ep/polarization_cluster_01/combined/
+      CEGAMMA/
+        scan/
+        contour/
+        cluster/
+        max_c_e_gamma/polarization_cluster_01/combined/
+      CPGAMMA/
+        scan/
+        contour/
+        cluster/
+        max_c_p_gamma/polarization_cluster_01/combined/
     Plots/
       W/polarization_cluster_01/
         Canonical_W_Configurations_Electron_Polarization_Cluster_01.pdf
@@ -503,11 +580,20 @@ Output/GradientPhaseSpaceScan/
       W/polarization_cluster_06/
       GHZ/polarization_cluster_01/
         Canonical_GHZ_Configurations_Electron_Polarization_Cluster_01.pdf
+      CEP/polarization_cluster_01/
+      CEGAMMA/polarization_cluster_01/
+      CPGAMMA/polarization_cluster_01/
   muon/
     Data/W/
     Data/GHZ/
+    Data/CEP/
+    Data/CEGAMMA/
+    Data/CPGAMMA/
     Plots/W/
     Plots/GHZ/
+    Plots/CEP/
+    Plots/CEGAMMA/
+    Plots/CPGAMMA/
   Logs/
 ```
 

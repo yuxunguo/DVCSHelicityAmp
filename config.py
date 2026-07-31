@@ -19,7 +19,7 @@ SCAN_WORKERS = max(1, os.cpu_count() or 1)
 PHASE_SPACE_SAMPLES = 8192 * 2
 REFINEMENT_SAMPLES = 4096 * 2
 
-# Shared W/GHZ randomized starts, gradient optimization, and local search.
+# Shared entanglement-objective randomized starts, optimization, and search.
 ENTANGLEMENT_GRADIENT_RANDOM_STARTS = 2 ** 10
 ENTANGLEMENT_GRADIENT_SCREENING_SAMPLES = 8192 * 4
 ENTANGLEMENT_GRADIENT_SCREENED_STARTS = 2 ** 10

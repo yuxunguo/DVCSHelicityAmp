@@ -10,6 +10,7 @@ import sys
 from config import SCAN_WORKERS
 
 
+# Valid keys include W, GHZ, CEP, CEGAMMA, and CPGAMMA.
 SCANS_TO_RUN = ("W",)
 LEPTONS_TO_CONFIGURE = ("muon",)
 # Workers are used by configuration reconstruction; contours are loaded from
