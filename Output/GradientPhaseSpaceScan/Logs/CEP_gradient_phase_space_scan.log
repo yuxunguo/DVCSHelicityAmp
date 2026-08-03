@@ -1,0 +1,35 @@
+Hybrid global gradient one_minus_C_e_p search (electron)
+  optimization starts: 2048
+  Latin-hypercube starts: 1024
+  Sobol screening: 32768 candidates -> 1024 optimized starts
+  best screened one_minus_C_e_p: 0.004051074549
+  deterministic physics anchors: 0
+  shared optimization workers: 24
+  L-BFGS-B-converged runs: 1990/2048
+  multiscale-verified runs: 789/2048
+  distinct finite minima: 577
+  minimum scan time: 24359.867 s
+  best one_minus_C_e_p: 3.503562995e-10
+  maximum C_e_p: 0.9999999996
+  optimization runs: Output\GradientPhaseSpaceScan\electron\Data\CEP\scan\optimization_runs.csv
+  exact physics reference points: none configured
+  local minima: Output\GradientPhaseSpaceScan\electron\Data\CEP\scan\local_minima.csv
+  all-local-minima plot: Output\GradientPhaseSpaceScan\electron\Plots\CEP\all_local_minima.pdf
+
+Hybrid global gradient one_minus_C_e_p search (muon)
+  optimization starts: 2048
+  Latin-hypercube starts: 1024
+  Sobol screening: 32768 candidates -> 1024 optimized starts
+  best screened one_minus_C_e_p: 0.002962618489
+  deterministic physics anchors: 0
+  shared optimization workers: 24
+  L-BFGS-B-converged runs: 1999/2048
+  multiscale-verified runs: 1605/2048
+  distinct finite minima: 1443
+  minimum scan time: 16103.680 s
+  best one_minus_C_e_p: 8.703361254e-09
+  maximum C_e_p: 0.9999999913
+  optimization runs: Output\GradientPhaseSpaceScan\muon\Data\CEP\scan\optimization_runs.csv
+  exact physics reference points: none configured
+  local minima: Output\GradientPhaseSpaceScan\muon\Data\CEP\scan\local_minima.csv
+  all-local-minima plot: Output\GradientPhaseSpaceScan\muon\Plots\CEP\all_local_minima.pdf

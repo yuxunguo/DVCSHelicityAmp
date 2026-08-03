@@ -1,0 +1,35 @@
+Hybrid global gradient one_minus_C_p_gamma search (electron)
+  optimization starts: 2048
+  Latin-hypercube starts: 1024
+  Sobol screening: 32768 candidates -> 1024 optimized starts
+  best screened one_minus_C_p_gamma: 0.0006732629674
+  deterministic physics anchors: 0
+  shared optimization workers: 24
+  L-BFGS-B-converged runs: 1897/2048
+  multiscale-verified runs: 2032/2048
+  distinct finite minima: 1821
+  minimum scan time: 3817.161 s
+  best one_minus_C_p_gamma: 3.952393968e-14
+  maximum C_p_gamma: 1
+  optimization runs: Output\GradientPhaseSpaceScan\electron\Data\CPGAMMA\scan\optimization_runs.csv
+  exact physics reference points: none configured
+  local minima: Output\GradientPhaseSpaceScan\electron\Data\CPGAMMA\scan\local_minima.csv
+  all-local-minima plot: Output\GradientPhaseSpaceScan\electron\Plots\CPGAMMA\all_local_minima.pdf
+
+Hybrid global gradient one_minus_C_p_gamma search (muon)
+  optimization starts: 2048
+  Latin-hypercube starts: 1024
+  Sobol screening: 32768 candidates -> 1024 optimized starts
+  best screened one_minus_C_p_gamma: 0.0008976907011
+  deterministic physics anchors: 0
+  shared optimization workers: 24
+  L-BFGS-B-converged runs: 1883/2048
+  multiscale-verified runs: 1804/2048
+  distinct finite minima: 1646
+  minimum scan time: 9386.303 s
+  best one_minus_C_p_gamma: 3.330669074e-16
+  maximum C_p_gamma: 1
+  optimization runs: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\scan\optimization_runs.csv
+  exact physics reference points: none configured
+  local minima: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\scan\local_minima.csv
+  all-local-minima plot: Output\GradientPhaseSpaceScan\muon\Plots\CPGAMMA\all_local_minima.pdf

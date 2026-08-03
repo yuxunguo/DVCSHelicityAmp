@@ -14,8 +14,8 @@ import GradientPhaseSpaceScanTool as gradient_tool
 
 # Valid keys include W, GHZ, CEP, CEGAMMA, and CPGAMMA.  The concurrence
 # searches maximize C by minimizing the saved one_minus_C objective.
-SCANS_TO_RUN = ("GHZ",)
-LEPTONS_TO_SCAN = ("muon",)
+SCANS_TO_RUN = ("CEP", "CPGAMMA", "CEGAMMA")
+LEPTONS_TO_SCAN = ("electron", "muon")
 GRADIENT_WORKERS = SCAN_WORKERS
 # True reads scan/local_minima.csv and only rebuilds all_local_minima.pdf.
 REMAKE_MINIMA_PLOT_FROM_CSV = False

@@ -16,11 +16,10 @@ import GradientPhaseSpaceDefinitions as definitions
 import GradientPhaseSpaceScanTool as gradient_tool
 
 
-# The active muon GHZ search must finish first. The queued contour run then
-# generates GHZ contours followed by a clean W contour regeneration.
 # Valid keys include W, GHZ, CEP, CEGAMMA, and CPGAMMA.
-SCANS_TO_RUN = ("GHZ", "W")
-LEPTONS_TO_CONTOUR = ("muon",)
+# These contours are launched only after all pairwise minimum scans finish.
+SCANS_TO_RUN = ("CEP", "CPGAMMA", "CEGAMMA")
+LEPTONS_TO_CONTOUR = ("electron", "muon")
 CONTOUR_WORKERS = SCAN_WORKERS
 # Reuse and validate completed per-minimum files after an interrupted run.
 REUSE_SAVED_MINIMUM_CONTOURS = True
