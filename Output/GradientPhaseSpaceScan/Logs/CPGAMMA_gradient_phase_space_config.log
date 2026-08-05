@@ -1,0 +1,40 @@
+Gradient one_minus_C_p_gamma cluster ConfigGen (muon)
+  source clustered minima: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\cluster\clustered_minima.csv
+  local minima loaded: 1646
+  parent polarization PDFs: 3
+  configured polarization-cluster minima: 1644
+  local-minimum contour delta: 0.05
+  total contour processing time: 29.932 s
+  P1: alpha_e~0
+    retained minima: 474
+    configured local minima: 474
+    selected minima: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\max_c_p_gamma\polarization_cluster_01\combined\min_max_c_p_gamma_polarization_cluster_01_selected_minima.csv
+    loaded pre-cluster per-minimum contour samples by local_minimum_id
+    pre-cluster contour data load time: 8.543 s
+    configuration examples: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\max_c_p_gamma\polarization_cluster_01\combined\min_max_c_p_gamma_polarization_cluster_01_configuration_examples.csv
+    cluster summary: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\max_c_p_gamma\polarization_cluster_01\combined\min_max_c_p_gamma_polarization_cluster_01_cluster_summary.csv
+    momentum configurations: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\max_c_p_gamma\polarization_cluster_01\combined\min_max_c_p_gamma_polarization_cluster_01_momentum_configurations.csv
+    amplitude decomposition: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\max_c_p_gamma\polarization_cluster_01\combined\min_max_c_p_gamma_polarization_cluster_01_final_state_amplitude_decomposition.csv
+    configuration PDF: Output\GradientPhaseSpaceScan\muon\Plots\CPGAMMA\polarization_cluster_01\Cpgamma_State_Search_and_Config_Muon_Polarization_Cluster_01.pdf
+  P2: alpha_e~pi/2
+    retained minima: 784
+    configured local minima: 784
+    selected minima: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\max_c_p_gamma\polarization_cluster_02\combined\min_max_c_p_gamma_polarization_cluster_02_selected_minima.csv
+    loaded pre-cluster per-minimum contour samples by local_minimum_id
+    pre-cluster contour data load time: 14.116 s
+    configuration examples: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\max_c_p_gamma\polarization_cluster_02\combined\min_max_c_p_gamma_polarization_cluster_02_configuration_examples.csv
+    cluster summary: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\max_c_p_gamma\polarization_cluster_02\combined\min_max_c_p_gamma_polarization_cluster_02_cluster_summary.csv
+    momentum configurations: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\max_c_p_gamma\polarization_cluster_02\combined\min_max_c_p_gamma_polarization_cluster_02_momentum_configurations.csv
+    amplitude decomposition: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\max_c_p_gamma\polarization_cluster_02\combined\min_max_c_p_gamma_polarization_cluster_02_final_state_amplitude_decomposition.csv
+    configuration PDF: Output\GradientPhaseSpaceScan\muon\Plots\CPGAMMA\polarization_cluster_02\Cpgamma_State_Search_and_Config_Muon_Polarization_Cluster_02.pdf
+  P3: alpha_e~pi
+    retained minima: 386
+    configured local minima: 386
+    selected minima: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\max_c_p_gamma\polarization_cluster_03\combined\min_max_c_p_gamma_polarization_cluster_03_selected_minima.csv
+    loaded pre-cluster per-minimum contour samples by local_minimum_id
+    pre-cluster contour data load time: 7.273 s
+    configuration examples: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\max_c_p_gamma\polarization_cluster_03\combined\min_max_c_p_gamma_polarization_cluster_03_configuration_examples.csv
+    cluster summary: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\max_c_p_gamma\polarization_cluster_03\combined\min_max_c_p_gamma_polarization_cluster_03_cluster_summary.csv
+    momentum configurations: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\max_c_p_gamma\polarization_cluster_03\combined\min_max_c_p_gamma_polarization_cluster_03_momentum_configurations.csv
+    amplitude decomposition: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\max_c_p_gamma\polarization_cluster_03\combined\min_max_c_p_gamma_polarization_cluster_03_final_state_amplitude_decomposition.csv
+    configuration PDF: Output\GradientPhaseSpaceScan\muon\Plots\CPGAMMA\polarization_cluster_03\Cpgamma_State_Search_and_Config_Muon_Polarization_Cluster_03.pdf

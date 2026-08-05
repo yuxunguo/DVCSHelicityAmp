@@ -1,0 +1,31 @@
+Gradient one_minus_C_e_p polarization clustering (electron)
+  source minima: Output\GradientPhaseSpaceScan\electron\Data\CEP\scan\local_minima.csv
+  local minima loaded: 577
+  polarization cut: one_minus_C_e_p - one_minus_C_e_p_min <= 0.05
+  minima passing polarization cut: 559
+  CEP polarization clusters: 4
+  alpha_e boundaries: 0, 1.5707963, 3.1415927 rad
+  one best-objective representative selected per polarization cluster
+  clustering time: 5.914 s
+  clustered minima: Output\GradientPhaseSpaceScan\electron\Data\CEP\cluster\clustered_minima.csv
+  polarization cluster summary: Output\GradientPhaseSpaceScan\electron\Data\CEP\cluster\polarization_clusters.csv
+  polarization phase-space plot: Output\GradientPhaseSpaceScan\electron\Plots\CEP\polarization_cluster_phase_space.pdf
+  separate correlation PDFs: 16 (Output\GradientPhaseSpaceScan\electron\Plots\CEP\polarization_correlations)
+  correlation plot index: Output\GradientPhaseSpaceScan\electron\Data\CEP\cluster\polarization_correlation_plot_index.csv
+  starred representative configuration PDFs: 1 (Output\GradientPhaseSpaceScan\electron\Plots\CEP\polarization_correlations\unclustered)
+
+Gradient one_minus_C_e_p polarization clustering (muon)
+  source minima: Output\GradientPhaseSpaceScan\muon\Data\CEP\scan\local_minima.csv
+  local minima loaded: 1443
+  polarization cut: one_minus_C_e_p - one_minus_C_e_p_min <= 0.05
+  minima passing polarization cut: 1420
+  CEP polarization clusters: 4
+  alpha_e boundaries: 0, 1.5707963, 3.1415927 rad
+  one best-objective representative selected per polarization cluster
+  clustering time: 17.024 s
+  clustered minima: Output\GradientPhaseSpaceScan\muon\Data\CEP\cluster\clustered_minima.csv
+  polarization cluster summary: Output\GradientPhaseSpaceScan\muon\Data\CEP\cluster\polarization_clusters.csv
+  polarization phase-space plot: Output\GradientPhaseSpaceScan\muon\Plots\CEP\polarization_cluster_phase_space.pdf
+  separate correlation PDFs: 16 (Output\GradientPhaseSpaceScan\muon\Plots\CEP\polarization_correlations)
+  correlation plot index: Output\GradientPhaseSpaceScan\muon\Data\CEP\cluster\polarization_correlation_plot_index.csv
+  starred representative configuration PDFs: 1 (Output\GradientPhaseSpaceScan\muon\Plots\CEP\polarization_correlations\unclustered)

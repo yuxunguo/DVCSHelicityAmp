@@ -1,23 +1,12 @@
-Gradient one_minus_C_p_gamma pre-cluster contours (electron)
-  source raw minima: Output\GradientPhaseSpaceScan\electron\Data\CPGAMMA\scan\local_minima.csv
-  local minima loaded: 1821
-  contours generated: 1821
-  contours reused after validation: 0
-  directions per minimum: 1536
-  local-minimum contour settings: read from each minimum-owned contour file
-  contour generation time: 39326.759 s
-  per-minimum contour data: Output\GradientPhaseSpaceScan\electron\Data\CPGAMMA\contour\local_minima
-  contour index: Output\GradientPhaseSpaceScan\electron\Data\CPGAMMA\contour\local_minimum_contour_index.csv
-  ownership key: local_minimum_id from the raw local_minima.csv
-
 Gradient one_minus_C_p_gamma pre-cluster contours (muon)
   source raw minima: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\scan\local_minima.csv
   local minima loaded: 1646
-  contours generated: 1646
-  contours reused after validation: 0
+  contours generated: 1645
+  stale contours regenerated: 1645
+  contours reused after validation: 1
   directions per minimum: 1536
   local-minimum contour settings: read from each minimum-owned contour file
-  contour generation time: 36305.385 s
+  contour generation time: 32898.455 s
   per-minimum contour data: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\contour\local_minima
   contour index: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\contour\local_minimum_contour_index.csv
   ownership key: local_minimum_id from the raw local_minima.csv

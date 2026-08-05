@@ -1,0 +1,51 @@
+Gradient one_minus_C_e_p cluster ConfigGen (muon)
+  source clustered minima: Output\GradientPhaseSpaceScan\muon\Data\CEP\cluster\clustered_minima.csv
+  local minima loaded: 1443
+  parent polarization PDFs: 4
+  configured polarization-cluster minima: 1420
+  local-minimum contour delta: 0.05
+  total contour processing time: 24.626 s
+  P1: alpha_e in [0,pi/2),alpha_p~pi/4
+    retained minima: 407
+    configured local minima: 407
+    selected minima: Output\GradientPhaseSpaceScan\muon\Data\CEP\max_c_ep\polarization_cluster_01\combined\min_max_c_ep_polarization_cluster_01_selected_minima.csv
+    loaded pre-cluster per-minimum contour samples by local_minimum_id
+    pre-cluster contour data load time: 7.730 s
+    configuration examples: Output\GradientPhaseSpaceScan\muon\Data\CEP\max_c_ep\polarization_cluster_01\combined\min_max_c_ep_polarization_cluster_01_configuration_examples.csv
+    cluster summary: Output\GradientPhaseSpaceScan\muon\Data\CEP\max_c_ep\polarization_cluster_01\combined\min_max_c_ep_polarization_cluster_01_cluster_summary.csv
+    momentum configurations: Output\GradientPhaseSpaceScan\muon\Data\CEP\max_c_ep\polarization_cluster_01\combined\min_max_c_ep_polarization_cluster_01_momentum_configurations.csv
+    amplitude decomposition: Output\GradientPhaseSpaceScan\muon\Data\CEP\max_c_ep\polarization_cluster_01\combined\min_max_c_ep_polarization_cluster_01_final_state_amplitude_decomposition.csv
+    configuration PDF: Output\GradientPhaseSpaceScan\muon\Plots\CEP\polarization_cluster_01\Cep_State_Search_and_Config_Muon_Polarization_Cluster_01.pdf
+  P2: alpha_e in [0,pi/2),alpha_p~3pi/4
+    retained minima: 311
+    configured local minima: 311
+    selected minima: Output\GradientPhaseSpaceScan\muon\Data\CEP\max_c_ep\polarization_cluster_02\combined\min_max_c_ep_polarization_cluster_02_selected_minima.csv
+    loaded pre-cluster per-minimum contour samples by local_minimum_id
+    pre-cluster contour data load time: 5.112 s
+    configuration examples: Output\GradientPhaseSpaceScan\muon\Data\CEP\max_c_ep\polarization_cluster_02\combined\min_max_c_ep_polarization_cluster_02_configuration_examples.csv
+    cluster summary: Output\GradientPhaseSpaceScan\muon\Data\CEP\max_c_ep\polarization_cluster_02\combined\min_max_c_ep_polarization_cluster_02_cluster_summary.csv
+    momentum configurations: Output\GradientPhaseSpaceScan\muon\Data\CEP\max_c_ep\polarization_cluster_02\combined\min_max_c_ep_polarization_cluster_02_momentum_configurations.csv
+    amplitude decomposition: Output\GradientPhaseSpaceScan\muon\Data\CEP\max_c_ep\polarization_cluster_02\combined\min_max_c_ep_polarization_cluster_02_final_state_amplitude_decomposition.csv
+    configuration PDF: Output\GradientPhaseSpaceScan\muon\Plots\CEP\polarization_cluster_02\Cep_State_Search_and_Config_Muon_Polarization_Cluster_02.pdf
+  P3: alpha_e in [pi/2,pi],alpha_p~pi/4
+    retained minima: 329
+    configured local minima: 329
+    selected minima: Output\GradientPhaseSpaceScan\muon\Data\CEP\max_c_ep\polarization_cluster_03\combined\min_max_c_ep_polarization_cluster_03_selected_minima.csv
+    loaded pre-cluster per-minimum contour samples by local_minimum_id
+    pre-cluster contour data load time: 5.396 s
+    configuration examples: Output\GradientPhaseSpaceScan\muon\Data\CEP\max_c_ep\polarization_cluster_03\combined\min_max_c_ep_polarization_cluster_03_configuration_examples.csv
+    cluster summary: Output\GradientPhaseSpaceScan\muon\Data\CEP\max_c_ep\polarization_cluster_03\combined\min_max_c_ep_polarization_cluster_03_cluster_summary.csv
+    momentum configurations: Output\GradientPhaseSpaceScan\muon\Data\CEP\max_c_ep\polarization_cluster_03\combined\min_max_c_ep_polarization_cluster_03_momentum_configurations.csv
+    amplitude decomposition: Output\GradientPhaseSpaceScan\muon\Data\CEP\max_c_ep\polarization_cluster_03\combined\min_max_c_ep_polarization_cluster_03_final_state_amplitude_decomposition.csv
+    configuration PDF: Output\GradientPhaseSpaceScan\muon\Plots\CEP\polarization_cluster_03\Cep_State_Search_and_Config_Muon_Polarization_Cluster_03.pdf
+  P4: alpha_e in [pi/2,pi],alpha_p~3pi/4
+    retained minima: 373
+    configured local minima: 373
+    selected minima: Output\GradientPhaseSpaceScan\muon\Data\CEP\max_c_ep\polarization_cluster_04\combined\min_max_c_ep_polarization_cluster_04_selected_minima.csv
+    loaded pre-cluster per-minimum contour samples by local_minimum_id
+    pre-cluster contour data load time: 6.388 s
+    configuration examples: Output\GradientPhaseSpaceScan\muon\Data\CEP\max_c_ep\polarization_cluster_04\combined\min_max_c_ep_polarization_cluster_04_configuration_examples.csv
+    cluster summary: Output\GradientPhaseSpaceScan\muon\Data\CEP\max_c_ep\polarization_cluster_04\combined\min_max_c_ep_polarization_cluster_04_cluster_summary.csv
+    momentum configurations: Output\GradientPhaseSpaceScan\muon\Data\CEP\max_c_ep\polarization_cluster_04\combined\min_max_c_ep_polarization_cluster_04_momentum_configurations.csv
+    amplitude decomposition: Output\GradientPhaseSpaceScan\muon\Data\CEP\max_c_ep\polarization_cluster_04\combined\min_max_c_ep_polarization_cluster_04_final_state_amplitude_decomposition.csv
+    configuration PDF: Output\GradientPhaseSpaceScan\muon\Plots\CEP\polarization_cluster_04\Cep_State_Search_and_Config_Muon_Polarization_Cluster_04.pdf

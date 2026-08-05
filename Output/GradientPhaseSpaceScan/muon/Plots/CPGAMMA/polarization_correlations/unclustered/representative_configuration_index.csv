@@ -1,0 +1,2 @@
+polarization_cluster_id,polarization_cluster_label,local_minimum_id,page_count,page_1,page_2,contour_source,configuration_path
+1,P2,8,2,reconstructed configuration and amplitudes,pairwise projections of the 8D contour,fresh contour for displayed example,Output\GradientPhaseSpaceScan\muon\Plots\CPGAMMA\polarization_correlations\unclustered\Example_P02_local_minimum_0008_configuration.pdf

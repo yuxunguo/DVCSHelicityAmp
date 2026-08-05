@@ -1,0 +1,12 @@
+Gradient one_minus_C_e_gamma pre-cluster contours (muon)
+  source raw minima: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\scan\local_minima.csv
+  local minima loaded: 1177
+  contours generated: 39
+  stale contours regenerated: 39
+  contours reused after validation: 1138
+  directions per minimum: 1536
+  local-minimum contour settings: read from each minimum-owned contour file
+  contour generation time: 820.541 s
+  per-minimum contour data: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\contour\local_minima
+  contour index: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\contour\local_minimum_contour_index.csv
+  ownership key: local_minimum_id from the raw local_minima.csv

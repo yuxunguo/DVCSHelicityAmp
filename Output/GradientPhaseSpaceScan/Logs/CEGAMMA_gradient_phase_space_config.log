@@ -1,0 +1,62 @@
+Gradient one_minus_C_e_gamma cluster ConfigGen (muon)
+  source clustered minima: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\cluster\clustered_minima.csv
+  local minima loaded: 1177
+  parent polarization PDFs: 5
+  configured polarization-cluster minima: 1094
+  local-minimum contour delta: 0.05
+  total contour processing time: 19.770 s
+  P1: alpha_p~0
+    retained minima: 266
+    configured local minima: 266
+    selected minima: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_01\combined\min_max_c_e_gamma_polarization_cluster_01_selected_minima.csv
+    loaded pre-cluster per-minimum contour samples by local_minimum_id
+    pre-cluster contour data load time: 4.850 s
+    configuration examples: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_01\combined\min_max_c_e_gamma_polarization_cluster_01_configuration_examples.csv
+    cluster summary: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_01\combined\min_max_c_e_gamma_polarization_cluster_01_cluster_summary.csv
+    momentum configurations: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_01\combined\min_max_c_e_gamma_polarization_cluster_01_momentum_configurations.csv
+    amplitude decomposition: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_01\combined\min_max_c_e_gamma_polarization_cluster_01_final_state_amplitude_decomposition.csv
+    configuration PDF: Output\GradientPhaseSpaceScan\muon\Plots\CEGAMMA\polarization_cluster_01\Cegamma_State_Search_and_Config_Muon_Polarization_Cluster_01.pdf
+  P2: alpha_p~pi/4
+    retained minima: 11
+    configured local minima: 11
+    selected minima: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_02\combined\min_max_c_e_gamma_polarization_cluster_02_selected_minima.csv
+    loaded pre-cluster per-minimum contour samples by local_minimum_id
+    pre-cluster contour data load time: 0.230 s
+    configuration examples: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_02\combined\min_max_c_e_gamma_polarization_cluster_02_configuration_examples.csv
+    cluster summary: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_02\combined\min_max_c_e_gamma_polarization_cluster_02_cluster_summary.csv
+    momentum configurations: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_02\combined\min_max_c_e_gamma_polarization_cluster_02_momentum_configurations.csv
+    amplitude decomposition: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_02\combined\min_max_c_e_gamma_polarization_cluster_02_final_state_amplitude_decomposition.csv
+    configuration PDF: Output\GradientPhaseSpaceScan\muon\Plots\CEGAMMA\polarization_cluster_02\Cegamma_State_Search_and_Config_Muon_Polarization_Cluster_02.pdf
+  P3: alpha_p~pi/2
+    retained minima: 512
+    configured local minima: 512
+    selected minima: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_03\combined\min_max_c_e_gamma_polarization_cluster_03_selected_minima.csv
+    loaded pre-cluster per-minimum contour samples by local_minimum_id
+    pre-cluster contour data load time: 9.231 s
+    configuration examples: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_03\combined\min_max_c_e_gamma_polarization_cluster_03_configuration_examples.csv
+    cluster summary: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_03\combined\min_max_c_e_gamma_polarization_cluster_03_cluster_summary.csv
+    momentum configurations: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_03\combined\min_max_c_e_gamma_polarization_cluster_03_momentum_configurations.csv
+    amplitude decomposition: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_03\combined\min_max_c_e_gamma_polarization_cluster_03_final_state_amplitude_decomposition.csv
+    configuration PDF: Output\GradientPhaseSpaceScan\muon\Plots\CEGAMMA\polarization_cluster_03\Cegamma_State_Search_and_Config_Muon_Polarization_Cluster_03.pdf
+  P4: alpha_p~3pi/4
+    retained minima: 10
+    configured local minima: 10
+    selected minima: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_04\combined\min_max_c_e_gamma_polarization_cluster_04_selected_minima.csv
+    loaded pre-cluster per-minimum contour samples by local_minimum_id
+    pre-cluster contour data load time: 0.221 s
+    configuration examples: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_04\combined\min_max_c_e_gamma_polarization_cluster_04_configuration_examples.csv
+    cluster summary: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_04\combined\min_max_c_e_gamma_polarization_cluster_04_cluster_summary.csv
+    momentum configurations: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_04\combined\min_max_c_e_gamma_polarization_cluster_04_momentum_configurations.csv
+    amplitude decomposition: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_04\combined\min_max_c_e_gamma_polarization_cluster_04_final_state_amplitude_decomposition.csv
+    configuration PDF: Output\GradientPhaseSpaceScan\muon\Plots\CEGAMMA\polarization_cluster_04\Cegamma_State_Search_and_Config_Muon_Polarization_Cluster_04.pdf
+  P5: alpha_p~pi
+    retained minima: 295
+    configured local minima: 295
+    selected minima: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_05\combined\min_max_c_e_gamma_polarization_cluster_05_selected_minima.csv
+    loaded pre-cluster per-minimum contour samples by local_minimum_id
+    pre-cluster contour data load time: 5.239 s
+    configuration examples: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_05\combined\min_max_c_e_gamma_polarization_cluster_05_configuration_examples.csv
+    cluster summary: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_05\combined\min_max_c_e_gamma_polarization_cluster_05_cluster_summary.csv
+    momentum configurations: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_05\combined\min_max_c_e_gamma_polarization_cluster_05_momentum_configurations.csv
+    amplitude decomposition: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\max_c_e_gamma\polarization_cluster_05\combined\min_max_c_e_gamma_polarization_cluster_05_final_state_amplitude_decomposition.csv
+    configuration PDF: Output\GradientPhaseSpaceScan\muon\Plots\CEGAMMA\polarization_cluster_05\Cegamma_State_Search_and_Config_Muon_Polarization_Cluster_05.pdf

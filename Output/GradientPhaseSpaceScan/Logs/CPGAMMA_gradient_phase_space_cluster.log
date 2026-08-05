@@ -1,0 +1,31 @@
+Gradient one_minus_C_p_gamma polarization clustering (electron)
+  source minima: Output\GradientPhaseSpaceScan\electron\Data\CPGAMMA\scan\local_minima.csv
+  local minima loaded: 1821
+  polarization cut: one_minus_C_p_gamma - one_minus_C_p_gamma_min <= 0.05
+  minima passing polarization cut: 1820
+  CPGAMMA polarization clusters: 3
+  fixed alpha_e centers: 0, pi/2, pi
+  one best-objective representative selected per polarization cluster
+  clustering time: 5.577 s
+  clustered minima: Output\GradientPhaseSpaceScan\electron\Data\CPGAMMA\cluster\clustered_minima.csv
+  polarization cluster summary: Output\GradientPhaseSpaceScan\electron\Data\CPGAMMA\cluster\polarization_clusters.csv
+  polarization phase-space plot: Output\GradientPhaseSpaceScan\electron\Plots\CPGAMMA\polarization_cluster_phase_space.pdf
+  separate correlation PDFs: 16 (Output\GradientPhaseSpaceScan\electron\Plots\CPGAMMA\polarization_correlations)
+  correlation plot index: Output\GradientPhaseSpaceScan\electron\Data\CPGAMMA\cluster\polarization_correlation_plot_index.csv
+  starred representative configuration PDFs: 1 (Output\GradientPhaseSpaceScan\electron\Plots\CPGAMMA\polarization_correlations\unclustered)
+
+Gradient one_minus_C_p_gamma polarization clustering (muon)
+  source minima: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\scan\local_minima.csv
+  local minima loaded: 1646
+  polarization cut: one_minus_C_p_gamma - one_minus_C_p_gamma_min <= 0.05
+  minima passing polarization cut: 1644
+  CPGAMMA polarization clusters: 3
+  fixed alpha_e centers: 0, pi/2, pi
+  one best-objective representative selected per polarization cluster
+  clustering time: 16.667 s
+  clustered minima: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\cluster\clustered_minima.csv
+  polarization cluster summary: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\cluster\polarization_clusters.csv
+  polarization phase-space plot: Output\GradientPhaseSpaceScan\muon\Plots\CPGAMMA\polarization_cluster_phase_space.pdf
+  separate correlation PDFs: 16 (Output\GradientPhaseSpaceScan\muon\Plots\CPGAMMA\polarization_correlations)
+  correlation plot index: Output\GradientPhaseSpaceScan\muon\Data\CPGAMMA\cluster\polarization_correlation_plot_index.csv
+  starred representative configuration PDFs: 1 (Output\GradientPhaseSpaceScan\muon\Plots\CPGAMMA\polarization_correlations\unclustered)

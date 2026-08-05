@@ -11,13 +11,13 @@ from config import SCAN_WORKERS
 
 
 # Valid keys include W, GHZ, CEP, CEGAMMA, and CPGAMMA.
-SCANS_TO_RUN = ("W",)
-LEPTONS_TO_CONFIGURE = ("muon",)
+SCANS_TO_RUN = ("CEP", "CPGAMMA", "CEGAMMA")
+LEPTONS_TO_CONFIGURE = ("electron", "muon")
 # Workers are used by configuration reconstruction; contours are loaded from
 # the raw-minimum package generated before clustering.
 CONFIG_WORKERS = SCAN_WORKERS
 # One-based polarization-cluster numbers. Use None to configure every cluster.
-POLARIZATION_CLUSTERS_TO_CONFIGURE = (2, 5, 6)
+POLARIZATION_CLUSTERS_TO_CONFIGURE = None
 
 
 def run_selected_configs():

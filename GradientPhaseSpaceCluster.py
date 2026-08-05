@@ -13,7 +13,7 @@ import GradientPhaseSpaceDefinitions as definitions
 import GradientPhaseSpaceScanTool as gradient_tool
 
 
-SCANS_TO_RUN = ("W", "GHZ")
+SCANS_TO_RUN = ("CEP", "CPGAMMA", "CEGAMMA")
 LEPTONS_TO_CLUSTER = ("electron", "muon")
 # The objective cut is measured above the global minimum. For concurrence,
 # this is exactly the amount below the global maximum because the minimized
@@ -29,7 +29,9 @@ W_POLARIZATION_CLUSTER_COUNT = 6
 W_ALPHA_E_LINE_HALF_WIDTH = np.pi / 24.0
 GHZ_POLARIZATION_CLUSTER_COUNT = 4
 GHZ_ALPHA_E_BOUNDARIES = (0.0, np.pi / 2.0, np.pi)
-PAIRWISE_CONCURRENCE_POLARIZATION_CLUSTER_COUNT = 6
+CEP_POLARIZATION_CLUSTER_COUNT = GHZ_POLARIZATION_CLUSTER_COUNT
+CPGAMMA_POLARIZATION_CLUSTER_COUNT = 3
+CEGAMMA_POLARIZATION_CLUSTER_COUNT = 5
 
 
 def run_selected_clusters():
@@ -46,8 +48,16 @@ def run_selected_clusters():
             cluster_count = GHZ_POLARIZATION_CLUSTER_COUNT
             alpha_e_line_half_width = None
             alpha_e_boundaries = GHZ_ALPHA_E_BOUNDARIES
-        elif definition.key in definitions.PAIRWISE_CONCURRENCE_SCAN_KEYS:
-            cluster_count = PAIRWISE_CONCURRENCE_POLARIZATION_CLUSTER_COUNT
+        elif definition.key == "CEP":
+            cluster_count = CEP_POLARIZATION_CLUSTER_COUNT
+            alpha_e_line_half_width = None
+            alpha_e_boundaries = GHZ_ALPHA_E_BOUNDARIES
+        elif definition.key == "CPGAMMA":
+            cluster_count = CPGAMMA_POLARIZATION_CLUSTER_COUNT
+            alpha_e_line_half_width = None
+            alpha_e_boundaries = None
+        elif definition.key == "CEGAMMA":
+            cluster_count = CEGAMMA_POLARIZATION_CLUSTER_COUNT
             alpha_e_line_half_width = None
             alpha_e_boundaries = None
         else:

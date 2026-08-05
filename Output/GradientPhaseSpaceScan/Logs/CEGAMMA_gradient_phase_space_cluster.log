@@ -1,0 +1,31 @@
+Gradient one_minus_C_e_gamma polarization clustering (electron)
+  source minima: Output\GradientPhaseSpaceScan\electron\Data\CEGAMMA\scan\local_minima.csv
+  local minima loaded: 1464
+  polarization cut: one_minus_C_e_gamma - one_minus_C_e_gamma_min <= 0.05
+  minima passing polarization cut: 1379
+  CEGAMMA polarization clusters: 5
+  fixed alpha_p centers: 0, pi/4, pi/2, 3pi/4, pi
+  one best-objective representative selected per polarization cluster
+  clustering time: 6.570 s
+  clustered minima: Output\GradientPhaseSpaceScan\electron\Data\CEGAMMA\cluster\clustered_minima.csv
+  polarization cluster summary: Output\GradientPhaseSpaceScan\electron\Data\CEGAMMA\cluster\polarization_clusters.csv
+  polarization phase-space plot: Output\GradientPhaseSpaceScan\electron\Plots\CEGAMMA\polarization_cluster_phase_space.pdf
+  separate correlation PDFs: 16 (Output\GradientPhaseSpaceScan\electron\Plots\CEGAMMA\polarization_correlations)
+  correlation plot index: Output\GradientPhaseSpaceScan\electron\Data\CEGAMMA\cluster\polarization_correlation_plot_index.csv
+  starred representative configuration PDFs: 1 (Output\GradientPhaseSpaceScan\electron\Plots\CEGAMMA\polarization_correlations\unclustered)
+
+Gradient one_minus_C_e_gamma polarization clustering (muon)
+  source minima: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\scan\local_minima.csv
+  local minima loaded: 1177
+  polarization cut: one_minus_C_e_gamma - one_minus_C_e_gamma_min <= 0.05
+  minima passing polarization cut: 1094
+  CEGAMMA polarization clusters: 5
+  fixed alpha_p centers: 0, pi/4, pi/2, 3pi/4, pi
+  one best-objective representative selected per polarization cluster
+  clustering time: 21.594 s
+  clustered minima: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\cluster\clustered_minima.csv
+  polarization cluster summary: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\cluster\polarization_clusters.csv
+  polarization phase-space plot: Output\GradientPhaseSpaceScan\muon\Plots\CEGAMMA\polarization_cluster_phase_space.pdf
+  separate correlation PDFs: 16 (Output\GradientPhaseSpaceScan\muon\Plots\CEGAMMA\polarization_correlations)
+  correlation plot index: Output\GradientPhaseSpaceScan\muon\Data\CEGAMMA\cluster\polarization_correlation_plot_index.csv
+  starred representative configuration PDFs: 1 (Output\GradientPhaseSpaceScan\muon\Plots\CEGAMMA\polarization_correlations\unclustered)

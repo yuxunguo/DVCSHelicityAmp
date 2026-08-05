@@ -126,6 +126,20 @@ W_POLARIZATION_ALPHA_E_LINE_CENTERS = (
 )
 W_POLARIZATION_ALPHA_E_STRATUM_CLUSTERS = (1, 2, 1, 2)
 GHZ_ALPHA_P_CLUSTERS_PER_ALPHA_E_REGION = 2
+FIXED_AXIS_POLARIZATION_CENTERS = {
+    "CPGAMMA": ("alpha_e", (0.0, np.pi / 2.0, np.pi)),
+    "CEGAMMA": (
+        "alpha_p",
+        (0.0, np.pi / 4.0, np.pi / 2.0, 3.0 * np.pi / 4.0, np.pi),
+    ),
+}
+EXAMPLE_POLARIZATION_CLUSTER_IDS = {
+    "GHZ": 1,      # P2
+    "CEP": 1,      # P2, matching the GHZ-style partition
+    "CPGAMMA": 1,  # P2, alpha_e around pi/2
+    "CEGAMMA": 2,  # P3, alpha_p around pi/2
+    "W": 3,        # P4
+}
 
 
 @dataclass(frozen=True)
@@ -1208,8 +1222,18 @@ def _circular_mixing_center(angles):
 
 
 def _mixing_distance(angle, center):
-    """Return distance with a periodic endpoint and periodic alpha_p."""
+    """Return the normalized distance used by the active cluster scheme."""
     difference = np.abs(np.asarray(angle) - np.asarray(center))
+    fixed_axis_spec = FIXED_AXIS_POLARIZATION_CENTERS.get(SCAN_KEY)
+    if fixed_axis_spec is not None:
+        axis_name, _fixed_centers = fixed_axis_spec
+        axis_index = 0 if axis_name == "alpha_e" else 1
+        return float(difference[axis_index] / np.pi)
+    if SCAN_KEY in ("GHZ", "CEP"):
+        if np.isclose(np.mod(center[0], np.pi), 0.0):
+            difference[0] = min(difference[0], np.pi - difference[0])
+        difference[1] = min(difference[1], np.pi - difference[1])
+        return float(np.linalg.norm(difference / np.pi))
     if TARGET_OBSERVABLE_NAME in PAIRWISE_CONCURRENCE_NAMES:
         difference = np.minimum(difference, np.pi - difference)
         return float(np.linalg.norm(difference / np.pi))
@@ -1302,7 +1326,7 @@ def _polarization_alpha_e_strata(
         )
         return strata, "W narrow alpha_e capture bands"
 
-    if SCAN_KEY == "GHZ":
+    if SCAN_KEY in ("GHZ", "CEP"):
         boundaries = np.asarray(alpha_e_boundaries, dtype=float)
         expected_cluster_count = (
             (len(boundaries) - 1)
@@ -1310,7 +1334,7 @@ def _polarization_alpha_e_strata(
         )
         if cluster_count != expected_cluster_count:
             raise ValueError(
-                f"GHZ polarization cluster count must be "
+                f"{SCAN_KEY} polarization cluster count must be "
                 f"{expected_cluster_count} for alpha_e boundaries "
                 f"{tuple(boundaries)}."
             )
@@ -1336,7 +1360,7 @@ def _polarization_alpha_e_strata(
                     GHZ_ALPHA_P_CLUSTERS_PER_ALPHA_E_REGION,
                 )
             )
-        return tuple(strata), "GHZ alpha_e boundary regions"
+        return tuple(strata), f"{SCAN_KEY} alpha_e boundary regions"
 
     if TARGET_OBSERVABLE_NAME in PAIRWISE_CONCURRENCE_NAMES:
         return (
@@ -1349,11 +1373,15 @@ def _polarization_alpha_e_strata(
 
 def _polarization_configuration_label(alpha_e_region, center):
     """Return one state-specific polarization configuration label."""
-    if SCAN_KEY == "GHZ":
+    if SCAN_KEY in ("GHZ", "CEP"):
         return (
             f"alpha_e in {alpha_e_region},"
             f"alpha_p~{_pi_quarter_label(center[1])}"
         )
+    if SCAN_KEY == "CPGAMMA":
+        return f"alpha_e~{_pi_quarter_label(center[0])}"
+    if SCAN_KEY == "CEGAMMA":
+        return f"alpha_p~{_pi_quarter_label(center[1])}"
     return (
         f"alpha_e~{_pi_quarter_label(center[0])},"
         f"alpha_p~{_pi_quarter_label(center[1])}"
@@ -1391,89 +1419,138 @@ def _cluster_polarization_minima(
         dtype=float,
     )
     alpha_e = angles[:, 0]
-    strata, clustering_scheme = _polarization_alpha_e_strata(
-        alpha_e,
-        cluster_count=cluster_count,
-        alpha_e_line_half_width=alpha_e_line_half_width,
-        alpha_e_boundaries=alpha_e_boundaries,
-    )
-
     assignments = {}
     members_by_cluster = {}
     centers = {}
     alpha_e_regions = {}
-    next_cluster_id = 0
-    for stratum_id, (
-        stratum_name,
-        alpha_e_center,
-        stratum_mask,
-        stratum_cluster_count,
-    ) in enumerate(strata):
-        stratum_positions = np.flatnonzero(stratum_mask)
-        if len(stratum_positions) < stratum_cluster_count:
-            raise RuntimeError(
-                f"The alpha_e={stratum_name} stratum retained "
-                f"{len(stratum_positions)} minima, fewer than its requested "
-                f"{stratum_cluster_count} clusters. Increase the objective "
-                "cut or revise the state-specific alpha_e partition."
+    fixed_axis_spec = FIXED_AXIS_POLARIZATION_CENTERS.get(SCAN_KEY)
+    if fixed_axis_spec is not None:
+        axis_name, fixed_centers = fixed_axis_spec
+        axis_index = 0 if axis_name == "alpha_e" else 1
+        fixed_centers = np.asarray(fixed_centers, dtype=float)
+        if cluster_count != len(fixed_centers):
+            raise ValueError(
+                f"{SCAN_KEY} polarization cluster count must be "
+                f"{len(fixed_centers)}."
             )
-
-        stratum_angles = angles[stratum_positions]
-        alpha_p = stratum_angles[:, 1]
-        if TARGET_OBSERVABLE_NAME in PAIRWISE_CONCURRENCE_NAMES:
-            embedded_angles = np.column_stack(
-                (
-                    np.cos(2.0 * stratum_angles[:, 0]),
-                    np.sin(2.0 * stratum_angles[:, 0]),
-                    np.cos(2.0 * alpha_p),
-                    np.sin(2.0 * alpha_p),
+        fixed_labels = np.argmin(
+            np.abs(angles[:, axis_index, None] - fixed_centers[None, :]),
+            axis=1,
+        )
+        clustering_scheme = (
+            f"{SCAN_KEY} nearest fixed {axis_name} quarter-pi center"
+        )
+        for cluster_id, fixed_center in enumerate(fixed_centers):
+            member_positions = np.flatnonzero(fixed_labels == cluster_id)
+            if not len(member_positions):
+                raise RuntimeError(
+                    f"The {SCAN_KEY} {axis_name} cluster around "
+                    f"{_pi_quarter_label(fixed_center)} retained no minima."
                 )
-            )
-        else:
-            embedded_angles = np.column_stack(
-                (np.cos(2.0 * alpha_p), np.sin(2.0 * alpha_p))
-            )
-        stratum_labels = _best_periodic_kmeans_labels(
-            embedded_angles,
-            stratum_cluster_count,
-            random_seed + stratum_id,
-        )
-        raw_ids = sorted(set(int(label) for label in stratum_labels))
-        circular_centers = {
-            raw_id: _circular_mixing_center(
-                angles[stratum_positions[stratum_labels == raw_id]]
-            )
-            for raw_id in raw_ids
-        }
-        ordered_raw_ids = sorted(
-            raw_ids,
-            key=lambda raw_id: (
-                int(np.rint(4.0 * circular_centers[raw_id][0] / np.pi)),
-                int(np.rint(4.0 * circular_centers[raw_id][1] / np.pi)),
-                *circular_centers[raw_id],
-            ),
-        )
-        for raw_id in ordered_raw_ids:
-            cluster_id = next_cluster_id
-            next_cluster_id += 1
-            member_positions = stratum_positions[
-                stratum_labels == raw_id
-            ]
             members = [
                 int(eligible_indices[position])
                 for position in member_positions
             ]
             members_by_cluster[cluster_id] = members
-            if TARGET_OBSERVABLE_NAME in PAIRWISE_CONCURRENCE_NAMES:
-                centers[cluster_id] = circular_centers[raw_id]
-            else:
-                centers[cluster_id] = np.asarray(
-                    (alpha_e_center, circular_centers[raw_id][1])
-                )
-            alpha_e_regions[cluster_id] = stratum_name
+            center = np.asarray(
+                _circular_mixing_center(angles[member_positions]),
+                dtype=float,
+            )
+            center[axis_index] = fixed_center
+            centers[cluster_id] = center
+            alpha_e_regions[cluster_id] = (
+                f"around {_pi_quarter_label(fixed_center)}"
+                if axis_name == "alpha_e"
+                else "all alpha_e"
+            )
             assignments.update(
                 {row_index: cluster_id for row_index in members}
             )
+    else:
+        strata, clustering_scheme = _polarization_alpha_e_strata(
+            alpha_e,
+            cluster_count=cluster_count,
+            alpha_e_line_half_width=alpha_e_line_half_width,
+            alpha_e_boundaries=alpha_e_boundaries,
+        )
+        next_cluster_id = 0
+        for stratum_id, (
+            stratum_name,
+            alpha_e_center,
+            stratum_mask,
+            stratum_cluster_count,
+        ) in enumerate(strata):
+            stratum_positions = np.flatnonzero(stratum_mask)
+            if len(stratum_positions) < stratum_cluster_count:
+                raise RuntimeError(
+                    f"The alpha_e={stratum_name} stratum retained "
+                    f"{len(stratum_positions)} minima, fewer than its requested "
+                    f"{stratum_cluster_count} clusters. Increase the objective "
+                    "cut or revise the state-specific alpha_e partition."
+                )
+
+            stratum_angles = angles[stratum_positions]
+            alpha_p = stratum_angles[:, 1]
+            if (
+                TARGET_OBSERVABLE_NAME in PAIRWISE_CONCURRENCE_NAMES
+                and SCAN_KEY != "CEP"
+            ):
+                embedded_angles = np.column_stack(
+                    (
+                        np.cos(2.0 * stratum_angles[:, 0]),
+                        np.sin(2.0 * stratum_angles[:, 0]),
+                        np.cos(2.0 * alpha_p),
+                        np.sin(2.0 * alpha_p),
+                    )
+                )
+            else:
+                embedded_angles = np.column_stack(
+                    (np.cos(2.0 * alpha_p), np.sin(2.0 * alpha_p))
+                )
+            stratum_labels = _best_periodic_kmeans_labels(
+                embedded_angles,
+                stratum_cluster_count,
+                random_seed + stratum_id,
+            )
+            raw_ids = sorted(set(int(label) for label in stratum_labels))
+            circular_centers = {
+                raw_id: _circular_mixing_center(
+                    angles[stratum_positions[stratum_labels == raw_id]]
+                )
+                for raw_id in raw_ids
+            }
+            ordered_raw_ids = sorted(
+                raw_ids,
+                key=lambda raw_id: (
+                    int(np.rint(4.0 * circular_centers[raw_id][0] / np.pi)),
+                    int(np.rint(4.0 * circular_centers[raw_id][1] / np.pi)),
+                    *circular_centers[raw_id],
+                ),
+            )
+            for raw_id in ordered_raw_ids:
+                cluster_id = next_cluster_id
+                next_cluster_id += 1
+                member_positions = stratum_positions[
+                    stratum_labels == raw_id
+                ]
+                members = [
+                    int(eligible_indices[position])
+                    for position in member_positions
+                ]
+                members_by_cluster[cluster_id] = members
+                if (
+                    TARGET_OBSERVABLE_NAME in PAIRWISE_CONCURRENCE_NAMES
+                    and SCAN_KEY != "CEP"
+                ):
+                    centers[cluster_id] = circular_centers[raw_id]
+                else:
+                    centers[cluster_id] = np.asarray(
+                        (alpha_e_center, circular_centers[raw_id][1])
+                    )
+                alpha_e_regions[cluster_id] = stratum_name
+                assignments.update(
+                    {row_index: cluster_id for row_index in members}
+                )
     representatives = {
         cluster_id: min(
             members,
@@ -1592,8 +1669,16 @@ def _cluster_polarization_minima(
                         "alpha_e (regions bounded by 0, pi/2, pi), "
                         "alpha_p (pi-periodic within each region)"
                     )
-                    if SCAN_KEY == "GHZ"
-                    else "alpha_e and alpha_p (both pi-periodic)"
+                    if SCAN_KEY in ("GHZ", "CEP")
+                    else (
+                        "alpha_e (nearest fixed 0, pi/2, pi center)"
+                        if SCAN_KEY == "CPGAMMA"
+                        else (
+                            "alpha_p (nearest fixed quarter-pi center)"
+                            if SCAN_KEY == "CEGAMMA"
+                            else "alpha_e and alpha_p (both pi-periodic)"
+                        )
+                    )
                 ),
                 objective_key: float(representative[objective_key]),
             }
@@ -1646,7 +1731,32 @@ def _draw_alpha_e_cluster_guides(
                 )
         return
 
-    if TARGET_OBSERVABLE_NAME in PAIRWISE_CONCURRENCE_NAMES:
+    fixed_axis_spec = FIXED_AXIS_POLARIZATION_CENTERS.get(SCAN_KEY)
+    if fixed_axis_spec is not None:
+        axis_name, fixed_centers = fixed_axis_spec
+        if x_name == axis_name:
+            for center in fixed_centers:
+                ax.axvline(
+                    center,
+                    color="black",
+                    linestyle="--",
+                    linewidth=0.9,
+                    alpha=0.55,
+                    zorder=1,
+                )
+        if y_name == axis_name:
+            for center in fixed_centers:
+                ax.axhline(
+                    center,
+                    color="black",
+                    linestyle="--",
+                    linewidth=0.9,
+                    alpha=0.55,
+                    zorder=1,
+                )
+        return
+
+    if SCAN_KEY not in ("GHZ", "CEP"):
         return
 
     interior_boundaries = tuple(alpha_e_boundaries[1:-1])
@@ -1729,7 +1839,7 @@ def _polarization_cluster_plot(
                 )
                 if ax is axes.ravel()[0]:
                     legend_handles[cluster_id] = artist
-                    if SCAN_KEY == "GHZ":
+                    if SCAN_KEY in ("GHZ", "CEP"):
                         alpha_e_region_math = str(
                             cluster["polarization_alpha_e_region"]
                         ).replace("pi", r"\pi")
@@ -1737,6 +1847,20 @@ def _polarization_cluster_plot(
                             rf"$P_{{{cluster_id + 1}}}: "
                             rf"\alpha_e\in"
                             f"{alpha_e_region_math}, "
+                            rf"\alpha_p\approx"
+                            rf"{_pi_quarter_math_label(float(cluster['alpha_p_center']))}$ "
+                            f"(n={cluster['member_count']})"
+                        )
+                    elif SCAN_KEY == "CPGAMMA":
+                        legend_labels[cluster_id] = (
+                            rf"$P_{{{cluster_id + 1}}}: "
+                            rf"\alpha_e\approx"
+                            rf"{_pi_quarter_math_label(float(cluster['alpha_e_center']))}$ "
+                            f"(n={cluster['member_count']})"
+                        )
+                    elif SCAN_KEY == "CEGAMMA":
+                        legend_labels[cluster_id] = (
+                            rf"$P_{{{cluster_id + 1}}}: "
                             rf"\alpha_p\approx"
                             rf"{_pi_quarter_math_label(float(cluster['alpha_p_center']))}$ "
                             f"(n={cluster['member_count']})"
@@ -1788,10 +1912,19 @@ def _polarization_cluster_plot(
                 rf"${alpha_e_line_half_width / np.pi:.4g}\pi$; "
                 r"$\alpha_p$ has period $\pi$"
             )
-        elif SCAN_KEY == "GHZ":
+        elif SCAN_KEY in ("GHZ", "CEP"):
             alpha_e_partition_text = (
                 r"$\alpha_e$ boundaries: $0,\pi/2,\pi$; "
                 r"two periodic $\alpha_p$ groups per region"
+            )
+        elif SCAN_KEY == "CPGAMMA":
+            alpha_e_partition_text = (
+                r"nearest $\alpha_e$ center: $0,\pi/2,\pi$"
+            )
+        elif SCAN_KEY == "CEGAMMA":
+            alpha_e_partition_text = (
+                r"nearest $\alpha_p$ center: "
+                r"$0,\pi/4,\pi/2,3\pi/4,\pi$"
             )
         else:
             alpha_e_partition_text = (
@@ -1955,8 +2088,16 @@ def _polarization_cluster_plot(
                             for boundary in alpha_e_boundaries
                         )
                     )
-                    if SCAN_KEY == "GHZ"
-                    else "alpha_e and alpha_p are both pi-periodic"
+                    if SCAN_KEY in ("GHZ", "CEP")
+                    else (
+                        "nearest fixed alpha_e center"
+                        if SCAN_KEY == "CPGAMMA"
+                        else (
+                            "nearest fixed alpha_p quarter-pi center"
+                            if SCAN_KEY == "CEGAMMA"
+                            else "alpha_e and alpha_p are both pi-periodic"
+                        )
+                    )
                 ),
             ]
             cluster_summary.text(
@@ -2020,7 +2161,7 @@ def _write_polarization_correlation_pdfs(
             "Expected exactly one representative minimum per polarization "
             "cluster."
         )
-    example_cluster_id = 1 if SCAN_KEY == "GHZ" else 3
+    example_cluster_id = EXAMPLE_POLARIZATION_CLUSTER_IDS[SCAN_KEY]
     example_row = next(
         row for row in representative_rows
         if int(row["polarization_cluster_id"]) == example_cluster_id
@@ -2065,10 +2206,9 @@ def _write_polarization_correlation_pdfs(
                         zorder=2 + draw_index,
                     )
             else:
-                unclustered_style_index = {
-                    "GHZ": 1,  # match clustered P2
-                    "W": 3,    # match clustered P4
-                }.get(SCAN_KEY, 0)
+                unclustered_style_index = (
+                    EXAMPLE_POLARIZATION_CLUSTER_IDS[SCAN_KEY]
+                )
                 unclustered_color, unclustered_marker = (
                     POLARIZATION_CORRELATION_STYLES[
                         unclustered_style_index
@@ -2536,7 +2676,7 @@ def _write_representative_configuration_pdfs(
             "and pdfunite on PATH."
         )
 
-    example_cluster_id = 1 if SCAN_KEY == "GHZ" else 3
+    example_cluster_id = EXAMPLE_POLARIZATION_CLUSTER_IDS[SCAN_KEY]
     representatives = [
         row for row in rows
         if _as_bool(row.get("within_polarization_cluster_cut"))
@@ -2683,6 +2823,10 @@ def _write_configurations(
     config_scan._plain_write_csv(
         paths["amplitudes"], config_scan._mixing_amplitude_rows(details)
     )
+    # Normalized contour centers use species-dependent sqrt(s) and qOut
+    # bounds.  Configuration reconstruction can change module-global species
+    # state, so reassert it immediately before validating saved centers.
+    phase_scan._configure_lepton(lepton_name)
     contour_started = perf_counter()
     contours, contour_settings = _load_minimum_contour_data(
         lepton_name,
@@ -3063,6 +3207,10 @@ def remake_species_minima_plot(lepton_name):
 
 def contour_species_minima(lepton_name, *, reuse_saved_minima):
     """Generate resumable contours for raw minima before any clustering."""
+    # Both the physical-to-unit center and the worker interpretation use
+    # species-dependent sqrt(s) and qOut bounds.  Reassert the species before
+    # validating or generating any saved contour package.
+    phase_scan._configure_lepton(lepton_name)
     output_dirs = species_output_dirs(lepton_name)
     minima_path = output_dirs["scan_data"] / "local_minima.csv"
     minimum_rows = _read_csv(minima_path)
@@ -3079,6 +3227,7 @@ def contour_species_minima(lepton_name, *, reuse_saved_minima):
     paths = minimum_contour_data_paths(lepton_name)
     index_rows = []
     generated_count = 0
+    regenerated_stale_count = 0
     reused_count = 0
     contour_started = perf_counter()
     for minimum_number, row in enumerate(minimum_rows, start=1):
@@ -3086,10 +3235,19 @@ def contour_species_minima(lepton_name, *, reuse_saved_minima):
         minimum_path = minimum_contour_data_path(lepton_name, minimum_id)
         minimum_started = perf_counter()
         if reuse_saved_minima and minimum_path.exists():
-            _load_contour_data(minimum_path, [row])
-            minimum_csv_rows = _read_csv(minimum_path)
-            reused_count += 1
-            action = "reused"
+            try:
+                _load_contour_data(minimum_path, [row])
+            except ValueError:
+                contours = _configuration_contours([row], lepton_name)
+                minimum_csv_rows = _contour_csv_rows([row], contours)
+                _write_csv(minimum_path, minimum_csv_rows)
+                generated_count += 1
+                regenerated_stale_count += 1
+                action = "regenerated stale"
+            else:
+                minimum_csv_rows = _read_csv(minimum_path)
+                reused_count += 1
+                action = "reused"
         else:
             contours = _configuration_contours([row], lepton_name)
             minimum_csv_rows = _contour_csv_rows([row], contours)
@@ -3134,6 +3292,7 @@ def contour_species_minima(lepton_name, *, reuse_saved_minima):
             f"  source raw minima: {minima_path}",
             f"  local minima loaded: {len(minimum_rows)}",
             f"  contours generated: {generated_count}",
+            f"  stale contours regenerated: {regenerated_stale_count}",
             f"  contours reused after validation: {reused_count}",
             (
                 f"  directions per minimum: "
@@ -3269,10 +3428,19 @@ def cluster_species_minima(
                     )
                     + " rad"
                 )
-                if SCAN_KEY == "GHZ"
+                if SCAN_KEY in ("GHZ", "CEP")
                 else (
-                    "  polarization clustering: periodic k-means in "
-                    "(alpha_e, alpha_p)"
+                    "  fixed alpha_e centers: 0, pi/2, pi"
+                    if SCAN_KEY == "CPGAMMA"
+                    else (
+                        "  fixed alpha_p centers: "
+                        "0, pi/4, pi/2, 3pi/4, pi"
+                        if SCAN_KEY == "CEGAMMA"
+                        else (
+                            "  polarization clustering: periodic k-means in "
+                            "(alpha_e, alpha_p)"
+                        )
+                    )
                 )
             ),
             (
@@ -3733,7 +3901,7 @@ def run_phase_space_clustering(
             )
         if polarization_alpha_e_boundaries is not None:
             raise ValueError("W polarization_alpha_e_boundaries must be None.")
-    elif definition.key == "GHZ":
+    elif definition.key in ("GHZ", "CEP"):
         boundaries = np.asarray(
             polarization_alpha_e_boundaries,
             dtype=float,
@@ -3749,7 +3917,7 @@ def run_phase_space_clustering(
             )
         ):
             raise ValueError(
-                "GHZ polarization_alpha_e_boundaries must be "
+                f"{definition.key} polarization_alpha_e_boundaries must be "
                 "(0, pi/2, pi)."
             )
         expected_cluster_count = (
@@ -3758,12 +3926,32 @@ def run_phase_space_clustering(
         )
         if polarization_cluster_count != expected_cluster_count:
             raise ValueError(
-                f"GHZ polarization_cluster_count must be "
+                f"{definition.key} polarization_cluster_count must be "
                 f"{expected_cluster_count}."
             )
         if polarization_alpha_e_line_half_width is not None:
             raise ValueError(
-                "GHZ polarization_alpha_e_line_half_width must be None."
+                f"{definition.key} polarization_alpha_e_line_half_width "
+                "must be None."
+            )
+    elif definition.key in FIXED_AXIS_POLARIZATION_CENTERS:
+        axis_name, fixed_centers = FIXED_AXIS_POLARIZATION_CENTERS[
+            definition.key
+        ]
+        if polarization_cluster_count != len(fixed_centers):
+            raise ValueError(
+                f"{definition.key} polarization_cluster_count must be "
+                f"{len(fixed_centers)} for its fixed {axis_name} centers."
+            )
+        if polarization_alpha_e_line_half_width is not None:
+            raise ValueError(
+                f"{definition.key} polarization_alpha_e_line_half_width "
+                "must be None."
+            )
+        if polarization_alpha_e_boundaries is not None:
+            raise ValueError(
+                f"{definition.key} polarization_alpha_e_boundaries must "
+                "be None."
             )
     elif (
         source_observable_name(definition.objective_name)
