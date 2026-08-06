@@ -1,0 +1,136 @@
+========================================================================
+Regenerating W electron phase-space PDFs (contours=yes)
+Projecting 1156 validated D_W minimum contours for electron...
+  projected contours: 100/1156
+  projected contours: 200/1156
+  projected contours: 300/1156
+  projected contours: 400/1156
+  projected contours: 500/1156
+  projected contours: 600/1156
+  projected contours: 700/1156
+  projected contours: 800/1156
+  projected contours: 900/1156
+  projected contours: 1000/1156
+  projected contours: 1100/1156
+  projected contours: 1156/1156
+Wrote 7 one-page PDFs under Output\GradientPhaseSpaceScan\electron\Plots\W
+========================================================================
+Regenerating W muon phase-space PDFs (contours=no)
+Wrote 7 one-page PDFs under Output\GradientPhaseSpaceScan\muon\Plots\W
+========================================================================
+Regenerating GHZ electron phase-space PDFs (contours=yes)
+Projecting 376 validated dGHZ minimum contours for electron...
+  projected contours: 100/376
+  projected contours: 200/376
+  projected contours: 300/376
+  projected contours: 376/376
+Wrote 5 one-page PDFs under Output\GradientPhaseSpaceScan\electron\Plots\GHZ
+========================================================================
+Regenerating GHZ muon phase-space PDFs (contours=no)
+Wrote 5 one-page PDFs under Output\GradientPhaseSpaceScan\muon\Plots\GHZ
+========================================================================
+Regenerating CEP electron phase-space PDFs (contours=yes)
+Projecting 559 validated one_minus_C_e_p minimum contours for electron...
+  projected contours: 100/559
+  projected contours: 200/559
+  projected contours: 300/559
+  projected contours: 400/559
+  projected contours: 500/559
+  projected contours: 559/559
+Wrote 5 one-page PDFs under Output\GradientPhaseSpaceScan\electron\Plots\CEP
+========================================================================
+Regenerating CEP muon phase-space PDFs (contours=yes)
+Projecting 1420 validated one_minus_C_e_p minimum contours for muon...
+  projected contours: 100/1420
+  projected contours: 200/1420
+  projected contours: 300/1420
+  projected contours: 400/1420
+  projected contours: 500/1420
+  projected contours: 600/1420
+  projected contours: 700/1420
+  projected contours: 800/1420
+  projected contours: 900/1420
+  projected contours: 1000/1420
+  projected contours: 1100/1420
+  projected contours: 1200/1420
+  projected contours: 1300/1420
+  projected contours: 1400/1420
+  projected contours: 1420/1420
+Wrote 5 one-page PDFs under Output\GradientPhaseSpaceScan\muon\Plots\CEP
+========================================================================
+Regenerating CPGAMMA electron phase-space PDFs (contours=yes)
+Projecting 1820 validated one_minus_C_p_gamma minimum contours for electron...
+  projected contours: 100/1820
+  projected contours: 200/1820
+  projected contours: 300/1820
+  projected contours: 400/1820
+  projected contours: 500/1820
+  projected contours: 600/1820
+  projected contours: 700/1820
+  projected contours: 800/1820
+  projected contours: 900/1820
+  projected contours: 1000/1820
+  projected contours: 1100/1820
+  projected contours: 1200/1820
+  projected contours: 1300/1820
+  projected contours: 1400/1820
+  projected contours: 1500/1820
+  projected contours: 1600/1820
+  projected contours: 1700/1820
+  projected contours: 1800/1820
+  projected contours: 1820/1820
+Wrote 4 one-page PDFs under Output\GradientPhaseSpaceScan\electron\Plots\CPGAMMA
+========================================================================
+Regenerating CPGAMMA muon phase-space PDFs (contours=yes)
+Projecting 1644 validated one_minus_C_p_gamma minimum contours for muon...
+  projected contours: 100/1644
+  projected contours: 200/1644
+  projected contours: 300/1644
+  projected contours: 400/1644
+  projected contours: 500/1644
+  projected contours: 600/1644
+  projected contours: 700/1644
+  projected contours: 800/1644
+  projected contours: 900/1644
+  projected contours: 1000/1644
+  projected contours: 1100/1644
+  projected contours: 1200/1644
+  projected contours: 1300/1644
+  projected contours: 1400/1644
+  projected contours: 1500/1644
+  projected contours: 1600/1644
+  projected contours: 1644/1644
+Wrote 4 one-page PDFs under Output\GradientPhaseSpaceScan\muon\Plots\CPGAMMA
+========================================================================
+Regenerating CEGAMMA electron phase-space PDFs (contours=yes)
+Projecting 1379 validated one_minus_C_e_gamma minimum contours for electron...
+  projected contours: 100/1379
+  projected contours: 200/1379
+  projected contours: 300/1379
+  projected contours: 400/1379
+  projected contours: 500/1379
+  projected contours: 600/1379
+  projected contours: 700/1379
+  projected contours: 800/1379
+  projected contours: 900/1379
+  projected contours: 1000/1379
+  projected contours: 1100/1379
+  projected contours: 1200/1379
+  projected contours: 1300/1379
+  projected contours: 1379/1379
+Wrote 6 one-page PDFs under Output\GradientPhaseSpaceScan\electron\Plots\CEGAMMA
+========================================================================
+Regenerating CEGAMMA muon phase-space PDFs (contours=yes)
+Projecting 1094 validated one_minus_C_e_gamma minimum contours for muon...
+  projected contours: 100/1094
+  projected contours: 200/1094
+  projected contours: 300/1094
+  projected contours: 400/1094
+  projected contours: 500/1094
+  projected contours: 600/1094
+  projected contours: 700/1094
+  projected contours: 800/1094
+  projected contours: 900/1094
+  projected contours: 1000/1094
+  projected contours: 1094/1094
+Wrote 6 one-page PDFs under Output\GradientPhaseSpaceScan\muon\Plots\CEGAMMA
