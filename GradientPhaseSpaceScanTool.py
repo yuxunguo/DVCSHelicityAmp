@@ -51,7 +51,7 @@ from config import (
     SCAN_INITIAL_MIXING_ANGLES,
     SCAN_WORKERS,
 )
-from PlotUtils import configure_named_angle_axes, print_console_text
+from PlotUtils import configure_phase_space_axes, print_console_text
 from GradientObjective import (
     PAIRWISE_CONCURRENCE_NAMES,
     objective_value,
@@ -94,6 +94,17 @@ PLOT_PANELS = (
     ("sqrt_s", "alpha_e", r"$\sqrt{s}$ [GeV]", r"$\alpha_e$"),
     ("sqrt_s", "alpha_p", r"$\sqrt{s}$ [GeV]", r"$\alpha_p$"),
 )
+POLARIZATION_CORRELATION_PANELS = (
+    ("sqrt_s", "qOut", r"$\sqrt{s}$ [GeV]", r"$E_\gamma$ [GeV]"),
+    ("sqrt_s", "theta_gamma_out", r"$\sqrt{s}$ [GeV]", r"$\theta_\gamma$"),
+    ("theta_p_out", "theta_gamma_out", r"$\theta_{p'}$", r"$\theta_\gamma$"),
+    ("theta_p_out", "qOut", r"$\theta_{p'}$", r"$E_\gamma$ [GeV]"),
+    ("theta_gamma_out", "qOut", r"$\theta_\gamma$", r"$E_\gamma$ [GeV]"),
+    ("phi_p_out", "phi_gamma_out", r"$\phi_{p'}$", r"$\phi_\gamma$"),
+    ("alpha_e", "alpha_p", r"$\alpha_e$", r"$\alpha_p$"),
+    ("sqrt_s", "alpha_e", r"$\sqrt{s}$ [GeV]", r"$\alpha_e$"),
+    ("sqrt_s", "alpha_p", r"$\sqrt{s}$ [GeV]", r"$\alpha_p$"),
+)
 PLOT_PERIODS = {
     "phi_p_out": 2.0 * np.pi,
     "phi_gamma_out": 2.0 * np.pi,
@@ -115,7 +126,7 @@ POLARIZATION_CORRELATION_STYLES = (
     ("#0072B2", "o"),
     ("#D55E00", "s"),
     ("#009E73", "^"),
-    ("#CC79A7", "D"),
+    ("#ED63FF", "D"),
     ("#E69F00", "P"),
     ("#000000", "X"),
 )
@@ -1166,7 +1177,12 @@ def _plot_all_local_minima(rows, lepton_name, path, reference_rows=()):
                 )
             ax.set_xlabel(x_label, fontsize=11)
             ax.set_ylabel(y_label, fontsize=11)
-            configure_named_angle_axes(ax, x_name, y_name)
+            configure_phase_space_axes(
+                ax,
+                x_name,
+                y_name,
+                lepton_mass=GRADIENT_LEPTON_SPECS[lepton_name]["mass"],
+            )
             ax.tick_params(labelsize=10)
         axes[0, 0].legend()
         axes[2, 2].hist(values, bins=min(60, max(5, len(values))))
@@ -1798,8 +1814,12 @@ def _project_polarization_contours(rows, lepton_name):
         minimum_id = int(row["local_minimum_id"])
         contours, _settings = _load_minimum_contour_data(lepton_name, [row])
         center = _unit_point_from_minimum_row(row)
-        panel_projections = []
-        for x_name, y_name, _x_label, _y_label in PLOT_PANELS:
+        panel_projections = {}
+        projection_panels = (*PLOT_PANELS, *POLARIZATION_CORRELATION_PANELS)
+        for x_name, y_name, _x_label, _y_label in projection_panels:
+            panel_key = (x_name, y_name)
+            if panel_key in panel_projections:
+                continue
             contour_x, contour_y, center_x, center_y = (
                 _project_high_dimensional_contour(
                     contours[0], center, x_name, y_name
@@ -1811,8 +1831,11 @@ def _project_polarization_contours(rows, lepton_name):
             envelope_x, envelope_y = _split_wrapped_projection(
                 envelope_x, envelope_y, x_name, y_name
             )
-            panel_projections.append(
-                (envelope_x, envelope_y, center_x, center_y)
+            panel_projections[panel_key] = (
+                envelope_x,
+                envelope_y,
+                center_x,
+                center_y,
             )
         projected_contours[minimum_id] = panel_projections
         if row_number % 100 == 0 or row_number == len(rows):
@@ -1883,7 +1906,7 @@ def _polarization_cluster_plot(
             for row, contour_color in zip(page_rows, contour_colors):
                 minimum_id = int(row["local_minimum_id"])
                 envelope_x, envelope_y, _center_x, _center_y = (
-                    projected_contours[minimum_id][panel_index]
+                    projected_contours[minimum_id][(x_name, y_name)]
                 )
                 if len(envelope_x):
                     ax.plot(
@@ -1932,7 +1955,12 @@ def _polarization_cluster_plot(
                 alpha_e_line_half_width,
                 alpha_e_boundaries,
             )
-            configure_named_angle_axes(ax, x_name, y_name)
+            configure_phase_space_axes(
+                ax,
+                x_name,
+                y_name,
+                lepton_mass=GRADIENT_LEPTON_SPECS[lepton_name]["mass"],
+            )
             ax.tick_params(labelsize=10)
             if panel_index == 0:
                 ax.legend(fontsize=8, frameon=False)
@@ -2079,7 +2107,7 @@ def _write_polarization_correlation_pdfs(
     alpha_e_boundaries,
     output_dir,
 ):
-    """Export each overview projection as clustered/unclustered PDFs."""
+    """Export matching summary and individual clustered/unclustered PDFs."""
     plt, _PdfPages = config_gen._require_matplotlib()
     selected_rows = [
         row for row in rows
@@ -2121,123 +2149,309 @@ def _write_polarization_correlation_pdfs(
         reverse=True,
     )
 
+    def draw_panel(
+        ax,
+        mode,
+        x_name,
+        y_name,
+        x_label,
+        y_label,
+        *,
+        summary_panel=False,
+    ):
+        """Draw one correlation panel with mode-independent axes styling."""
+        contour_alpha = 0.10 if len(selected_rows) > 100 else 0.28
+        contour_linewidth = 0.45 if summary_panel else 0.60
+        for row in selected_rows:
+            if mode == "clustered":
+                contour_color = POLARIZATION_CORRELATION_STYLES[
+                    int(row["polarization_cluster_id"])
+                ][0]
+            else:
+                contour_color = POLARIZATION_CORRELATION_STYLES[
+                    EXAMPLE_POLARIZATION_CLUSTER_IDS[SCAN_KEY]
+                ][0]
+            envelope_x, envelope_y, _center_x, _center_y = (
+                projected_contours[int(row["local_minimum_id"])][
+                    (x_name, y_name)
+                ]
+            )
+            if len(envelope_x):
+                ax.plot(
+                    envelope_x,
+                    envelope_y,
+                    color=contour_color,
+                    linewidth=contour_linewidth,
+                    alpha=contour_alpha,
+                    rasterized=True,
+                    zorder=1,
+                )
+        if mode == "clustered":
+            for draw_index, cluster in enumerate(plot_order):
+                cluster_id = int(cluster["polarization_cluster_id"])
+                cluster_rows = [
+                    row for row in selected_rows
+                    if int(row["polarization_cluster_id"]) == cluster_id
+                ]
+                color, marker = POLARIZATION_CORRELATION_STYLES[cluster_id]
+                ax.scatter(
+                    [float(row[x_name]) for row in cluster_rows],
+                    [float(row[y_name]) for row in cluster_rows],
+                    s=42 if summary_panel else 58,
+                    marker=marker,
+                    color=color,
+                    edgecolors="black",
+                    linewidths=0.55 if summary_panel else 0.7,
+                    alpha=0.84 if len(cluster_rows) > 100 else 0.98,
+                    rasterized=True,
+                    label=(
+                        f"P{cluster_id + 1} (n={len(cluster_rows)})"
+                        if summary_panel else None
+                    ),
+                    zorder=2 + draw_index,
+                )
+        else:
+            unclustered_style_index = EXAMPLE_POLARIZATION_CLUSTER_IDS[
+                SCAN_KEY
+            ]
+            unclustered_color, unclustered_marker = (
+                POLARIZATION_CORRELATION_STYLES[
+                    unclustered_style_index
+                ]
+            )
+            ax.scatter(
+                [float(row[x_name]) for row in selected_rows],
+                [float(row[y_name]) for row in selected_rows],
+                s=40 if summary_panel else 52,
+                marker=unclustered_marker,
+                color=unclustered_color,
+                edgecolors="black",
+                linewidths=0.5 if summary_panel else 0.6,
+                alpha=0.78 if len(selected_rows) > 100 else 0.95,
+                rasterized=True,
+                label=None,
+                zorder=2,
+            )
+
+        displayed_representatives = (
+            representative_rows if mode == "clustered" else [example_row]
+        )
+        for representative_index, representative in enumerate(
+            displayed_representatives
+        ):
+            representative_color = (
+                "#00A6D6"
+                if SCAN_KEY == "W" and mode == "unclustered"
+                else "gold"
+            )
+            ax.scatter(
+                [float(representative[x_name])],
+                [float(representative[y_name])],
+                marker="*",
+                s=190 if summary_panel else 230,
+                color=representative_color,
+                edgecolors="black",
+                linewidths=0.9,
+                label=(
+                    "cluster representatives"
+                    if summary_panel
+                    and mode == "clustered"
+                    and representative_index == 0
+                    else "Example"
+                    if mode == "unclustered"
+                    and representative_index == 0
+                    else None
+                ),
+                zorder=20,
+            )
+        _draw_alpha_e_cluster_guides(
+            ax,
+            x_name,
+            y_name,
+            alpha_e_line_half_width,
+            alpha_e_boundaries,
+        )
+        label_size = 11 if summary_panel else 13
+        ax.set_xlabel(x_label, fontsize=label_size, labelpad=4.0)
+        ax.set_ylabel(y_label, fontsize=label_size, labelpad=4.0)
+        ax.margins(0.06)
+        configure_phase_space_axes(
+            ax,
+            x_name,
+            y_name,
+            lepton_mass=GRADIENT_LEPTON_SPECS[lepton_name]["mass"],
+        )
+        ax.tick_params(
+            labelsize=10 if summary_panel else 11,
+            pad=2.0,
+        )
+        return displayed_representatives
+
     for mode in ("clustered", "unclustered"):
         mode_dir = output_dir / mode
         mode_dir.mkdir(parents=True, exist_ok=True)
+        expected_panel_filenames = {
+            f"{panel_index:02d}_{y_name}_vs_{x_name}_{mode}.pdf"
+            for panel_index, (x_name, y_name, _x_label, _y_label)
+            in enumerate(POLARIZATION_CORRELATION_PANELS, start=1)
+        }
+        for stale_path in mode_dir.glob(f"[0-9][0-9]_*_{mode}.pdf"):
+            if stale_path.name in expected_panel_filenames:
+                continue
+            if stale_path.is_symlink() or not stale_path.is_file():
+                raise RuntimeError(
+                    f"Refusing to remove unexpected plot path: {stale_path}"
+                )
+            stale_path.unlink()
+        summary_fig, summary_axes = plt.subplots(
+            3,
+            3,
+            figsize=(13.3, 11.9),
+        )
+        summary_fig.subplots_adjust(
+            left=0.079,
+            right=0.984,
+            bottom=0.073,
+            top=0.985,
+            wspace=0.18,
+            hspace=0.18,
+        )
+        for ax, (x_name, y_name, x_label, y_label) in zip(
+            summary_axes.ravel(),
+            POLARIZATION_CORRELATION_PANELS,
+        ):
+            draw_panel(
+                ax,
+                mode,
+                x_name,
+                y_name,
+                x_label,
+                y_label,
+                summary_panel=True,
+            )
+        legend_handles, legend_labels = (
+            summary_axes[0, 0].get_legend_handles_labels()
+        )
+        legend_items = list(zip(legend_handles, legend_labels))
+        if mode == "clustered":
+            legend_items = [
+                item for item in legend_items
+                if not item[1].startswith(r"$E_\gamma^{\max}")
+            ]
+
+        def legend_order(item):
+            label = item[1]
+            cluster_label = label.split(" ", 1)[0]
+            if cluster_label.startswith("P") and cluster_label[1:].isdigit():
+                return (0, int(cluster_label[1:]))
+            if label in {"cluster representatives", "Example"}:
+                return (1, 0)
+            return (2, 0)
+
+        legend_items.sort(key=legend_order)
+        legend_handles = [item[0] for item in legend_items]
+        legend_labels = [item[1] for item in legend_items]
+        if mode == "unclustered":
+            axis_legend = summary_axes[0, 0].get_legend()
+            if axis_legend is not None:
+                axis_legend.remove()
+        legend_ax = (
+            summary_axes[0, 0]
+            if mode == "unclustered"
+            else summary_axes[1, 0]
+        )
+        legend_ax.legend(
+            legend_handles,
+            legend_labels,
+            loc="upper left" if mode == "unclustered" else "upper center",
+            ncol=1 if mode == "unclustered" else 2,
+            frameon=True,
+            framealpha=0.88,
+            edgecolor="0.65",
+            fontsize=11,
+            borderaxespad=0.3,
+            borderpad=0.35,
+            handlelength=1.5,
+            handletextpad=0.4,
+            columnspacing=0.75,
+            labelspacing=0.25,
+            markerscale=1.0,
+        )
+        summary_path = mode_dir / "00_summary.pdf"
+        summary_fig.savefig(summary_path)
+        plt.close(summary_fig)
+        displayed_representatives = (
+            representative_rows if mode == "clustered" else [example_row]
+        )
+        index_rows.append(
+            {
+                "panel_index": 0,
+                "mode": mode,
+                "x_name": "",
+                "y_name": "",
+                "x_label": "",
+                "y_label": "",
+                "retained_minima": len(selected_rows),
+                "polarization_clusters": len(polarization_clusters),
+                "representative_minima": len(displayed_representatives),
+                "example_polarization_cluster": (
+                    f"P{example_cluster_id + 1}"
+                    if mode == "unclustered" else ""
+                ),
+                "objective_name": OBJECTIVE_NAME,
+                "objective_cut_above_global_minimum": objective_cut,
+                "global_minimum": optimum,
+                "plot_path": str(summary_path),
+            }
+        )
         for panel_index, (x_name, y_name, x_label, y_label) in enumerate(
-            PLOT_PANELS,
+            POLARIZATION_CORRELATION_PANELS,
             start=1,
         ):
             fig, ax = plt.subplots(
                 figsize=(5.0, 4.5),
-                constrained_layout=True,
             )
-            contour_alpha = 0.13 if len(selected_rows) > 100 else 0.32
-            for row in selected_rows:
-                if mode == "clustered":
-                    row_cluster_id = int(row["polarization_cluster_id"])
-                    contour_color = POLARIZATION_CORRELATION_STYLES[
-                        row_cluster_id
-                    ][0]
-                else:
-                    unclustered_style_index = (
-                        EXAMPLE_POLARIZATION_CLUSTER_IDS[SCAN_KEY]
-                    )
-                    contour_color = POLARIZATION_CORRELATION_STYLES[
-                        unclustered_style_index
-                    ][0]
-                envelope_x, envelope_y, _center_x, _center_y = (
-                    projected_contours[int(row["local_minimum_id"])][
-                        panel_index - 1
-                    ]
-                )
-                if len(envelope_x):
-                    ax.plot(
-                        envelope_x,
-                        envelope_y,
-                        color=contour_color,
-                        linewidth=0.6,
-                        alpha=contour_alpha,
-                        rasterized=True,
-                        zorder=1,
-                    )
-            if mode == "clustered":
-                for draw_index, cluster in enumerate(plot_order):
-                    cluster_id = int(cluster["polarization_cluster_id"])
-                    cluster_rows = [
-                        row for row in selected_rows
-                        if int(row["polarization_cluster_id"]) == cluster_id
-                    ]
-                    color, marker = POLARIZATION_CORRELATION_STYLES[cluster_id]
-                    ax.scatter(
-                        [float(row[x_name]) for row in cluster_rows],
-                        [float(row[y_name]) for row in cluster_rows],
-                        s=58,
-                        marker=marker,
-                        color=color,
-                        edgecolors="black",
-                        linewidths=0.7,
-                        alpha=0.84 if len(cluster_rows) > 100 else 0.98,
-                        rasterized=True,
-                        zorder=2 + draw_index,
-                    )
-            else:
-                unclustered_style_index = (
-                    EXAMPLE_POLARIZATION_CLUSTER_IDS[SCAN_KEY]
-                )
-                unclustered_color, unclustered_marker = (
-                    POLARIZATION_CORRELATION_STYLES[
-                        unclustered_style_index
-                    ]
-                )
-                ax.scatter(
-                    [float(row[x_name]) for row in selected_rows],
-                    [float(row[y_name]) for row in selected_rows],
-                    s=52,
-                    marker=unclustered_marker,
-                    color=unclustered_color,
-                    edgecolors="black",
-                    linewidths=0.6,
-                    alpha=0.78 if len(selected_rows) > 100 else 0.95,
-                    rasterized=True,
-                    zorder=2,
-                )
-
-            displayed_representatives = (
-                representative_rows if mode == "clustered" else [example_row]
+            fig.subplots_adjust(
+                left=0.160,
+                right=0.970,
+                bottom=0.150,
+                top=0.962,
             )
-            for representative in displayed_representatives:
-                ax.scatter(
-                    [float(representative[x_name])],
-                    [float(representative[y_name])],
-                    marker="*",
-                    s=230,
-                    color="gold",
-                    edgecolors="black",
-                    linewidths=0.9,
-                    label="Example" if mode == "unclustered" else None,
-                    zorder=20,
-                )
-            _draw_alpha_e_cluster_guides(
+            displayed_representatives = draw_panel(
                 ax,
+                mode,
                 x_name,
                 y_name,
-                alpha_e_line_half_width,
-                alpha_e_boundaries,
+                x_label,
+                y_label,
             )
-            ax.set_xlabel(x_label, fontsize=13)
-            ax.set_ylabel(y_label, fontsize=13)
-            configure_named_angle_axes(ax, x_name, y_name)
-            ax.tick_params(labelsize=11)
-            ax.grid(alpha=0.22)
-            ax.margins(0.06)
             if mode == "unclustered":
+                legend_handles, legend_labels = ax.get_legend_handles_labels()
+                legend_position = (
+                    {
+                        "loc": "center",
+                        "bbox_to_anchor": (0.5, 0.63),
+                    }
+                    if SCAN_KEY == "W"
+                    and x_name == "alpha_e"
+                    and y_name == "alpha_p"
+                    else {"loc": "best"}
+                )
                 ax.legend(
-                    loc="upper right",
+                    legend_handles,
+                    legend_labels,
+                    borderaxespad=0.35,
+                    ncol=1,
                     fontsize=10,
                     frameon=True,
                     framealpha=0.88,
                     edgecolor="0.65",
+                    borderpad=0.25,
+                    handlelength=1.6,
+                    handletextpad=0.45,
+                    columnspacing=0.9,
+                    labelspacing=0.25,
+                    **legend_position,
                 )
             '''
             ax.set_title(
@@ -2416,7 +2630,12 @@ def _write_configuration_plot(
             ax.set_ylim(*full_limits[y_name])
             ax.set_xlabel(x_label, fontsize=CONTOUR_AXIS_LABEL_FONTSIZE)
             ax.set_ylabel(y_label, fontsize=CONTOUR_AXIS_LABEL_FONTSIZE)
-            configure_named_angle_axes(ax, x_name, y_name)
+            configure_phase_space_axes(
+                ax,
+                x_name,
+                y_name,
+                lepton_mass=GRADIENT_LEPTON_SPECS[lepton_name]["mass"],
+            )
             ax.tick_params(labelsize=CONTOUR_TICK_FONTSIZE)
 
         overview_summary = overview_axes[2, 2]
@@ -2573,7 +2792,12 @@ def _write_configuration_plot(
                     y_label,
                     fontsize=CONTOUR_AXIS_LABEL_FONTSIZE,
                 )
-                configure_named_angle_axes(ax, x_name, y_name)
+                configure_phase_space_axes(
+                    ax,
+                    x_name,
+                    y_name,
+                    lepton_mass=GRADIENT_LEPTON_SPECS[lepton_name]["mass"],
+                )
                 ax.tick_params(labelsize=CONTOUR_TICK_FONTSIZE)
 
             axes[0, 0].legend(fontsize=8)

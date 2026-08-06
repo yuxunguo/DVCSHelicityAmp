@@ -500,7 +500,6 @@ def plot_scan_pages(plt, pdf, rows, x_key, x_label, scan_description):
         ax.set_xlabel(x_label)
         configure_named_angle_axes(ax, x_key)
         ax.set_title(rf"$s_{{in}}={s_in:+d}\to s_{{out}}={s_out:+d}$")
-        ax.grid(alpha=0.25)
         ax.legend(fontsize=9)
     fig.suptitle(
         f"Normalized proton--virtual-photon amplitudes versus {scan_description}"
@@ -541,7 +540,6 @@ def plot_scan_pages(plt, pdf, rows, x_key, x_label, scan_description):
         ax.set_ylabel(r"$\arg(\epsilon^\nu J_\nu)/\pi$")
         ax.set_ylim(-1.05, 1.05)
         ax.set_title(rf"$s_{{in}}={s_in:+d}\to s_{{out}}={s_out:+d}$")
-        ax.grid(alpha=0.25)
         ax.legend(fontsize=9)
     fig.suptitle(
         f"Proton--virtual-photon amplitude phases versus {scan_description}"
@@ -573,7 +571,6 @@ def plot_scan_pages(plt, pdf, rows, x_key, x_label, scan_description):
             r"$R_{L/T}=|A_L|^2/(|A_{T-}|^2+|A_{T+}|^2)$"
         )
         ax.set_title(rf"$s_{{in}}={s_in:+d}\to s_{{out}}={s_out:+d}$")
-        ax.grid(alpha=0.25)
     fig.suptitle(
         f"Longitudinal-to-transverse ratio versus {scan_description}"
     )
@@ -600,7 +597,6 @@ def plot_scan_pages(plt, pdf, rows, x_key, x_label, scan_description):
     right.set_ylabel(r"$|\mathcal{A}_{\rm unpol}|$", color="tab:red")
     left.tick_params(axis="y", colors="tab:purple")
     right.tick_params(axis="y", colors="tab:red")
-    left.grid(alpha=0.25)
     left.set_title(
         f"Virtuality and unpolarized normalization versus {scan_description}"
     )

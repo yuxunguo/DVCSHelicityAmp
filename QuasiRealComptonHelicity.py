@@ -811,7 +811,6 @@ def save_plots(component_rows):
                     configure_polar_angle_axis(ax, "x")
                     ax.set_ylabel(r"$|\mathcal{M}/e^2|$")
                     ax.set_title(rf"$h_\ell={h_in:+d}$")
-                    ax.grid(alpha=0.25)
                     ax.legend(fontsize=8)
                 fig.suptitle(
                     r"$\gamma^*\ell\to\gamma\ell$: "
@@ -965,7 +964,6 @@ def save_fixed_incoming_lepton_plots(component_rows):
                         + ", "
                         + rf"$\lambda_{{\gamma^*}}={polarization}$"
                     )
-                    ax.grid(alpha=0.25)
                     ax.legend(fontsize=8)
             fig.suptitle(
                 r"$\gamma^*\ell\to\gamma\ell$, "
