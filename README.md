@@ -494,10 +494,13 @@ one-page `polarization_cluster_phase_space_PXX.pdf`, colored by objective
 value. `RegeneratePolarizationContourPlots.py` adds validated projected 8D
 contours without rerunning the scan, clustering, or contour calculation.
 The nine correlation panels from the overview are also exported as separate
-one-page PDFs under `Plots/<state>/polarization_correlations/`. Both the
-`clustered/` and `unclustered/` folders begin with a matching 3-by-3 overview
-named `00_summary.pdf`, followed by the nine individual panels in the same
-order. The
+one-page PDFs. A normal scan writes the contour-free set under
+`Plots/<state>/polarization_correlations/without_contours/`, while the
+plot-only regeneration command described below also writes a parallel
+`with_contours/` set when validated contours are available. Both version trees
+contain `clustered/` and `unclustered/` folders. Each begins with a matching
+3-by-3 overview named `00_summary_<state>.pdf`, followed by the nine individual
+panels in the same order. The
 `clustered/` version uses the same P1...Pn colors and markers, while the
 `unclustered/` version plots the identical retained minima with cluster labels
 hidden. GHZ unclustered panels use exactly the P2 marker/color and W
@@ -506,15 +509,21 @@ cluster representative with a gold star. Each unclustered panel instead marks
 only the P2 (GHZ) or P4 (W) representative and labels it `Example`; objective-cut
 text is omitted. That example's two configuration pages are extracted to
 the same `polarization_correlations/unclustered/` folder, with an index CSV in
-that directory. Each unclustered row in
+the common `polarization_correlations/unclustered/` configuration folder. Each
+unclustered row in
 `Data/<state>/cluster/polarization_correlation_plot_index.csv` records the
 matching `example_configuration_path` in addition to the axes, mode, cut,
 retained count, and plot path.
 `RegeneratePolarizationCorrelationContourPlots.py` regenerates both modes and
-their summary pages with validated projected contours. W/GHZ muon contour
-overlays are intentionally omitted when using this script because their
-species-coordinate repair was aborted; the underlying minima and cluster
-markers are still plotted with the same shared axis settings.
+their summary pages in parallel `polarization_correlations/with_contours/` and
+`polarization_correlations/without_contours/` trees. Each tree contains its own
+`clustered/` and `unclustered/` folders. Every correlation PDF ends with its
+state key, for example `00_summary_W.pdf` or
+`01_qOut_vs_sqrt_s_clustered_GHZ.pdf`. W/GHZ muon `with_contours` trees are
+intentionally skipped because their species-coordinate repair was aborted;
+their `without_contours` plots are still written with the same shared axis
+settings. Pass `--index-only` to rebuild the combined plot index CSVs from
+already-rendered version trees without rerendering the PDFs.
 
 The eight coordinates are `sqrt(s)`, `theta_p_out`, `theta_gamma_out`, the
 physical `E_gamma` fraction, the final-proton and photon azimuths, `alpha_e`,

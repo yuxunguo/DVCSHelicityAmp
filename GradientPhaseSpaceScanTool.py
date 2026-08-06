@@ -2315,11 +2315,15 @@ def _write_polarization_correlation_pdfs(
         mode_dir = output_dir / mode
         mode_dir.mkdir(parents=True, exist_ok=True)
         expected_panel_filenames = {
-            f"{panel_index:02d}_{y_name}_vs_{x_name}_{mode}.pdf"
+            (
+                f"{panel_index:02d}_{y_name}_vs_{x_name}_{mode}_"
+                f"{SCAN_KEY}.pdf"
+            )
             for panel_index, (x_name, y_name, _x_label, _y_label)
             in enumerate(POLARIZATION_CORRELATION_PANELS, start=1)
         }
-        for stale_path in mode_dir.glob(f"[0-9][0-9]_*_{mode}.pdf"):
+        expected_panel_filenames.add(f"00_summary_{SCAN_KEY}.pdf")
+        for stale_path in mode_dir.glob("[0-9][0-9]_*.pdf"):
             if stale_path.name in expected_panel_filenames:
                 continue
             if stale_path.is_symlink() or not stale_path.is_file():
@@ -2401,7 +2405,7 @@ def _write_polarization_correlation_pdfs(
             labelspacing=0.25,
             markerscale=1.0,
         )
-        summary_path = mode_dir / "00_summary.pdf"
+        summary_path = mode_dir / f"00_summary_{SCAN_KEY}.pdf"
         summary_fig.savefig(summary_path)
         plt.close(summary_fig)
         displayed_representatives = (
@@ -2489,7 +2493,8 @@ def _write_polarization_correlation_pdfs(
             )
             '''
             filename = (
-                f"{panel_index:02d}_{y_name}_vs_{x_name}_{mode}.pdf"
+                f"{panel_index:02d}_{y_name}_vs_{x_name}_{mode}_"
+                f"{SCAN_KEY}.pdf"
             )
             path = mode_dir / filename
             fig.savefig(path)
@@ -3582,8 +3587,12 @@ def cluster_species_minima(
         optimum,
         polarization_alpha_e_line_half_width,
         polarization_alpha_e_boundaries,
-        output_dirs["plots"] / "polarization_correlations",
+        output_dirs["plots"]
+        / "polarization_correlations"
+        / "without_contours",
     )
+    for correlation_row in correlation_rows:
+        correlation_row["contour_version"] = "without_contours"
     representative_configuration_dir = (
         output_dirs["plots"]
         / "polarization_correlations"
