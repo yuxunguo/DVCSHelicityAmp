@@ -1,8 +1,9 @@
 """Regenerate one-page polarization phase-space contour PDFs.
 
-This plot-only stage reads the existing clustered minima and validated,
+This plot-only stage reads the existing clustered minima and, where valid,
 minimum-owned contour CSVs.  It does not rerun minimization, contour
-generation, clustering, or ConfigGen.
+generation, clustering, or ConfigGen.  W/GHZ muon contours are intentionally
+omitted because their species-coordinate repair was explicitly aborted.
 """
 
 import sys
@@ -13,18 +14,25 @@ import GradientPhaseSpaceDefinitions as definitions
 import GradientPhaseSpaceScanTool as gradient_tool
 
 
-SCANS_TO_PLOT = ("CEP", "CPGAMMA", "CEGAMMA")
+SCANS_TO_PLOT = ("W", "GHZ", "CEP", "CPGAMMA", "CEGAMMA")
 LEPTONS_TO_PLOT = ("electron", "muon")
 POLARIZATION_CLUSTER_CUT = 0.05
+W_ALPHA_E_LINE_HALF_WIDTH = np.pi / 24.0
 GHZ_ALPHA_E_BOUNDARIES = (0.0, np.pi / 2.0, np.pi)
 
 
 def _cluster_guides(scan_key):
-    if scan_key == "CEP":
+    if scan_key == "W":
+        return W_ALPHA_E_LINE_HALF_WIDTH, None
+    if scan_key in ("GHZ", "CEP"):
         return None, GHZ_ALPHA_E_BOUNDARIES
     if scan_key in ("CPGAMMA", "CEGAMMA"):
         return None, None
     raise ValueError(f"No contour-plot setup for {scan_key!r}.")
+
+
+def _include_contours(scan_key, lepton_name):
+    return not (lepton_name == "muon" and scan_key in ("W", "GHZ"))
 
 
 def regenerate_selected_plots():
@@ -42,6 +50,9 @@ def regenerate_selected_plots():
             definition.key
         )
         for lepton_name in leptons:
+            include_contours = _include_contours(
+                definition.key, lepton_name
+            )
             output_dirs = gradient_tool.species_output_dirs(lepton_name)
             clustered_rows = gradient_tool._read_csv(
                 output_dirs["cluster_data"] / "clustered_minima.csv"
@@ -59,8 +70,8 @@ def regenerate_selected_plots():
             )
             print("=" * 72, flush=True)
             print(
-                f"Regenerating {definition.key} {lepton_name} contour "
-                f"phase-space PDFs",
+                f"Regenerating {definition.key} {lepton_name} phase-space "
+                f"PDFs (contours={'yes' if include_contours else 'no'})",
                 flush=True,
             )
             gradient_tool._polarization_cluster_plot(
@@ -72,6 +83,7 @@ def regenerate_selected_plots():
                 alpha_e_line_half_width,
                 alpha_e_boundaries,
                 output_path,
+                include_contours=include_contours,
             )
             cluster_paths = [
                 output_path.with_name(

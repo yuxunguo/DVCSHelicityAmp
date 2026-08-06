@@ -1855,6 +1855,8 @@ def _polarization_cluster_plot(
     alpha_e_line_half_width,
     alpha_e_boundaries,
     path,
+    *,
+    include_contours=False,
 ):
     """Plot saved contour projections for all minima and each cluster.
 
@@ -1876,8 +1878,9 @@ def _polarization_cluster_plot(
     path.parent.mkdir(parents=True, exist_ok=True)
     full_limits = _full_phase_space_plot_limits(lepton_name)
 
-    projected_contours = _project_polarization_contours(
-        selected_rows, lepton_name
+    projected_contours = (
+        _project_polarization_contours(selected_rows, lepton_name)
+        if include_contours else {}
     )
 
     def draw_phase_space_page(
@@ -1905,9 +1908,12 @@ def _polarization_cluster_plot(
         ) in enumerate(zip(axes.ravel()[:8], PLOT_PANELS)):
             for row, contour_color in zip(page_rows, contour_colors):
                 minimum_id = int(row["local_minimum_id"])
-                envelope_x, envelope_y, _center_x, _center_y = (
-                    projected_contours[minimum_id][(x_name, y_name)]
+                projection = projected_contours.get(minimum_id, {}).get(
+                    (x_name, y_name)
                 )
+                if projection is None:
+                    continue
+                envelope_x, envelope_y, _center_x, _center_y = projection
                 if len(envelope_x):
                     ax.plot(
                         envelope_x,
@@ -1998,11 +2004,18 @@ def _polarization_cluster_plot(
         path,
         title=(
             f"{lepton_name}: full low-${OBJECTIVE_LATEX}$ phase space "
-            "with projected 8D contours"
+            + (
+                "with projected 8D contours"
+                if include_contours else "(contours omitted)"
+            )
         ),
         summary_lines=[
             "unclustered full retained-minimum set",
-            f"minima and contours = {len(selected_rows)}",
+            f"minima = {len(selected_rows)}",
+            (
+                f"validated contours = {len(selected_rows)}"
+                if include_contours else "contours omitted"
+            ),
             f"total raw minima = {len(rows)}",
             f"{OBJECTIVE_NAME} minimum = {optimum:.8g}",
             f"objective cut above minimum = {objective_cut:.8g}",
@@ -2062,14 +2075,21 @@ def _polarization_cluster_plot(
             cluster_path,
             title=(
                 f"{lepton_name}: polarization cluster P{cluster_id + 1} "
-                "with projected 8D contours"
+                + (
+                    "with projected 8D contours"
+                    if include_contours else "(contours omitted)"
+                )
             ),
             summary_lines=[
                 (
                     f"polarization cluster P{cluster_id + 1}: "
                     f"{cluster['polarization_configuration']}"
                 ),
-                f"members and contours = {len(cluster_rows)}",
+                f"members = {len(cluster_rows)}",
+                (
+                    f"validated contours = {len(cluster_rows)}"
+                    if include_contours else "contours omitted"
+                ),
                 (
                     "representative local minimum = "
                     f"{cluster['representative_local_minimum_id']}"
@@ -2106,6 +2126,8 @@ def _write_polarization_correlation_pdfs(
     alpha_e_line_half_width,
     alpha_e_boundaries,
     output_dir,
+    *,
+    include_contours=False,
 ):
     """Export matching summary and individual clustered/unclustered PDFs."""
     plt, _PdfPages = config_gen._require_matplotlib()
@@ -2140,8 +2162,9 @@ def _write_polarization_correlation_pdfs(
     )
     output_dir = Path(output_dir)
     index_rows = []
-    projected_contours = _project_polarization_contours(
-        selected_rows, lepton_name
+    projected_contours = (
+        _project_polarization_contours(selected_rows, lepton_name)
+        if include_contours else {}
     )
     plot_order = sorted(
         polarization_clusters,
@@ -2163,6 +2186,11 @@ def _write_polarization_correlation_pdfs(
         contour_alpha = 0.10 if len(selected_rows) > 100 else 0.28
         contour_linewidth = 0.45 if summary_panel else 0.60
         for row in selected_rows:
+            projection = projected_contours.get(
+                int(row["local_minimum_id"]), {}
+            ).get((x_name, y_name))
+            if projection is None:
+                continue
             if mode == "clustered":
                 contour_color = POLARIZATION_CORRELATION_STYLES[
                     int(row["polarization_cluster_id"])
@@ -2171,11 +2199,7 @@ def _write_polarization_correlation_pdfs(
                 contour_color = POLARIZATION_CORRELATION_STYLES[
                     EXAMPLE_POLARIZATION_CLUSTER_IDS[SCAN_KEY]
                 ][0]
-            envelope_x, envelope_y, _center_x, _center_y = (
-                projected_contours[int(row["local_minimum_id"])][
-                    (x_name, y_name)
-                ]
-            )
+            envelope_x, envelope_y, _center_x, _center_y = projection
             if len(envelope_x):
                 ax.plot(
                     envelope_x,

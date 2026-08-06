@@ -488,10 +488,11 @@ k-means in both mixing angles; its same `0.05` loss cut means
 member is still identified in the summary, but every cluster member is
 configured. The assignments are saved in `clustered_minima.csv`, while parent
 regions, centers, sizes, and representative IDs are saved in
-`polarization_clusters.csv`. The first page of
-`polarization_cluster_phase_space.pdf` is the all-cluster overview; each
-following page shows all phase-space projections for one cluster, colored by
-the objective value.
+`polarization_clusters.csv`. `polarization_cluster_phase_space.pdf` is the
+one-page full retained-minimum view. Each cluster is written as a separate
+one-page `polarization_cluster_phase_space_PXX.pdf`, colored by objective
+value. `RegeneratePolarizationContourPlots.py` adds validated projected 8D
+contours without rerunning the scan, clustering, or contour calculation.
 The nine correlation panels from the overview are also exported as separate
 one-page PDFs under `Plots/<state>/polarization_correlations/`. Both the
 `clustered/` and `unclustered/` folders begin with a matching 3-by-3 overview
@@ -509,6 +510,11 @@ that directory. Each unclustered row in
 `Data/<state>/cluster/polarization_correlation_plot_index.csv` records the
 matching `example_configuration_path` in addition to the axes, mode, cut,
 retained count, and plot path.
+`RegeneratePolarizationCorrelationContourPlots.py` regenerates both modes and
+their summary pages with validated projected contours. W/GHZ muon contour
+overlays are intentionally omitted when using this script because their
+species-coordinate repair was aborted; the underlying minima and cluster
+markers are still plotted with the same shared axis settings.
 
 The eight coordinates are `sqrt(s)`, `theta_p_out`, `theta_gamma_out`, the
 physical `E_gamma` fraction, the final-proton and photon azimuths, `alpha_e`,

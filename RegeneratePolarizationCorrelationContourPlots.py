@@ -1,8 +1,9 @@
 """Regenerate clustered and unclustered correlation PDFs with contours.
 
 The script covers W, GHZ, and all three pairwise concurrences for electron
-and muon.  It consumes only existing clustered minima and validated,
-minimum-owned contour CSVs.
+and muon.  It consumes existing clustered minima and validated contour CSVs.
+W/GHZ muon contours are intentionally omitted because their species-coordinate
+repair was explicitly aborted.
 """
 
 import sys
@@ -30,8 +31,12 @@ def _cluster_guides(scan_key):
     raise ValueError(f"No correlation contour setup for {scan_key!r}.")
 
 
+def _include_contours(scan_key, lepton_name):
+    return not (lepton_name == "muon" and scan_key in ("W", "GHZ"))
+
+
 def regenerate_selected_plots():
-    """Write 16 contour correlation PDFs for every species/measurement."""
+    """Write 20 correlation PDFs for every species and measurement."""
     scan_definitions = definitions.selected_definitions(SCANS_TO_PLOT)
     leptons = definitions.validated_leptons(LEPTONS_TO_PLOT)
     written_rows = []
@@ -45,6 +50,9 @@ def regenerate_selected_plots():
             definition.key
         )
         for lepton_name in leptons:
+            include_contours = _include_contours(
+                definition.key, lepton_name
+            )
             output_dirs = gradient_tool.species_output_dirs(lepton_name)
             clustered_rows = gradient_tool._read_csv(
                 output_dirs["cluster_data"] / "clustered_minima.csv"
@@ -59,7 +67,8 @@ def regenerate_selected_plots():
             print("=" * 72, flush=True)
             print(
                 f"Regenerating {definition.key} {lepton_name} clustered and "
-                "unclustered correlation contour PDFs",
+                "unclustered correlation PDFs "
+                f"(contours={'yes' if include_contours else 'no'})",
                 flush=True,
             )
             rows = gradient_tool._write_polarization_correlation_pdfs(
@@ -71,6 +80,7 @@ def regenerate_selected_plots():
                 alpha_e_line_half_width,
                 alpha_e_boundaries,
                 output_dirs["plots"] / "polarization_correlations",
+                include_contours=include_contours,
             )
             written_rows.extend(rows)
             print(
