@@ -1782,6 +1782,47 @@ def _draw_alpha_e_cluster_guides(
             )
 
 
+def _project_polarization_contours(rows, lepton_name):
+    """Load, validate, and cache the eight envelopes for each minimum."""
+    # Contour metadata stores normalized coordinates whose physical map is
+    # species dependent.  Plot-only callers do not otherwise enter the scan
+    # evaluator, so select the species explicitly before validating centers.
+    phase_scan._configure_lepton(lepton_name)
+    print(
+        f"Projecting {len(rows)} validated {OBJECTIVE_NAME} minimum "
+        f"contours for {lepton_name}...",
+        flush=True,
+    )
+    projected_contours = {}
+    for row_number, row in enumerate(rows, start=1):
+        minimum_id = int(row["local_minimum_id"])
+        contours, _settings = _load_minimum_contour_data(lepton_name, [row])
+        center = _unit_point_from_minimum_row(row)
+        panel_projections = []
+        for x_name, y_name, _x_label, _y_label in PLOT_PANELS:
+            contour_x, contour_y, center_x, center_y = (
+                _project_high_dimensional_contour(
+                    contours[0], center, x_name, y_name
+                )
+            )
+            envelope_x, envelope_y = _projected_contour_envelope(
+                contour_x, contour_y
+            )
+            envelope_x, envelope_y = _split_wrapped_projection(
+                envelope_x, envelope_y, x_name, y_name
+            )
+            panel_projections.append(
+                (envelope_x, envelope_y, center_x, center_y)
+            )
+        projected_contours[minimum_id] = panel_projections
+        if row_number % 100 == 0 or row_number == len(rows):
+            print(
+                f"  projected contours: {row_number}/{len(rows)}",
+                flush=True,
+            )
+    return projected_contours
+
+
 def _polarization_cluster_plot(
     rows,
     polarization_clusters,
@@ -1792,8 +1833,15 @@ def _polarization_cluster_plot(
     alpha_e_boundaries,
     path,
 ):
-    """Plot the cluster overview followed by one page per cluster."""
-    plt, PdfPages = config_gen._require_matplotlib()
+    """Plot saved contour projections for all minima and each cluster.
+
+    The existing ``polarization_cluster_phase_space.pdf`` path is retained for
+    the full unclustered view.  Every cluster is exported alongside it as a
+    separate one-page ``..._PXX.pdf`` document.  Contours are loaded and
+    validated one minimum at a time, then reduced to their eight projected
+    convex envelopes so the full contour collection does not reside in memory.
+    """
+    plt, _PdfPages = config_gen._require_matplotlib()
     selected_rows = [
         row for row in rows
         if _as_bool(row["within_polarization_cluster_cut"])
@@ -1803,86 +1851,78 @@ def _polarization_cluster_plot(
     objective_key = _objective_key(lepton_name)
     best_row = min(selected_rows, key=lambda row: float(row[objective_key]))
     path.parent.mkdir(parents=True, exist_ok=True)
-    with PdfPages(path) as pdf:
+    full_limits = _full_phase_space_plot_limits(lepton_name)
+
+    projected_contours = _project_polarization_contours(
+        selected_rows, lepton_name
+    )
+
+    def draw_phase_space_page(
+        page_rows,
+        page_path,
+        *,
+        title,
+        summary_lines,
+        marker,
+        point_colors,
+        contour_colors,
+        representative,
+        point_cmap=None,
+        point_vmin=None,
+        point_vmax=None,
+        show_objective_colorbar=False,
+    ):
         fig, axes = plt.subplots(
             3, 3, figsize=(14.0, 11.5), constrained_layout=True
         )
-        legend_handles = {}
-        legend_labels = {}
-        plot_order = sorted(
-            polarization_clusters,
-            key=lambda cluster: int(cluster["member_count"]),
-            reverse=True,
-        )
-        for ax, (x_name, y_name, x_label, y_label) in zip(
-            axes.ravel()[:8],
-            PLOT_PANELS,
-        ):
-            for draw_index, cluster in enumerate(plot_order):
-                cluster_id = int(cluster["polarization_cluster_id"])
-                cluster_rows = [
-                    row for row in selected_rows
-                    if int(row["polarization_cluster_id"]) == cluster_id
-                ]
-                color, marker = POLARIZATION_CLUSTER_STYLES[cluster_id]
-                artist = ax.scatter(
-                    [float(row[x_name]) for row in cluster_rows],
-                    [float(row[y_name]) for row in cluster_rows],
-                    s=42,
-                    marker=marker,
-                    color=color,
-                    edgecolors="black",
-                    linewidths=0.45,
-                    alpha=0.72 if len(cluster_rows) > 100 else 0.95,
-                    rasterized=True,
-                    zorder=2 + draw_index,
+        contour_alpha = 0.13 if len(page_rows) > 100 else 0.32
+        for panel_index, (
+            ax,
+            (x_name, y_name, x_label, y_label),
+        ) in enumerate(zip(axes.ravel()[:8], PLOT_PANELS)):
+            for row, contour_color in zip(page_rows, contour_colors):
+                minimum_id = int(row["local_minimum_id"])
+                envelope_x, envelope_y, _center_x, _center_y = (
+                    projected_contours[minimum_id][panel_index]
                 )
-                if ax is axes.ravel()[0]:
-                    legend_handles[cluster_id] = artist
-                    if SCAN_KEY in ("GHZ", "CEP"):
-                        alpha_e_region_math = str(
-                            cluster["polarization_alpha_e_region"]
-                        ).replace("pi", r"\pi")
-                        legend_labels[cluster_id] = (
-                            rf"$P_{{{cluster_id + 1}}}: "
-                            rf"\alpha_e\in"
-                            f"{alpha_e_region_math}, "
-                            rf"\alpha_p\approx"
-                            rf"{_pi_quarter_math_label(float(cluster['alpha_p_center']))}$ "
-                            f"(n={cluster['member_count']})"
-                        )
-                    elif SCAN_KEY == "CPGAMMA":
-                        legend_labels[cluster_id] = (
-                            rf"$P_{{{cluster_id + 1}}}: "
-                            rf"\alpha_e\approx"
-                            rf"{_pi_quarter_math_label(float(cluster['alpha_e_center']))}$ "
-                            f"(n={cluster['member_count']})"
-                        )
-                    elif SCAN_KEY == "CEGAMMA":
-                        legend_labels[cluster_id] = (
-                            rf"$P_{{{cluster_id + 1}}}: "
-                            rf"\alpha_p\approx"
-                            rf"{_pi_quarter_math_label(float(cluster['alpha_p_center']))}$ "
-                            f"(n={cluster['member_count']})"
-                        )
-                    else:
-                        legend_labels[cluster_id] = (
-                            rf"$P_{{{cluster_id + 1}}}: "
-                            rf"(\alpha_e,\alpha_p)\approx"
-                            rf"({_pi_quarter_math_label(float(cluster['alpha_e_center']))},"
-                            rf"{_pi_quarter_math_label(float(cluster['alpha_p_center']))})$ "
-                            f"(n={cluster['member_count']})"
-                        )
+                if len(envelope_x):
+                    ax.plot(
+                        envelope_x,
+                        envelope_y,
+                        color=contour_color,
+                        linewidth=0.55,
+                        alpha=contour_alpha,
+                        rasterized=True,
+                        zorder=1,
+                    )
+            image = ax.scatter(
+                [float(row[x_name]) for row in page_rows],
+                [float(row[y_name]) for row in page_rows],
+                c=point_colors,
+                cmap=point_cmap,
+                vmin=point_vmin,
+                vmax=point_vmax,
+                s=35,
+                marker=marker,
+                edgecolors="black",
+                linewidths=0.35,
+                alpha=0.82,
+                rasterized=True,
+                zorder=2,
+            )
             ax.scatter(
-                [float(best_row[x_name])],
-                [float(best_row[y_name])],
+                [float(representative[x_name])],
+                [float(representative[y_name])],
                 marker="*",
                 s=190,
                 color="gold",
                 edgecolors="black",
                 linewidths=0.8,
-                zorder=20,
+                label="Example" if panel_index == 0 else None,
+                zorder=4,
             )
+            ax.set_xlim(*full_limits[x_name])
+            ax.set_ylim(*full_limits[y_name])
             ax.set_xlabel(x_label, fontsize=11)
             ax.set_ylabel(y_label, fontsize=11)
             _draw_alpha_e_cluster_guides(
@@ -1894,163 +1934,114 @@ def _polarization_cluster_plot(
             )
             configure_named_angle_axes(ax, x_name, y_name)
             ax.tick_params(labelsize=10)
+            if panel_index == 0:
+                ax.legend(fontsize=8, frameon=False)
 
         summary_ax = axes[2, 2]
         summary_ax.axis("off")
-        legend_order = sorted(legend_handles)
-        summary_ax.legend(
-            [legend_handles[cluster_id] for cluster_id in legend_order],
-            [legend_labels[cluster_id] for cluster_id in legend_order],
-            loc="upper left",
-            frameon=False,
-            fontsize=9,
-            handletextpad=0.8,
-        )
-        if SCAN_KEY == "W":
-            alpha_e_partition_text = (
-                rf"$\alpha_e$ line half-width="
-                rf"${alpha_e_line_half_width / np.pi:.4g}\pi$; "
-                r"$\alpha_p$ has period $\pi$"
-            )
-        elif SCAN_KEY in ("GHZ", "CEP"):
-            alpha_e_partition_text = (
-                r"$\alpha_e$ boundaries: $0,\pi/2,\pi$; "
-                r"two periodic $\alpha_p$ groups per region"
-            )
-        elif SCAN_KEY == "CPGAMMA":
-            alpha_e_partition_text = (
-                r"nearest $\alpha_e$ center: $0,\pi/2,\pi$"
-            )
-        elif SCAN_KEY == "CEGAMMA":
-            alpha_e_partition_text = (
-                r"nearest $\alpha_p$ center: "
-                r"$0,\pi/4,\pi/2,3\pi/4,\pi$"
-            )
-        else:
-            alpha_e_partition_text = (
-                r"periodic k-means in the full $(\alpha_e,\alpha_p)$ plane"
-            )
         summary_ax.text(
-            0.0,
-            0.03,
-            (
-                rf"${OBJECTIVE_LATEX}-"
-                rf"({OBJECTIVE_LATEX})_{{\min}}\leq {objective_cut:g}$"
-                "\n"
-                rf"$({OBJECTIVE_LATEX})_{{\min}}={optimum:.7g}$"
-                "\n"
-                f"{len(selected_rows)}/{len(rows)} minima retained"
-                "\n"
-                + alpha_e_partition_text
-            ),
+            0.01,
+            0.99,
+            "\n".join(summary_lines),
             transform=summary_ax.transAxes,
-            va="bottom",
-            fontsize=10,
+            va="top",
+            ha="left",
+            fontsize=8.5,
+            family="monospace",
         )
-        fig.suptitle(
-            f"{lepton_name}: low-${OBJECTIVE_LATEX}$ phase space colored by "
-            f"{len(polarization_clusters)} "
-            "major polarization configurations"
-        )
-        pdf.savefig(fig)
+        if show_objective_colorbar:
+            fig.colorbar(
+                image,
+                ax=axes.ravel()[:8].tolist(),
+                label=rf"${OBJECTIVE_LATEX}$",
+            )
+        fig.suptitle(title)
+        page_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(page_path)
         plt.close(fig)
+        return page_path
 
-        full_limits = _full_phase_space_plot_limits(lepton_name)
-        cmap, _style_vmin, _style_vmax = (
-            config_gen.observable_plot_style(OBJECTIVE_NAME)
+    unclustered_style_index = EXAMPLE_POLARIZATION_CLUSTER_IDS[SCAN_KEY]
+    unclustered_color, unclustered_marker = (
+        POLARIZATION_CORRELATION_STYLES[unclustered_style_index]
+    )
+    draw_phase_space_page(
+        selected_rows,
+        path,
+        title=(
+            f"{lepton_name}: full low-${OBJECTIVE_LATEX}$ phase space "
+            "with projected 8D contours"
+        ),
+        summary_lines=[
+            "unclustered full retained-minimum set",
+            f"minima and contours = {len(selected_rows)}",
+            f"total raw minima = {len(rows)}",
+            f"{OBJECTIVE_NAME} minimum = {optimum:.8g}",
+            f"objective cut above minimum = {objective_cut:.8g}",
+            f"contour delta = {PHASE_SPACE_CONFIG_CONTOUR_DELTA:.8g}",
+            f"samples per 8D contour = {PHASE_SPACE_CONFIG_CONTOUR_SAMPLES}",
+            "star = best retained minimum (Example)",
+        ],
+        marker=unclustered_marker,
+        point_colors=[unclustered_color] * len(selected_rows),
+        contour_colors=[unclustered_color] * len(selected_rows),
+        representative=best_row,
+    )
+
+    cmap_name, _style_vmin, _style_vmax = (
+        config_gen.observable_plot_style(OBJECTIVE_NAME)
+    )
+    cmap = plt.get_cmap(cmap_name)
+    color_upper = optimum + objective_cut
+    if color_upper <= optimum:
+        color_upper = optimum + max(1.0e-12, abs(optimum) * 1.0e-12)
+    color_span = color_upper - optimum
+    for cluster in sorted(
+        polarization_clusters,
+        key=lambda item: int(item["polarization_cluster_id"]),
+    ):
+        cluster_id = int(cluster["polarization_cluster_id"])
+        cluster_rows = [
+            row for row in selected_rows
+            if int(row["polarization_cluster_id"]) == cluster_id
+        ]
+        if not cluster_rows:
+            raise RuntimeError(
+                f"Polarization cluster {cluster_id + 1} has no members."
+            )
+        cluster_values = np.asarray(
+            [float(row[objective_key]) for row in cluster_rows]
         )
-        color_upper = optimum + objective_cut
-        if color_upper <= optimum:
-            color_upper = optimum + max(1.0e-12, abs(optimum) * 1.0e-12)
-        for cluster in sorted(
-            polarization_clusters,
-            key=lambda item: int(item["polarization_cluster_id"]),
-        ):
-            cluster_id = int(cluster["polarization_cluster_id"])
-            cluster_rows = [
-                row for row in selected_rows
-                if int(row["polarization_cluster_id"]) == cluster_id
-            ]
-            if not cluster_rows:
-                raise RuntimeError(
-                    f"Polarization cluster {cluster_id + 1} has no members."
-                )
-            cluster_values = np.asarray(
-                [float(row[objective_key]) for row in cluster_rows]
-            )
-            representative = min(
-                cluster_rows,
-                key=lambda row: float(row[objective_key]),
-            )
-            _color, marker = POLARIZATION_CLUSTER_STYLES[cluster_id]
-            cluster_fig, cluster_axes = plt.subplots(
-                3, 3, figsize=(14.0, 11.5), constrained_layout=True
-            )
-            image = None
-            for panel_index, (
-                ax,
-                (x_name, y_name, x_label, y_label),
-            ) in enumerate(zip(cluster_axes.ravel()[:8], PLOT_PANELS)):
-                image = ax.scatter(
-                    [float(row[x_name]) for row in cluster_rows],
-                    [float(row[y_name]) for row in cluster_rows],
-                    c=cluster_values,
-                    s=42,
-                    marker=marker,
-                    cmap=cmap,
-                    vmin=optimum,
-                    vmax=color_upper,
-                    edgecolors="black",
-                    linewidths=0.4,
-                    alpha=0.85,
-                    rasterized=True,
-                    label=(
-                        f"cluster P{cluster_id + 1} members"
-                        if panel_index == 0 else None
-                    ),
-                    zorder=2,
-                )
-                ax.scatter(
-                    [float(representative[x_name])],
-                    [float(representative[y_name])],
-                    marker="*",
-                    s=190,
-                    color="gold",
-                    edgecolors="black",
-                    linewidths=0.8,
-                    label=(
-                        "best cluster member"
-                        if panel_index == 0 else None
-                    ),
-                    zorder=4,
-                )
-                ax.set_xlim(*full_limits[x_name])
-                ax.set_ylim(*full_limits[y_name])
-                ax.set_xlabel(x_label, fontsize=11)
-                ax.set_ylabel(y_label, fontsize=11)
-                _draw_alpha_e_cluster_guides(
-                    ax,
-                    x_name,
-                    y_name,
-                    alpha_e_line_half_width,
-                    alpha_e_boundaries,
-                )
-                configure_named_angle_axes(ax, x_name, y_name)
-                ax.tick_params(labelsize=10)
-            cluster_axes[0, 0].legend(fontsize=8)
-
-            cluster_summary = cluster_axes[2, 2]
-            cluster_summary.axis("off")
-            distances = np.asarray([
-                float(row["polarization_cluster_distance"])
-                for row in cluster_rows
-            ])
-            summary_lines = [
+        normalized_values = np.clip(
+            (cluster_values - optimum) / color_span, 0.0, 1.0
+        )
+        row_colors = [cmap(value) for value in normalized_values]
+        representative = min(
+            cluster_rows, key=lambda row: float(row[objective_key])
+        )
+        _cluster_color, cluster_marker = (
+            POLARIZATION_CLUSTER_STYLES[cluster_id]
+        )
+        distances = np.asarray([
+            float(row["polarization_cluster_distance"])
+            for row in cluster_rows
+        ])
+        cluster_path = path.with_name(
+            f"{path.stem}_P{cluster_id + 1:02d}{path.suffix}"
+        )
+        draw_phase_space_page(
+            cluster_rows,
+            cluster_path,
+            title=(
+                f"{lepton_name}: polarization cluster P{cluster_id + 1} "
+                "with projected 8D contours"
+            ),
+            summary_lines=[
                 (
                     f"polarization cluster P{cluster_id + 1}: "
                     f"{cluster['polarization_configuration']}"
                 ),
-                f"members = {len(cluster_rows)}",
+                f"members and contours = {len(cluster_rows)}",
                 (
                     "representative local minimum = "
                     f"{cluster['representative_local_minimum_id']}"
@@ -2059,69 +2050,22 @@ def _polarization_cluster_plot(
                 f"{OBJECTIVE_NAME} best = {cluster_values.min():.8g}",
                 f"{OBJECTIVE_NAME} mean = {cluster_values.mean():.8g}",
                 f"{OBJECTIVE_NAME} max = {cluster_values.max():.8g}",
-                (
-                    "above global minimum = "
-                    f"{cluster_values.min() - optimum:.8g} to "
-                    f"{cluster_values.max() - optimum:.8g}"
-                ),
-                "",
-                (
-                    "center alpha_e/pi = "
-                    f"{float(cluster['alpha_e_center_over_pi']):.8g}"
-                ),
-                (
-                    "center alpha_p/pi = "
-                    f"{float(cluster['alpha_p_center_over_pi']):.8g}"
-                ),
+                f"center alpha_e/pi = {float(cluster['alpha_e_center_over_pi']):.8g}",
+                f"center alpha_p/pi = {float(cluster['alpha_p_center_over_pi']):.8g}",
                 f"mean normalized distance = {distances.mean():.8g}",
                 f"max normalized distance = {distances.max():.8g}",
-                (
-                    (
-                        "alpha_e line half-width/pi = "
-                        f"{alpha_e_line_half_width / np.pi:.8g}"
-                    )
-                    if SCAN_KEY == "W"
-                    else (
-                        "alpha_e boundaries/pi = "
-                        + ", ".join(
-                            f"{float(boundary) / np.pi:.8g}"
-                            for boundary in alpha_e_boundaries
-                        )
-                    )
-                    if SCAN_KEY in ("GHZ", "CEP")
-                    else (
-                        "nearest fixed alpha_e center"
-                        if SCAN_KEY == "CPGAMMA"
-                        else (
-                            "nearest fixed alpha_p quarter-pi center"
-                            if SCAN_KEY == "CEGAMMA"
-                            else "alpha_e and alpha_p are both pi-periodic"
-                        )
-                    )
-                ),
-            ]
-            cluster_summary.text(
-                0.01,
-                0.99,
-                "\n".join(summary_lines),
-                transform=cluster_summary.transAxes,
-                va="top",
-                ha="left",
-                fontsize=8.5,
-                family="monospace",
-            )
-            if image is not None:
-                cluster_fig.colorbar(
-                    image,
-                    ax=cluster_axes.ravel()[:8].tolist(),
-                    label=rf"${OBJECTIVE_LATEX}$",
-                )
-            cluster_fig.suptitle(
-                f"{lepton_name}: polarization cluster P{cluster_id + 1}; "
-                "all member minima in phase space"
-            )
-            pdf.savefig(cluster_fig)
-            plt.close(cluster_fig)
+                f"contour delta = {PHASE_SPACE_CONFIG_CONTOUR_DELTA:.8g}",
+                f"samples per 8D contour = {PHASE_SPACE_CONFIG_CONTOUR_SAMPLES}",
+            ],
+            marker=cluster_marker,
+            point_colors=cluster_values,
+            contour_colors=row_colors,
+            representative=representative,
+            point_cmap=cmap,
+            point_vmin=optimum,
+            point_vmax=color_upper,
+            show_objective_colorbar=True,
+        )
     return path
 
 
@@ -2168,6 +2112,9 @@ def _write_polarization_correlation_pdfs(
     )
     output_dir = Path(output_dir)
     index_rows = []
+    projected_contours = _project_polarization_contours(
+        selected_rows, lepton_name
+    )
     plot_order = sorted(
         polarization_clusters,
         key=lambda cluster: int(cluster["member_count"]),
@@ -2185,6 +2132,35 @@ def _write_polarization_correlation_pdfs(
                 figsize=(5.0, 4.5),
                 constrained_layout=True,
             )
+            contour_alpha = 0.13 if len(selected_rows) > 100 else 0.32
+            for row in selected_rows:
+                if mode == "clustered":
+                    row_cluster_id = int(row["polarization_cluster_id"])
+                    contour_color = POLARIZATION_CORRELATION_STYLES[
+                        row_cluster_id
+                    ][0]
+                else:
+                    unclustered_style_index = (
+                        EXAMPLE_POLARIZATION_CLUSTER_IDS[SCAN_KEY]
+                    )
+                    contour_color = POLARIZATION_CORRELATION_STYLES[
+                        unclustered_style_index
+                    ][0]
+                envelope_x, envelope_y, _center_x, _center_y = (
+                    projected_contours[int(row["local_minimum_id"])][
+                        panel_index - 1
+                    ]
+                )
+                if len(envelope_x):
+                    ax.plot(
+                        envelope_x,
+                        envelope_y,
+                        color=contour_color,
+                        linewidth=0.6,
+                        alpha=contour_alpha,
+                        rasterized=True,
+                        zorder=1,
+                    )
             if mode == "clustered":
                 for draw_index, cluster in enumerate(plot_order):
                     cluster_id = int(cluster["polarization_cluster_id"])
