@@ -20,7 +20,7 @@ import config as scan_settings
 from AlignmentScan import LEPTON_SPECS
 from config import SCAN_WORKERS
 from FormFactors import yahl_dirac_pauli_from_t
-from PlotUtils import configure_named_angle_axes, print_console_text
+from PlotUtils import configure_phase_space_axes, print_console_text
 from SpinDensityMat import (
     amplitude_table,
     entanglement_measures_from_state,
@@ -956,7 +956,12 @@ def _write_mixing_target_plot(rows, detail_rows, lepton_name, observable, path):
                 )
             ax.set_xlabel(x_label)
             ax.set_ylabel(y_label)
-            configure_named_angle_axes(ax, x_name, y_name)
+            configure_phase_space_axes(
+                ax,
+                x_name,
+                y_name,
+                lepton_mass=LEPTON_SPECS[lepton_name]["mass"],
+            )
         axes[2, 2].hist(values[finite], bins=60, color="tab:blue", alpha=0.8)
         axes[2, 2].set_xlabel(config.observable_label(observable))
         axes[2, 2].set_ylabel("samples")

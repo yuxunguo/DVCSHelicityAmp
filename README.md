@@ -492,8 +492,11 @@ regions, centers, sizes, and representative IDs are saved in
 `polarization_cluster_phase_space.pdf` is the all-cluster overview; each
 following page shows all phase-space projections for one cluster, colored by
 the objective value.
-The eight correlation panels from the overview are also exported as separate
-one-page PDFs under `Plots/<state>/polarization_correlations/`. The
+The nine correlation panels from the overview are also exported as separate
+one-page PDFs under `Plots/<state>/polarization_correlations/`. Both the
+`clustered/` and `unclustered/` folders begin with a matching 3-by-3 overview
+named `00_summary.pdf`, followed by the nine individual panels in the same
+order. The
 `clustered/` version uses the same P1...Pn colors and markers, while the
 `unclustered/` version plots the identical retained minima with cluster labels
 hidden. GHZ unclustered panels use exactly the P2 marker/color and W

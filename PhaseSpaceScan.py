@@ -43,7 +43,7 @@ from config import (
     SCAN_WORKERS,
 )
 from PlotUtils import (
-    configure_named_angle_axes,
+    configure_phase_space_axes,
     print_console_text,
     require_matplotlib,
 )
@@ -787,7 +787,12 @@ def write_mixing_plot(rows):
                 )
                 ax.set_xlabel(x_label)
                 ax.set_ylabel(y_label)
-                configure_named_angle_axes(ax, x_name, y_name)
+                configure_phase_space_axes(
+                    ax,
+                    x_name,
+                    y_name,
+                    lepton_mass=LEPTON_MASS_GEV,
+                )
             axes[2, 2].hist(
                 finite_values,
                 bins=60,
@@ -880,7 +885,12 @@ def _write_polarization_plot(rows, prefix, spin_label, lepton_name, plot_dir):
                 )
                 ax.set_xlabel(x_label)
                 ax.set_ylabel(y_label)
-                configure_named_angle_axes(ax, x_name, y_name)
+                configure_phase_space_axes(
+                    ax,
+                    x_name,
+                    y_name,
+                    lepton_mass=LEPTON_MASS_GEV,
+                )
             observable_label = observable_latex_label(observable, lepton_name)
             axes[1, 1].hist(finite_values, bins=60, color="tab:blue", alpha=0.8)
             axes[1, 1].set_xlabel(observable_label)
