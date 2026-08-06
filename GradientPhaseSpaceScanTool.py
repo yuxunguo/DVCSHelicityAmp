@@ -130,6 +130,13 @@ POLARIZATION_CORRELATION_STYLES = (
     ("#E69F00", "P"),
     ("#000000", "X"),
 )
+# State-wide styles for unclustered W/GHZ plots.  These views intentionally
+# suppress polarization-cluster styling so the state is identified by one
+# consistent color while retaining a distinct marker shape.
+UNCLUSTERED_STATE_STYLES = {
+    "GHZ": ("#0072B2", "s"),
+    "W": ("#F0E442", "D"),
+}
 POLARIZATION_CLUSTER_RESTARTS = 16
 W_POLARIZATION_ALPHA_E_LINE_CENTERS = (
     np.pi / 4.0,
@@ -151,6 +158,14 @@ EXAMPLE_POLARIZATION_CLUSTER_IDS = {
     "CEGAMMA": 2,  # P3, alpha_p around pi/2
     "W": 3,        # P4
 }
+
+
+def _unclustered_state_style():
+    """Return the state-wide color/marker for unclustered plot views."""
+    if SCAN_KEY in UNCLUSTERED_STATE_STYLES:
+        return UNCLUSTERED_STATE_STYLES[SCAN_KEY]
+    style_index = EXAMPLE_POLARIZATION_CLUSTER_IDS[SCAN_KEY]
+    return POLARIZATION_CORRELATION_STYLES[style_index]
 
 
 @dataclass(frozen=True)
@@ -1874,7 +1889,6 @@ def _polarization_cluster_plot(
     if not selected_rows:
         raise RuntimeError("No rows passed the polarization-cluster cut.")
     objective_key = _objective_key(lepton_name)
-    best_row = min(selected_rows, key=lambda row: float(row[objective_key]))
     path.parent.mkdir(parents=True, exist_ok=True)
     full_limits = _full_phase_space_plot_limits(lepton_name)
 
@@ -1939,17 +1953,21 @@ def _polarization_cluster_plot(
                 rasterized=True,
                 zorder=2,
             )
-            ax.scatter(
-                [float(representative[x_name])],
-                [float(representative[y_name])],
-                marker="*",
-                s=190,
-                color="gold",
-                edgecolors="black",
-                linewidths=0.8,
-                label="Example" if panel_index == 0 else None,
-                zorder=4,
-            )
+            if representative is not None:
+                ax.scatter(
+                    [float(representative[x_name])],
+                    [float(representative[y_name])],
+                    marker="*",
+                    s=190,
+                    color="gold",
+                    edgecolors="black",
+                    linewidths=0.8,
+                    label=(
+                        "cluster representative"
+                        if panel_index == 0 else None
+                    ),
+                    zorder=4,
+                )
             ax.set_xlim(*full_limits[x_name])
             ax.set_ylim(*full_limits[y_name])
             ax.set_xlabel(x_label, fontsize=11)
@@ -1969,7 +1987,11 @@ def _polarization_cluster_plot(
             )
             ax.tick_params(labelsize=10)
             if panel_index == 0:
-                ax.legend(fontsize=8, frameon=False)
+                legend_handles, _legend_labels = (
+                    ax.get_legend_handles_labels()
+                )
+                if legend_handles:
+                    ax.legend(fontsize=8, frameon=False)
 
         summary_ax = axes[2, 2]
         summary_ax.axis("off")
@@ -1995,10 +2017,7 @@ def _polarization_cluster_plot(
         plt.close(fig)
         return page_path
 
-    unclustered_style_index = EXAMPLE_POLARIZATION_CLUSTER_IDS[SCAN_KEY]
-    unclustered_color, unclustered_marker = (
-        POLARIZATION_CORRELATION_STYLES[unclustered_style_index]
-    )
+    unclustered_color, unclustered_marker = _unclustered_state_style()
     draw_phase_space_page(
         selected_rows,
         path,
@@ -2021,12 +2040,11 @@ def _polarization_cluster_plot(
             f"objective cut above minimum = {objective_cut:.8g}",
             f"contour delta = {PHASE_SPACE_CONFIG_CONTOUR_DELTA:.8g}",
             f"samples per 8D contour = {PHASE_SPACE_CONFIG_CONTOUR_SAMPLES}",
-            "star = best retained minimum (Example)",
         ],
         marker=unclustered_marker,
         point_colors=[unclustered_color] * len(selected_rows),
         contour_colors=[unclustered_color] * len(selected_rows),
-        representative=best_row,
+        representative=None,
     )
 
     cmap_name, _style_vmin, _style_vmax = (
@@ -2156,10 +2174,6 @@ def _write_polarization_correlation_pdfs(
             "cluster."
         )
     example_cluster_id = EXAMPLE_POLARIZATION_CLUSTER_IDS[SCAN_KEY]
-    example_row = next(
-        row for row in representative_rows
-        if int(row["polarization_cluster_id"]) == example_cluster_id
-    )
     output_dir = Path(output_dir)
     index_rows = []
     projected_contours = (
@@ -2196,9 +2210,7 @@ def _write_polarization_correlation_pdfs(
                     int(row["polarization_cluster_id"])
                 ][0]
             else:
-                contour_color = POLARIZATION_CORRELATION_STYLES[
-                    EXAMPLE_POLARIZATION_CLUSTER_IDS[SCAN_KEY]
-                ][0]
+                contour_color = _unclustered_state_style()[0]
             envelope_x, envelope_y, _center_x, _center_y = projection
             if len(envelope_x):
                 ax.plot(
@@ -2235,14 +2247,7 @@ def _write_polarization_correlation_pdfs(
                     zorder=2 + draw_index,
                 )
         else:
-            unclustered_style_index = EXAMPLE_POLARIZATION_CLUSTER_IDS[
-                SCAN_KEY
-            ]
-            unclustered_color, unclustered_marker = (
-                POLARIZATION_CORRELATION_STYLES[
-                    unclustered_style_index
-                ]
-            )
+            unclustered_color, unclustered_marker = _unclustered_state_style()
             ax.scatter(
                 [float(row[x_name]) for row in selected_rows],
                 [float(row[y_name]) for row in selected_rows],
@@ -2258,31 +2263,23 @@ def _write_polarization_correlation_pdfs(
             )
 
         displayed_representatives = (
-            representative_rows if mode == "clustered" else [example_row]
+            representative_rows if mode == "clustered" else []
         )
         for representative_index, representative in enumerate(
             displayed_representatives
         ):
-            representative_color = (
-                "#00A6D6"
-                if SCAN_KEY == "W" and mode == "unclustered"
-                else "gold"
-            )
             ax.scatter(
                 [float(representative[x_name])],
                 [float(representative[y_name])],
                 marker="*",
                 s=190 if summary_panel else 230,
-                color=representative_color,
+                color="gold",
                 edgecolors="black",
                 linewidths=0.9,
                 label=(
                     "cluster representatives"
                     if summary_panel
                     and mode == "clustered"
-                    and representative_index == 0
-                    else "Example"
-                    if mode == "unclustered"
                     and representative_index == 0
                     else None
                 ),
@@ -2372,44 +2369,36 @@ def _write_polarization_correlation_pdfs(
             cluster_label = label.split(" ", 1)[0]
             if cluster_label.startswith("P") and cluster_label[1:].isdigit():
                 return (0, int(cluster_label[1:]))
-            if label in {"cluster representatives", "Example"}:
+            if label == "cluster representatives":
                 return (1, 0)
             return (2, 0)
 
         legend_items.sort(key=legend_order)
         legend_handles = [item[0] for item in legend_items]
         legend_labels = [item[1] for item in legend_items]
-        if mode == "unclustered":
-            axis_legend = summary_axes[0, 0].get_legend()
-            if axis_legend is not None:
-                axis_legend.remove()
-        legend_ax = (
-            summary_axes[0, 0]
-            if mode == "unclustered"
-            else summary_axes[1, 0]
-        )
-        legend_ax.legend(
-            legend_handles,
-            legend_labels,
-            loc="upper left" if mode == "unclustered" else "upper center",
-            ncol=1 if mode == "unclustered" else 2,
-            frameon=True,
-            framealpha=0.88,
-            edgecolor="0.65",
-            fontsize=11,
-            borderaxespad=0.3,
-            borderpad=0.35,
-            handlelength=1.5,
-            handletextpad=0.4,
-            columnspacing=0.75,
-            labelspacing=0.25,
-            markerscale=1.0,
-        )
+        if mode == "clustered":
+            summary_axes[1, 0].legend(
+                legend_handles,
+                legend_labels,
+                loc="upper center",
+                ncol=2,
+                frameon=True,
+                framealpha=0.88,
+                edgecolor="0.65",
+                fontsize=11,
+                borderaxespad=0.3,
+                borderpad=0.35,
+                handlelength=1.5,
+                handletextpad=0.4,
+                columnspacing=0.75,
+                labelspacing=0.25,
+                markerscale=1.0,
+            )
         summary_path = mode_dir / f"00_summary_{SCAN_KEY}.pdf"
         summary_fig.savefig(summary_path)
         plt.close(summary_fig)
         displayed_representatives = (
-            representative_rows if mode == "clustered" else [example_row]
+            representative_rows if mode == "clustered" else []
         )
         index_rows.append(
             {
@@ -2455,32 +2444,23 @@ def _write_polarization_correlation_pdfs(
             )
             if mode == "unclustered":
                 legend_handles, legend_labels = ax.get_legend_handles_labels()
-                legend_position = (
-                    {
-                        "loc": "center",
-                        "bbox_to_anchor": (0.5, 0.63),
-                    }
-                    if SCAN_KEY == "W"
-                    and x_name == "alpha_e"
-                    and y_name == "alpha_p"
-                    else {"loc": "best"}
-                )
-                ax.legend(
-                    legend_handles,
-                    legend_labels,
-                    borderaxespad=0.35,
-                    ncol=1,
-                    fontsize=10,
-                    frameon=True,
-                    framealpha=0.88,
-                    edgecolor="0.65",
-                    borderpad=0.25,
-                    handlelength=1.6,
-                    handletextpad=0.45,
-                    columnspacing=0.9,
-                    labelspacing=0.25,
-                    **legend_position,
-                )
+                if legend_handles:
+                    ax.legend(
+                        legend_handles,
+                        legend_labels,
+                        borderaxespad=0.35,
+                        ncol=1,
+                        fontsize=10,
+                        frameon=True,
+                        framealpha=0.88,
+                        edgecolor="0.65",
+                        borderpad=0.25,
+                        handlelength=1.6,
+                        handletextpad=0.45,
+                        columnspacing=0.9,
+                        labelspacing=0.25,
+                        loc="best",
+                    )
             '''
             ax.set_title(
                 f"{lepton_name} / {SCAN_KEY}: {y_name} versus {x_name}\n"
