@@ -75,11 +75,13 @@ def _existing_variant_index_rows(
     example_cluster_id = gradient_tool.EXAMPLE_POLARIZATION_CLUSTER_IDS[
         gradient_tool.SCAN_KEY
     ]
+    show_example = gradient_tool._show_unclustered_example()
     rows = []
     for mode in ("clustered", "unclustered"):
         mode_dir = variant_dir / mode
         representative_count = (
-            len(representative_rows) if mode == "clustered" else 1
+            len(representative_rows)
+            if mode == "clustered" else int(show_example)
         )
         panel_definitions = [
             (0, "", "", "", "", f"00_summary_{gradient_tool.SCAN_KEY}.pdf")
@@ -128,7 +130,7 @@ def _existing_variant_index_rows(
                     "representative_minima": representative_count,
                     "example_polarization_cluster": (
                         f"P{example_cluster_id + 1}"
-                        if mode == "unclustered" else ""
+                        if mode == "unclustered" and show_example else ""
                     ),
                     "objective_name": gradient_tool.OBJECTIVE_NAME,
                     "objective_cut_above_global_minimum": objective_cut,

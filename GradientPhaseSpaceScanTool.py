@@ -130,12 +130,12 @@ POLARIZATION_CORRELATION_STYLES = (
     ("#E69F00", "P"),
     ("#000000", "X"),
 )
-# State-wide styles for unclustered W/GHZ plots.  These views intentionally
-# suppress polarization-cluster styling so the state is identified by one
-# consistent color while retaining a distinct marker shape.
-UNCLUSTERED_STATE_STYLES = {
-    "GHZ": ("#0072B2", "s"),
-    "W": ("#F0E442", "D"),
+# The exact unclustered examples remain visible for the three-body states,
+# with state-specific star colors.  Pairwise-entanglement scans intentionally
+# omit this overlay.
+UNCLUSTERED_EXAMPLE_COLORS = {
+    "GHZ": "#0072B2",
+    "W": "#F0E442",
 }
 POLARIZATION_CLUSTER_RESTARTS = 16
 W_POLARIZATION_ALPHA_E_LINE_CENTERS = (
@@ -161,11 +161,19 @@ EXAMPLE_POLARIZATION_CLUSTER_IDS = {
 
 
 def _unclustered_state_style():
-    """Return the state-wide color/marker for unclustered plot views."""
-    if SCAN_KEY in UNCLUSTERED_STATE_STYLES:
-        return UNCLUSTERED_STATE_STYLES[SCAN_KEY]
+    """Return the original example-cluster style for retained minima."""
     style_index = EXAMPLE_POLARIZATION_CLUSTER_IDS[SCAN_KEY]
     return POLARIZATION_CORRELATION_STYLES[style_index]
+
+
+def _show_unclustered_example():
+    """Return whether this scan keeps its exact-example star overlay."""
+    return SCAN_KEY in UNCLUSTERED_EXAMPLE_COLORS
+
+
+def _unclustered_example_color():
+    """Return the state-specific color for an unclustered example star."""
+    return UNCLUSTERED_EXAMPLE_COLORS[SCAN_KEY]
 
 
 @dataclass(frozen=True)
@@ -1889,6 +1897,7 @@ def _polarization_cluster_plot(
     if not selected_rows:
         raise RuntimeError("No rows passed the polarization-cluster cut.")
     objective_key = _objective_key(lepton_name)
+    best_row = min(selected_rows, key=lambda row: float(row[objective_key]))
     path.parent.mkdir(parents=True, exist_ok=True)
     full_limits = _full_phase_space_plot_limits(lepton_name)
 
@@ -1907,6 +1916,8 @@ def _polarization_cluster_plot(
         point_colors,
         contour_colors,
         representative,
+        representative_color,
+        representative_label,
         point_cmap=None,
         point_vmin=None,
         point_vmax=None,
@@ -1959,12 +1970,11 @@ def _polarization_cluster_plot(
                     [float(representative[y_name])],
                     marker="*",
                     s=190,
-                    color="gold",
+                    color=representative_color,
                     edgecolors="black",
                     linewidths=0.8,
                     label=(
-                        "cluster representative"
-                        if panel_index == 0 else None
+                        representative_label if panel_index == 0 else None
                     ),
                     zorder=4,
                 )
@@ -2040,11 +2050,19 @@ def _polarization_cluster_plot(
             f"objective cut above minimum = {objective_cut:.8g}",
             f"contour delta = {PHASE_SPACE_CONFIG_CONTOUR_DELTA:.8g}",
             f"samples per 8D contour = {PHASE_SPACE_CONFIG_CONTOUR_SAMPLES}",
-        ],
+        ] + (
+            ["star = best retained minimum (Example)"]
+            if _show_unclustered_example() else []
+        ),
         marker=unclustered_marker,
         point_colors=[unclustered_color] * len(selected_rows),
         contour_colors=[unclustered_color] * len(selected_rows),
-        representative=None,
+        representative=best_row if _show_unclustered_example() else None,
+        representative_color=(
+            _unclustered_example_color()
+            if _show_unclustered_example() else "gold"
+        ),
+        representative_label="Example",
     )
 
     cmap_name, _style_vmin, _style_vmax = (
@@ -2127,6 +2145,8 @@ def _polarization_cluster_plot(
             point_colors=cluster_values,
             contour_colors=row_colors,
             representative=representative,
+            representative_color="gold",
+            representative_label="cluster representative",
             point_cmap=cmap,
             point_vmin=optimum,
             point_vmax=color_upper,
@@ -2174,6 +2194,10 @@ def _write_polarization_correlation_pdfs(
             "cluster."
         )
     example_cluster_id = EXAMPLE_POLARIZATION_CLUSTER_IDS[SCAN_KEY]
+    example_row = next(
+        row for row in representative_rows
+        if int(row["polarization_cluster_id"]) == example_cluster_id
+    )
     output_dir = Path(output_dir)
     index_rows = []
     projected_contours = (
@@ -2263,7 +2287,9 @@ def _write_polarization_correlation_pdfs(
             )
 
         displayed_representatives = (
-            representative_rows if mode == "clustered" else []
+            representative_rows
+            if mode == "clustered"
+            else [example_row] if _show_unclustered_example() else []
         )
         for representative_index, representative in enumerate(
             displayed_representatives
@@ -2273,13 +2299,20 @@ def _write_polarization_correlation_pdfs(
                 [float(representative[y_name])],
                 marker="*",
                 s=190 if summary_panel else 230,
-                color="gold",
+                color=(
+                    "gold"
+                    if mode == "clustered"
+                    else _unclustered_example_color()
+                ),
                 edgecolors="black",
                 linewidths=0.9,
                 label=(
                     "cluster representatives"
                     if summary_panel
                     and mode == "clustered"
+                    and representative_index == 0
+                    else "Example"
+                    if mode == "unclustered"
                     and representative_index == 0
                     else None
                 ),
@@ -2376,12 +2409,16 @@ def _write_polarization_correlation_pdfs(
         legend_items.sort(key=legend_order)
         legend_handles = [item[0] for item in legend_items]
         legend_labels = [item[1] for item in legend_items]
-        if mode == "clustered":
-            summary_axes[1, 0].legend(
+        if legend_items:
+            legend_ax = (
+                summary_axes[1, 0]
+                if mode == "clustered" else summary_axes[0, 0]
+            )
+            legend_ax.legend(
                 legend_handles,
                 legend_labels,
-                loc="upper center",
-                ncol=2,
+                loc="upper center" if mode == "clustered" else "upper left",
+                ncol=2 if mode == "clustered" else 1,
                 frameon=True,
                 framealpha=0.88,
                 edgecolor="0.65",
@@ -2398,7 +2435,9 @@ def _write_polarization_correlation_pdfs(
         summary_fig.savefig(summary_path)
         plt.close(summary_fig)
         displayed_representatives = (
-            representative_rows if mode == "clustered" else []
+            representative_rows
+            if mode == "clustered"
+            else [example_row] if _show_unclustered_example() else []
         )
         index_rows.append(
             {
@@ -2413,7 +2452,8 @@ def _write_polarization_correlation_pdfs(
                 "representative_minima": len(displayed_representatives),
                 "example_polarization_cluster": (
                     f"P{example_cluster_id + 1}"
-                    if mode == "unclustered" else ""
+                    if mode == "unclustered" and _show_unclustered_example()
+                    else ""
                 ),
                 "objective_name": OBJECTIVE_NAME,
                 "objective_cut_above_global_minimum": objective_cut,
@@ -2492,7 +2532,9 @@ def _write_polarization_correlation_pdfs(
                     "representative_minima": len(displayed_representatives),
                     "example_polarization_cluster": (
                         f"P{example_cluster_id + 1}"
-                        if mode == "unclustered" else ""
+                        if mode == "unclustered"
+                        and _show_unclustered_example()
+                        else ""
                     ),
                     "objective_name": OBJECTIVE_NAME,
                     "objective_cut_above_global_minimum": objective_cut,

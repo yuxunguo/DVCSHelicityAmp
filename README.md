@@ -503,10 +503,12 @@ contain `clustered/` and `unclustered/` folders. Each begins with a matching
 panels in the same order. The
 `clustered/` version uses the same P1...Pn colors and markers, while the
 `unclustered/` version plots the identical retained minima with cluster labels
-hidden. GHZ unclustered panels use blue square markers and W unclustered panels
-use yellow diamond markers. Clustered panels mark each cluster representative
-with a gold star; unclustered panels do not overlay a representative star.
-Objective-cut text is omitted. The separately selected example's two
+hidden, using the original P2 marker/color for GHZ and P4 marker/color for W.
+Clustered panels mark each cluster representative with a gold star. GHZ and W
+unclustered panels retain their previously selected exact example star, colored
+blue for GHZ and yellow for W. The pairwise-entanglement CEP, CEGAMMA, and
+CPGAMMA unclustered panels do not overlay an example star. Objective-cut text
+is omitted. The separately selected example's two
 configuration pages are extracted to
 the same `polarization_correlations/unclustered/` folder, with an index CSV in
 the common `polarization_correlations/unclustered/` configuration folder. Each
