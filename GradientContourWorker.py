@@ -196,3 +196,98 @@ def configuration_contour_task(task):
         bisection_iterations,
     )
     return row_index, chunk_index, boundary_points
+
+
+def configuration_complete_contour_task(task):
+    """Trace replacement rays until a requested successful-point count is met."""
+    (
+        row_index,
+        center,
+        base_value,
+        lepton_name,
+        lepton_mass,
+        objective_name,
+        initial_directions,
+        contour_delta,
+        initial_radius,
+        bisection_iterations,
+        target_success_count,
+        maximum_attempt_count,
+        replacement_seed,
+        replacement_batch_size,
+    ) = task
+    phase_scan._configure_lepton(lepton_name)
+    center = np.asarray(center, dtype=float)
+    base_value = float(base_value)
+    evaluation_id = row_index * 10_000_000
+    evaluation_count = 0
+
+    def evaluate(unit_point):
+        nonlocal evaluation_count
+        value = _objective_evaluation(
+            unit_point,
+            lepton_name,
+            lepton_mass,
+            evaluation_id + evaluation_count,
+            objective_name,
+        )
+        evaluation_count += 1
+        return value
+
+    initial_directions = np.asarray(initial_directions, dtype=float).reshape(
+        (-1, SCAN_DIMENSION)
+    )
+    attempted_count = len(initial_directions)
+    initial_points = _trace_contour(
+        evaluate,
+        center,
+        base_value,
+        initial_directions,
+        contour_delta,
+        initial_radius,
+        bisection_iterations,
+    )
+    initial_success_count = len(initial_points)
+    point_batches = [initial_points] if len(initial_points) else []
+    successful_count = initial_success_count
+    rng = np.random.default_rng(int(replacement_seed))
+    while (
+        successful_count < target_success_count
+        and attempted_count < maximum_attempt_count
+    ):
+        remaining_attempts = maximum_attempt_count - attempted_count
+        batch_count = min(
+            int(replacement_batch_size),
+            remaining_attempts,
+            max(32, target_success_count - successful_count),
+        )
+        directions = rng.normal(size=(batch_count, SCAN_DIMENSION))
+        directions /= np.linalg.norm(directions, axis=1, keepdims=True)
+        points = _trace_contour(
+            evaluate,
+            center,
+            base_value,
+            directions,
+            contour_delta,
+            initial_radius,
+            bisection_iterations,
+        )
+        attempted_count += batch_count
+        if len(points):
+            point_batches.append(points)
+            successful_count += len(points)
+
+    all_points = (
+        np.vstack(point_batches)
+        if point_batches
+        else np.empty((0, SCAN_DIMENSION), dtype=float)
+    )
+    retained_points = all_points[:target_success_count]
+    return (
+        row_index,
+        retained_points,
+        attempted_count,
+        initial_success_count,
+        len(all_points),
+        evaluation_count,
+    )

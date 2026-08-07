@@ -2,12 +2,13 @@
 
 The script covers W, GHZ, and all three pairwise concurrences for electron
 and muon.  Each version has separate clustered and unclustered subfolders.
-It consumes existing clustered minima and validated contour CSVs.  W/GHZ muon
-contour versions are intentionally skipped because their species-coordinate
-repair was explicitly aborted; their contour-free versions are still written.
+It consumes existing clustered minima and validated contour CSVs, but applies
+an absolute objective cut to the rows used by the plots.  W/GHZ muon contour
+versions are intentionally skipped because their species-coordinate repair was
+explicitly aborted; their contour-free versions are still written.
 """
 
-import sys
+import argparse
 
 import numpy as np
 
@@ -17,7 +18,7 @@ import GradientPhaseSpaceScanTool as gradient_tool
 
 SCANS_TO_PLOT = ("W", "GHZ", "CEP", "CPGAMMA", "CEGAMMA")
 LEPTONS_TO_PLOT = ("electron", "muon")
-POLARIZATION_CLUSTER_CUT = 0.05
+POLARIZATION_ABSOLUTE_CUT = 0.01
 W_ALPHA_E_LINE_HALF_WIDTH = np.pi / 24.0
 GHZ_ALPHA_E_BOUNDARIES = (0.0, np.pi / 2.0, np.pi)
 
@@ -34,6 +35,90 @@ def _cluster_guides(scan_key):
 
 def _include_contours(scan_key, lepton_name):
     return not (lepton_name == "muon" and scan_key in ("W", "GHZ"))
+
+
+def _apply_absolute_objective_cut(
+    clustered_rows,
+    polarization_clusters,
+    lepton_name,
+    objective_cut,
+):
+    """Select objective <= cut while retaining established cluster labels."""
+    objective_key = gradient_tool._objective_key(lepton_name)
+    rows = [dict(row) for row in clustered_rows]
+    selected_rows = [
+        row
+        for row in rows
+        if float(row[objective_key]) <= objective_cut + 1.0e-12
+    ]
+    if not selected_rows:
+        raise RuntimeError(
+            f"No {gradient_tool.OBJECTIVE_NAME} minima satisfy the absolute "
+            f"cut <= {objective_cut:g}."
+        )
+    unassigned_rows = [
+        row
+        for row in selected_rows
+        if str(row.get("polarization_cluster_id", "")).strip() == ""
+    ]
+    if unassigned_rows:
+        raise RuntimeError(
+            f"{len(unassigned_rows)} minima satisfying the absolute "
+            "objective cut have no saved polarization-cluster assignment."
+        )
+
+    for row in rows:
+        row["within_polarization_cluster_cut"] = (
+            float(row[objective_key]) <= objective_cut + 1.0e-12
+        )
+        row["polarization_cluster_representative"] = False
+
+    retained_clusters = []
+    for source_cluster in sorted(
+        polarization_clusters,
+        key=lambda item: int(item["polarization_cluster_id"]),
+    ):
+        cluster = dict(source_cluster)
+        cluster_id = int(cluster["polarization_cluster_id"])
+        members = [
+            row
+            for row in selected_rows
+            if int(row["polarization_cluster_id"]) == cluster_id
+        ]
+        if not members:
+            continue
+        representative = min(
+            members,
+            key=lambda row: float(row[objective_key]),
+        )
+        representative["polarization_cluster_representative"] = True
+        values = np.asarray(
+            [float(row[objective_key]) for row in members],
+            dtype=float,
+        )
+        cluster.update(
+            {
+                "member_count": len(members),
+                "representative_local_minimum_id": representative[
+                    "local_minimum_id"
+                ],
+                "objective_absolute_cut": objective_cut,
+                "best_objective": float(values.min()),
+                "mean_objective": float(values.mean()),
+            }
+        )
+        cluster.pop("objective_cut_above_global_minimum", None)
+        retained_clusters.append(cluster)
+    return rows, retained_clusters
+
+
+def _mark_absolute_cut_metadata(rows, objective_cut):
+    """Replace legacy above-minimum cut metadata in plot-index rows."""
+    for row in rows:
+        row.pop("objective_cut_above_global_minimum", None)
+        row["objective_absolute_cut"] = objective_cut
+        row["objective_cut_basis"] = "absolute"
+    return rows
 
 
 def _example_configuration_path(output_dirs):
@@ -133,7 +218,8 @@ def _existing_variant_index_rows(
                         if mode == "unclustered" and show_example else ""
                     ),
                     "objective_name": gradient_tool.OBJECTIVE_NAME,
-                    "objective_cut_above_global_minimum": objective_cut,
+                    "objective_absolute_cut": objective_cut,
+                    "objective_cut_basis": "absolute",
                     "global_minimum": optimum,
                     "plot_path": str(path),
                     "contour_version": variant_name,
@@ -142,10 +228,19 @@ def _existing_variant_index_rows(
     return rows
 
 
-def regenerate_selected_plots(*, index_only=False):
+def regenerate_selected_plots(
+    *,
+    index_only=False,
+    scan_keys=SCANS_TO_PLOT,
+    leptons_to_plot=LEPTONS_TO_PLOT,
+    output_folder="polarization_correlations",
+    include_ghz_example=False,
+):
     """Write separate contour and contour-free correlation PDF trees."""
-    scan_definitions = definitions.selected_definitions(SCANS_TO_PLOT)
-    leptons = definitions.validated_leptons(LEPTONS_TO_PLOT)
+    if include_ghz_example:
+        gradient_tool.UNCLUSTERED_EXAMPLE_COLORS["GHZ"] = "#29B6F6"
+    scan_definitions = definitions.selected_definitions(tuple(scan_keys))
+    leptons = definitions.validated_leptons(tuple(leptons_to_plot))
     written_rows = []
     for definition in scan_definitions:
         gradient_tool.configure_scan(
@@ -172,8 +267,32 @@ def regenerate_selected_plots(*, index_only=False):
             optimum = min(
                 float(row[objective_key]) for row in clustered_rows
             )
-            example_configuration_path = _example_configuration_path(
-                output_dirs
+            clustered_rows, polarization_clusters = (
+                _apply_absolute_objective_cut(
+                    clustered_rows,
+                    polarization_clusters,
+                    lepton_name,
+                    POLARIZATION_ABSOLUTE_CUT,
+                )
+            )
+            retained = sum(
+                gradient_tool._as_bool(
+                    row["within_polarization_cluster_cut"]
+                )
+                for row in clustered_rows
+            )
+            print(
+                f"{definition.key} {lepton_name}: retained {retained}/"
+                f"{len(clustered_rows)} minima at absolute "
+                f"{gradient_tool.OBJECTIVE_NAME} <= "
+                f"{POLARIZATION_ABSOLUTE_CUT:g} in "
+                f"{len(polarization_clusters)} nonempty clusters",
+                flush=True,
+            )
+            example_configuration_path = (
+                _example_configuration_path(output_dirs)
+                if gradient_tool._show_unclustered_example()
+                else ""
             )
             variants = [("without_contours", False)]
             if contours_available:
@@ -189,14 +308,14 @@ def regenerate_selected_plots(*, index_only=False):
             for variant_name, include_contours in variants:
                 variant_dir = (
                     output_dirs["plots"]
-                    / "polarization_correlations"
+                    / output_folder
                     / variant_name
                 )
                 if index_only:
                     rows = _existing_variant_index_rows(
                         clustered_rows,
                         polarization_clusters,
-                        POLARIZATION_CLUSTER_CUT,
+                        POLARIZATION_ABSOLUTE_CUT,
                         optimum,
                         variant_name,
                         variant_dir,
@@ -213,7 +332,7 @@ def regenerate_selected_plots(*, index_only=False):
                         clustered_rows,
                         polarization_clusters,
                         lepton_name,
-                        POLARIZATION_CLUSTER_CUT,
+                        POLARIZATION_ABSOLUTE_CUT,
                         optimum,
                         alpha_e_line_half_width,
                         alpha_e_boundaries,
@@ -224,8 +343,14 @@ def regenerate_selected_plots(*, index_only=False):
                     row["contour_version"] = variant_name
                     row["example_configuration_path"] = (
                         example_configuration_path
-                        if row["mode"] == "unclustered" else ""
+                        if row["mode"] == "unclustered"
+                        and gradient_tool._show_unclustered_example()
+                        else ""
                     )
+                _mark_absolute_cut_metadata(
+                    rows,
+                    POLARIZATION_ABSOLUTE_CUT,
+                )
                 dataset_rows.extend(rows)
                 if not index_only:
                     print(
@@ -233,11 +358,18 @@ def regenerate_selected_plots(*, index_only=False):
                         f"under {variant_dir}",
                         flush=True,
                     )
-            index_path = gradient_tool._write_csv(
-                output_dirs["cluster_data"]
-                / "polarization_correlation_plot_index.csv",
-                dataset_rows,
-            )
+            if output_folder == "polarization_correlations":
+                index_path = (
+                    output_dirs["cluster_data"]
+                    / "polarization_correlation_plot_index.csv"
+                )
+            else:
+                index_path = (
+                    output_dirs["plots"]
+                    / output_folder
+                    / "polarization_correlation_plot_index.csv"
+                )
+            index_path = gradient_tool._write_csv(index_path, dataset_rows)
             written_rows.extend(dataset_rows)
             print(
                 f"Wrote {len(dataset_rows)} correlation index rows to "
@@ -247,14 +379,42 @@ def regenerate_selected_plots(*, index_only=False):
     return tuple(written_rows)
 
 
-def main():
-    arguments = sys.argv[1:]
-    if arguments not in ([], ["--index-only"]):
-        raise SystemExit(
-            "usage: RegeneratePolarizationCorrelationContourPlots.py "
-            "[--index-only]"
-        )
-    regenerate_selected_plots(index_only=arguments == ["--index-only"])
+def _parse_args(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--index-only", action="store_true")
+    parser.add_argument(
+        "--state", action="append", choices=SCANS_TO_PLOT,
+        help="State to regenerate; repeat for multiple states.",
+    )
+    parser.add_argument(
+        "--lepton", action="append", choices=LEPTONS_TO_PLOT,
+        help="Lepton to regenerate; repeat for multiple species.",
+    )
+    parser.add_argument(
+        "--output-folder",
+        default="polarization_correlations",
+        help="Plot subfolder under the selected state/species plot root.",
+    )
+    parser.add_argument(
+        "--include-ghz-example",
+        action="store_true",
+        help=(
+            "Restore the bright-blue exact-example star in unclustered GHZ "
+            "plots; the star remains absent from the legend."
+        ),
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = _parse_args(argv)
+    regenerate_selected_plots(
+        index_only=args.index_only,
+        scan_keys=tuple(args.state or SCANS_TO_PLOT),
+        leptons_to_plot=tuple(args.lepton or LEPTONS_TO_PLOT),
+        output_folder=args.output_folder,
+        include_ghz_example=args.include_ghz_example,
+    )
     return 0
 
 

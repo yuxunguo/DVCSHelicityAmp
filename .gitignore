@@ -26,5 +26,20 @@ docs/
 # Local agents and codex directories
 .agents/
 .codex/
+.claude/settings.local.json
 # Local generated scan/configuration artifacts
 Output_local/
+
+# Reproducible intermediate correlation-smearing artifacts.  Keep the final
+# absolute-threshold/fixed-width Gaussian products and consolidated plots.
+Output/GradientPhaseSpaceScan/Logs/*.log
+Output/GradientPhaseSpaceScan/*/Data/*/cluster/smear/
+Output/GradientPhaseSpaceScan/*/Data/*/cluster/smear_points_k*.csv
+Output/GradientPhaseSpaceScan/*/Data/*/cluster/gaussian_points.csv
+Output/GradientPhaseSpaceScan/*/Data/*/cluster/gaussian_points_widthbudget*.csv
+Output/GradientPhaseSpaceScan/*/Plots/*/polarization_correlations_histogram/gaussian/
+Output/GradientPhaseSpaceScan/*/Plots/*/polarization_correlations_histogram/gaussian_cut*/
+Output/GradientPhaseSpaceScan/*/Plots/*/polarization_correlations_histogram/gaussian_thres0.01_width0.05/
+Output/GradientPhaseSpaceScan/*/Plots/*/polarization_correlations_histogram/gaussian_widthbudget*/
+Output/GradientPhaseSpaceScan/*/Plots/*/polarization_correlations_histogram/minima_only/
+Output/GradientPhaseSpaceScan/*/Plots/*/polarization_correlations_histogram/smeared/

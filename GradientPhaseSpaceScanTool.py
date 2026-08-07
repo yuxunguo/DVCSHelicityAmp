@@ -130,11 +130,9 @@ POLARIZATION_CORRELATION_STYLES = (
     ("#E69F00", "P"),
     ("#000000", "X"),
 )
-# The exact unclustered examples remain visible for the three-body states,
-# with state-specific star colors.  Pairwise-entanglement scans intentionally
-# omit this overlay.
+# Only W keeps its exact unclustered example overlay.  GHZ and the pairwise
+# scans intentionally omit it.
 UNCLUSTERED_EXAMPLE_COLORS = {
-    "GHZ": "#0072B2",
     "W": "#F0E442",
 }
 POLARIZATION_CLUSTER_RESTARTS = 16
@@ -174,6 +172,11 @@ def _show_unclustered_example():
 def _unclustered_example_color():
     """Return the state-specific color for an unclustered example star."""
     return UNCLUSTERED_EXAMPLE_COLORS[SCAN_KEY]
+
+
+def _unclustered_example_marker_size(summary_panel):
+    """Return the enlarged W example-star area for correlation plots."""
+    return 285 if summary_panel else 345
 
 
 @dataclass(frozen=True)
@@ -2298,7 +2301,11 @@ def _write_polarization_correlation_pdfs(
                 [float(representative[x_name])],
                 [float(representative[y_name])],
                 marker="*",
-                s=190 if summary_panel else 230,
+                s=(
+                    (190 if summary_panel else 230)
+                    if mode == "clustered"
+                    else _unclustered_example_marker_size(summary_panel)
+                ),
                 color=(
                     "gold"
                     if mode == "clustered"
@@ -2310,9 +2317,6 @@ def _write_polarization_correlation_pdfs(
                     "cluster representatives"
                     if summary_panel
                     and mode == "clustered"
-                    and representative_index == 0
-                    else "Example"
-                    if mode == "unclustered"
                     and representative_index == 0
                     else None
                 ),
