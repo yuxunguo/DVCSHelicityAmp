@@ -1,0 +1,17 @@
+Hybrid global gradient one_minus_C_p_gamma search (electron)
+  optimization starts: 2048
+  Latin-hypercube starts: 0
+  Sobol screening: 32768 candidates -> 0 optimized starts
+  best screened one_minus_C_p_gamma: unavailable
+  deterministic physics anchors: 0
+  shared optimization workers: 24
+  L-BFGS-B-converged runs: 1790/2048
+  multiscale-verified runs: 2047/2048
+  distinct finite minima: 2019
+  minimum scan time: 1796.778 s
+  best one_minus_C_p_gamma: 8.1634699e-13
+  maximum C_p_gamma: 1
+  optimization runs: Output\CartesianGradientPhaseSpaceScan\electron\Data\CPGAMMA\scan\optimization_runs.csv
+  exact physics reference points: none configured
+  local minima: Output\CartesianGradientPhaseSpaceScan\electron\Data\CPGAMMA\scan\local_minima.csv
+  all-local-minima plot: Output\CartesianGradientPhaseSpaceScan\electron\Plots\CPGAMMA\all_local_minima.pdf

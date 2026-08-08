@@ -1,0 +1,6 @@
+state,absolute_threshold,direct_contour_delta,target_success_count,maximum_attempt_count,configured_workers,selected_minimum_count,recorded_minimum_count,usable_covariance_count,nonusable_covariance_count,mean_initial_success_fraction,minimum_initial_success_fraction,mean_attempted_direction_count,maximum_attempted_direction_count,elapsed_hours
+W,0.01,0.02,64,1280,2,0,0,0,0,nan,nan,nan,0,0.007287060555556511
+GHZ,0.01,0.02,64,1280,2,950,1,1,0,1.0,1.0,64.0,64,0.007287123916665021
+CEP,0.01,0.02,64,1280,2,0,0,0,0,nan,nan,nan,0,0.007287128749998778
+CEGAMMA,0.01,0.02,64,1280,2,0,0,0,0,nan,nan,nan,0,0.007287132250001175
+CPGAMMA,0.01,0.02,64,1280,2,0,0,0,0,nan,nan,nan,0,0.007287135638887573

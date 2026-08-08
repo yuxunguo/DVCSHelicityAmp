@@ -33,7 +33,10 @@ from config import (
     SCAN_WORKERS,
 )
 from FormFactors import YAHL_MODEL_NAME, yahl_dirac_pauli_from_t
-from Kinematics import kinematics_cm_from_independent
+from Kinematics import (
+    kinematics_cm_from_cartesian_final,
+    kinematics_cm_from_independent,
+)
 from SpinDensityMat import (
     OUTPUT_DIR,
     SPIN_CASE_L_PROTON,
@@ -407,7 +410,6 @@ def _evaluate_kinematic_sample(task):
     theta_p_out = anchor["theta_p_out"]
     theta_gamma_out = anchor["theta_gamma_out"]
     qOut = anchor["qOut"]
-    out_states = outgoing_spin_states()
     kin = kinematics_cm_from_independent(
         s,
         qOut,
@@ -424,6 +426,25 @@ def _evaluate_kinematic_sample(task):
         ),
         electron_mass=settings["lepton_mass"],
     )
+    return _evaluate_built_kinematic_sample(anchor, kin, settings)
+
+
+def _evaluate_cartesian_kinematic_sample(task):
+    """Evaluate one sample supplied as final proton/photon three-vectors."""
+    anchor, proton3, photon3, settings = task
+    kin = kinematics_cm_from_cartesian_final(
+        proton3,
+        photon3,
+        settings["m"],
+        electron_mass=settings["lepton_mass"],
+        label=f"Cartesian final momenta for {anchor['kinematic_point']}",
+    )
+    return _evaluate_built_kinematic_sample(anchor, kin, settings)
+
+
+def _evaluate_built_kinematic_sample(anchor, kin, settings):
+    """Evaluate spin observables from an already constructed CM point."""
+    out_states = outgoing_spin_states()
     momenta = kin["momenta"]
     angle_rad = spatial_opening_angle(momenta["kp"], momenta["qout"])
     k_dot_qout = real_scalar(mdot(momenta["k"], momenta["qout"]), "k dot qout")
@@ -474,6 +495,10 @@ def _evaluate_kinematic_sample(task):
         "phi_p_out": float(kin["phi_p_out"]),
         "theta_gamma_out": float(kin["theta_gamma_out"]),
         "phi_gamma_out": float(kin["phi_gamma_out"]),
+        "phi_p_out_defined": bool(kin.get("phi_p_out_defined", True)),
+        "phi_gamma_out_defined": bool(
+            kin.get("phi_gamma_out_defined", True)
+        ),
         "theta_lepton_out": float(kin["theta_lepton_out"]),
         "phi_lepton_out": float(kin["phi_lepton_out"]),
         "cos_p_gamma_out": float(kin["cos_p_gamma_out"]),

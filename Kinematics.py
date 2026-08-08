@@ -58,6 +58,24 @@ def spatial_angles(four_vector):
     return theta, phi
 
 
+def spatial_angles_with_defined_phi(four_vector, tol=DEFAULT_TOL):
+    """Return ``(theta, phi, phi_defined)`` for a spatial four-vector.
+
+    Azimuth is undefined on the polar axis.  A deterministic zero is returned
+    internally in that case so downstream numerical code stays finite; saved
+    Cartesian-scan tables can replace it by NaN using ``phi_defined``.
+    """
+    spatial = np.asarray(four_vector, dtype=float)[1:4]
+    magnitude = float(np.linalg.norm(spatial))
+    if magnitude <= tol:
+        return np.nan, 0.0, False
+    transverse = float(np.hypot(spatial[0], spatial[1]))
+    theta = float(np.arctan2(transverse, spatial[2]))
+    if transverse <= tol * max(1.0, magnitude):
+        return theta, 0.0, False
+    return theta, _normalize_angle(np.arctan2(spatial[1], spatial[0])), True
+
+
 def k_cm(pIn, electron_mass):
     """Return the incoming lepton four-momentum in the initial CM frame.
 
@@ -331,6 +349,95 @@ def invariant_q2_xb_t(mom, m):
         "q": q,
         "W2": real_scalar(mdot(mom["p"] + q, mom["p"] + q)),
         "y": p_dot_q / real_scalar(mdot(mom["p"], mom["k"])),
+    }
+
+
+def kinematics_cm_from_cartesian_final(
+    proton3,
+    photon3,
+    m,
+    electron_mass,
+    label=None,
+):
+    """Build exact initial-CM kinematics from final proton/photon vectors.
+
+    The outgoing lepton spatial momentum is fixed by momentum conservation,
+    ``k' = -(p' + q')``.  All final particles are put on shell, their total
+    energy defines ``sqrt(s)``, and the matching incoming two-body CM state is
+    then reconstructed.  No angular ``pOut`` root solve is performed.
+    """
+    proton3 = np.asarray(proton3, dtype=float)
+    photon3 = np.asarray(photon3, dtype=float)
+    if proton3.shape != (3,) or photon3.shape != (3,):
+        raise ValueError("proton3 and photon3 must each have shape (3,).")
+    if not np.all(np.isfinite(proton3)) or not np.all(np.isfinite(photon3)):
+        raise ValueError("Cartesian final momenta must be finite.")
+    m = _validate_positive_scalar(m, "m")
+    electron_mass = _validate_nonnegative_scalar(electron_mass, "electron_mass")
+
+    p_out = float(np.linalg.norm(proton3))
+    q_out = float(np.linalg.norm(photon3))
+    if q_out <= DEFAULT_TOL:
+        raise ValueError("The outgoing real photon must have nonzero momentum.")
+    lepton3 = -proton3 - photon3
+    pp = np.concatenate(([np.sqrt(p_out**2 + m**2)], proton3))
+    qout = np.concatenate(([q_out], photon3))
+    kp = np.concatenate(([
+        np.sqrt(float(np.dot(lepton3, lepton3)) + electron_mass**2)
+    ], lepton3))
+    sqrt_s = float(pp[0] + qout[0] + kp[0])
+    s = sqrt_s**2
+    p_in = p_in_from_s(s, m, electron_mass=electron_mass)
+    mom = {
+        "k": k_cm(p_in, electron_mass),
+        "p": p_cm(p_in, m),
+        "kp": kp,
+        "pp": pp,
+        "qout": qout,
+    }
+    mom["q"] = mom["k"] - mom["kp"]
+
+    theta_p, phi_p_internal, phi_p_defined = (
+        spatial_angles_with_defined_phi(pp)
+    )
+    theta_gamma, phi_gamma_internal, phi_gamma_defined = (
+        spatial_angles_with_defined_phi(qout)
+    )
+    theta_lepton, phi_lepton = spatial_angles(kp)
+    opening_cosine = float(np.dot(proton3, photon3) / (p_out * q_out)) if (
+        p_out > DEFAULT_TOL
+    ) else np.nan
+    derived = invariant_q2_xb_t(mom, m)
+    initial_total = mom["k"] + mom["p"]
+    final_total = mom["kp"] + mom["pp"] + mom["qout"]
+    return {
+        "frame": "initial_proton_lepton_com",
+        "coordinate_system": "cartesian_final_momenta",
+        "label": label,
+        "m": m,
+        "electron_mass": electron_mass,
+        "momenta": mom,
+        "pIn": p_in,
+        "pOut": p_out,
+        "s": s,
+        "sqrt_s": sqrt_s,
+        "theta_p_in": 0.0,
+        "phi_p_in": 0.0,
+        "theta_lepton_in": float(np.pi),
+        "phi_lepton_in": 0.0,
+        "qOut": q_out,
+        "theta_p_out": theta_p,
+        "phi_p_out": phi_p_internal,
+        "phi_p_out_defined": phi_p_defined,
+        "theta_gamma_out": theta_gamma,
+        "phi_gamma_out": phi_gamma_internal,
+        "phi_gamma_out_defined": phi_gamma_defined,
+        "theta_lepton_out": theta_lepton,
+        "phi_lepton_out": phi_lepton,
+        "cos_p_gamma_out": opening_cosine,
+        **{key: value for key, value in derived.items() if key not in {"q", "s", "sqrt_s"}},
+        "energy_residual": abs(float(initial_total[0] - final_total[0])),
+        "momentum_residual": float(np.linalg.norm(initial_total[1:] - final_total[1:])),
     }
 
 

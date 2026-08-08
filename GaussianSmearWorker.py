@@ -21,17 +21,25 @@ from GradientContourWorker import (
 )
 
 
-def periodic_aware_diffs(points, center):
+def periodic_aware_diffs(points, center, periodic_coordinates=None):
     """Return points - center, wrapped to the shortest signed path per axis."""
     diffs = np.asarray(points, dtype=float) - np.asarray(center, dtype=float)
-    for index in PERIODIC_UNIT_COORDINATES:
+    if periodic_coordinates is None:
+        periodic_coordinates = PERIODIC_UNIT_COORDINATES
+    for index in periodic_coordinates:
         diffs[:, index] = (diffs[:, index] + 0.5) % 1.0 - 0.5
     return diffs
 
 
-def full_covariance_from_contour(center, boundary_points):
+def full_covariance_from_contour(
+    center, boundary_points, *, periodic_coordinates=None,
+):
     """Return the empirical 8x8 covariance from all saved boundary points."""
-    diffs = periodic_aware_diffs(boundary_points, center)
+    diffs = periodic_aware_diffs(
+        boundary_points,
+        center,
+        periodic_coordinates=periodic_coordinates,
+    )
     return np.cov(diffs.T)
 
 

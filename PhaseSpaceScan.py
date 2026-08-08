@@ -466,6 +466,26 @@ def _evaluate_sample(
         return None
     if not result["ok"]:
         return None
+    return _mixing_observables_from_kinematic_result(
+        result,
+        stage=stage,
+        sample_id=sample_id,
+        lepton_name=lepton_name,
+        alpha_e=alpha_e,
+        alpha_p=alpha_p,
+    )
+
+
+def _mixing_observables_from_kinematic_result(
+    result,
+    *,
+    stage,
+    sample_id,
+    lepton_name,
+    alpha_e,
+    alpha_p,
+):
+    """Add coherent initial-spin observables to one evaluated kinematic row."""
     row = result["row"]
     row["search_stage"] = stage
     row["sample_id"] = sample_id
@@ -501,6 +521,9 @@ def _evaluate_sample(
             "abs_kp_dot_qout", "aligned", "reference_name",
         )
     }
+    for key in ("phi_p_out_defined", "phi_gamma_out_defined"):
+        if key in row:
+            mixing_row[key] = row[key]
     mixing_row.update({
         "search_stage": stage,
         "sample_id": sample_id,

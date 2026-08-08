@@ -1,0 +1,16 @@
+Hybrid global gradient dGHZ search (electron)
+  optimization starts: 2048
+  Latin-hypercube starts: 0
+  Sobol screening: 32768 candidates -> 0 optimized starts
+  best screened dGHZ: unavailable
+  deterministic physics anchors: 0
+  shared optimization workers: 24
+  L-BFGS-B-converged runs: 1721/2048
+  multiscale-verified runs: 969/2048
+  distinct finite minima: 960
+  minimum scan time: 24012.528 s
+  best dGHZ: 1.87498786e-08
+  optimization runs: Output\CartesianGradientPhaseSpaceScan\electron\Data\GHZ\scan\optimization_runs.csv
+  exact physics reference points: none configured
+  local minima: Output\CartesianGradientPhaseSpaceScan\electron\Data\GHZ\scan\local_minima.csv
+  all-local-minima plot: Output\CartesianGradientPhaseSpaceScan\electron\Plots\GHZ\all_local_minima.pdf

@@ -1,6 +1,6 @@
 """Generate direct fixed-width full covariances for threshold-selected minima.
 
-For every retained electron minimum satisfying ``D <= 0.01``, directly trace
+For every retained electron minimum satisfying ``D < 0.01``, directly trace
 the ``D_i + 0.02`` contour, following the earlier CEGAMMA
 ``contour_width_comparison`` benchmark.  Failed rays are replaced with new
 deterministic directions until 1,536 successful boundary points are retained,
@@ -36,12 +36,19 @@ TARGET_SUCCESS_COUNT = 1536
 MAXIMUM_ATTEMPT_COUNT = 20 * TARGET_SUCCESS_COUNT
 REPLACEMENT_BATCH_SIZE = 256
 SCAN_DIMENSION = 8
+DIRECT_BISECTION_ITERATIONS = (
+    gradient_tool.CONFIG_CONTOUR_BISECTION_ITERATIONS
+)
 SCAN_ROOT = Path("Output") / "GradientPhaseSpaceScan"
 OUTPUT_ROOT = (
     SCAN_ROOT / LEPTON_NAME / "Data"
     / "contour_width_comparison_delta0.02_all_threshold0.01"
 )
 SUMMARY_PATH = OUTPUT_ROOT / "generation_summary.csv"
+OUTPUT_VARIANT = "delta0.02_all_threshold0.01"
+PREVIOUS_OUTPUT_VARIANT = None
+PREVIOUS_SUCCESS_COUNT = 0
+INCREMENTAL_MODE = False
 
 OBJECTIVE_COLUMNS = {
     "W": "final_D_W",
@@ -64,7 +71,7 @@ def _covariance_path(state_key):
 def _state_output_dir(state_key):
     return (
         SCAN_ROOT / LEPTON_NAME / "Data" / state_key
-        / "contour_width_comparison" / "delta0.02_all_threshold0.01"
+        / "contour_width_comparison" / OUTPUT_VARIANT
     )
 
 
@@ -73,6 +80,77 @@ def _contour_path(state_key, minimum_id):
         _state_output_dir(state_key) / "local_minima"
         / f"local_minimum_{int(minimum_id):04d}_contour_samples.csv"
     )
+
+
+def _contour_path_for_variant(state_key, minimum_id, variant):
+    return (
+        SCAN_ROOT / LEPTON_NAME / "Data" / state_key
+        / "contour_width_comparison" / variant / "local_minima"
+        / f"local_minimum_{int(minimum_id):04d}_contour_samples.csv"
+    )
+
+
+def _load_previous_contour(descriptor):
+    """Load and strictly validate the preceding incremental contour."""
+    if PREVIOUS_SUCCESS_COUNT == 0:
+        return np.empty((0, SCAN_DIMENSION), dtype=float), 0
+    if not PREVIOUS_OUTPUT_VARIANT:
+        raise RuntimeError("An incremental predecessor variant is required.")
+    path = _contour_path_for_variant(
+        descriptor["state"],
+        descriptor["minimum_id"],
+        PREVIOUS_OUTPUT_VARIANT,
+    )
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Missing incremental predecessor contour: {path}"
+        )
+    metadata = None
+    points = []
+    with path.open(newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            if row["record_type"] == "minimum":
+                metadata = row
+            elif row["record_type"] == "sample":
+                points.append(
+                    [float(row[f"u{index}"]) for index in range(SCAN_DIMENSION)]
+                )
+    if metadata is None:
+        raise ValueError(f"Predecessor contour has no metadata row: {path}")
+    points = np.asarray(points, dtype=float).reshape((-1, SCAN_DIMENSION))
+    valid = (
+        int(metadata["local_minimum_id"]) == int(descriptor["minimum_id"])
+        and metadata["objective_name"] == descriptor["objective_name"]
+        and np.isclose(
+            float(metadata["contour_delta"]), DIRECT_DELTA,
+            rtol=0.0, atol=1.0e-15,
+        )
+        and int(metadata["target_success_count"]) == PREVIOUS_SUCCESS_COUNT
+        and int(metadata["contour_point_count"]) == PREVIOUS_SUCCESS_COUNT
+        and len(points) == PREVIOUS_SUCCESS_COUNT
+        and all(
+            np.isclose(
+                float(metadata[f"center_u{index}"]),
+                descriptor["center"][index],
+                rtol=0.0,
+                atol=1.0e-12,
+            )
+            for index in range(SCAN_DIMENSION)
+        )
+    )
+    if not valid:
+        raise ValueError(f"Incompatible incremental predecessor: {path}")
+    boundary_count = int(metadata.get("domain_boundary_point_count", 0) or 0)
+    return points, boundary_count
+
+
+def audit_incremental_predecessors(descriptors):
+    """Validate every required predecessor before starting a top-up stage."""
+    if PREVIOUS_SUCCESS_COUNT == 0:
+        return 0
+    for descriptor in descriptors:
+        _load_previous_contour(descriptor)
+    return len(descriptors)
 
 
 def _fieldnames():
@@ -135,10 +213,16 @@ def _write_contour(descriptor, points, diagnostics):
         "contour_delta": DIRECT_DELTA,
         "configured_direction_count": TARGET_SUCCESS_COUNT,
         "target_success_count": TARGET_SUCCESS_COUNT,
+        "previous_success_count": PREVIOUS_SUCCESS_COUNT,
+        "added_success_count": diagnostics["added_success_count"],
+        "previous_output_variant": PREVIOUS_OUTPUT_VARIANT or "",
         "initial_success_count": diagnostics["initial_success_count"],
         "attempted_direction_count": diagnostics["attempted_direction_count"],
         "replacement_direction_count": diagnostics["replacement_direction_count"],
         "contour_point_count": len(points),
+        "domain_boundary_point_count": diagnostics.get(
+            "domain_boundary_point_count", 0
+        ),
         **{
             f"center_u{coordinate}": float(descriptor["center"][coordinate])
             for coordinate in range(SCAN_DIMENSION)
@@ -213,7 +297,7 @@ def _selected_descriptors(states, threshold, workers):
         rows = [
             row for row in _read_csv(path)
             if row["within_polarization_cluster_cut"] == "True"
-            and float(row[objective_column]) <= threshold
+            and float(row[objective_column]) < threshold
         ]
         rows.sort(key=lambda row: int(row["local_minimum_id"]))
         for row in rows:
@@ -226,11 +310,12 @@ def _selected_descriptors(states, threshold, workers):
                 "objective": objective,
                 "objective_name": definition.objective_name,
                 "objective_file_tag": definition.file_tag,
+                "coordinate_system": definition.coordinate_system,
                 "contour_delta": DIRECT_DELTA,
                 "center": gradient_tool._unit_point_from_minimum_row(row),
             })
         print(
-            f"{state_key}: selected {len(rows)} minima at absolute D <= "
+            f"{state_key}: selected {len(rows)} minima at absolute D < "
             f"{threshold:g}",
             flush=True,
         )
@@ -267,6 +352,15 @@ def _completed_rows(descriptors, threshold):
                 and int(row["target_success_count"]) == TARGET_SUCCESS_COUNT
                 and int(row["contour_point_count"]) == TARGET_SUCCESS_COUNT
                 and row["objective_name"] == descriptor["objective_name"]
+                and (
+                    PREVIOUS_SUCCESS_COUNT == 0
+                    or (
+                        int(row["previous_success_count"])
+                        == PREVIOUS_SUCCESS_COUNT
+                        and row["previous_output_variant"]
+                        == PREVIOUS_OUTPUT_VARIANT
+                    )
+                )
                 and _contour_path(
                     descriptor["state"], descriptor["minimum_id"]
                 ).exists()
@@ -289,11 +383,31 @@ def _completed_rows(descriptors, threshold):
     return completed
 
 
+def _direct_contour_directions(seed, start_count=0):
+    """Return a nested deterministic slice ending at the configured count."""
+    if TARGET_SUCCESS_COUNT < 2 * SCAN_DIMENSION:
+        raise ValueError(
+            "TARGET_SUCCESS_COUNT must include the 16 signed coordinate axes."
+        )
+    axes = np.vstack((np.eye(SCAN_DIMENSION), -np.eye(SCAN_DIMENSION)))
+    random_count = TARGET_SUCCESS_COUNT - len(axes)
+    rng = np.random.default_rng(seed)
+    random_directions = rng.normal(size=(random_count, SCAN_DIMENSION))
+    if random_count:
+        random_directions /= np.linalg.norm(
+            random_directions, axis=1, keepdims=True,
+        )
+    directions = np.vstack((axes, random_directions))
+    return directions[int(start_count):TARGET_SUCCESS_COUNT]
+
+
 def _worker_task(descriptor, task_index):
-    directions = gradient_tool._contour_directions(
+    directions = _direct_contour_directions(
         gradient_tool.ENTANGLEMENT_GRADIENT_RANDOM_SEED
-        + int(descriptor["minimum_id"])
+        + int(descriptor["minimum_id"]),
+        start_count=PREVIOUS_SUCCESS_COUNT,
     )
+    added_success_count = TARGET_SUCCESS_COUNT - PREVIOUS_SUCCESS_COUNT
     return (
         task_index,
         descriptor["center"],
@@ -304,16 +418,18 @@ def _worker_task(descriptor, task_index):
         directions,
         DIRECT_DELTA,
         gradient_tool.CONFIG_CONTOUR_INITIAL_RADIUS,
-        gradient_tool.CONFIG_CONTOUR_BISECTION_ITERATIONS,
-        TARGET_SUCCESS_COUNT,
-        MAXIMUM_ATTEMPT_COUNT,
+        DIRECT_BISECTION_ITERATIONS,
+        added_success_count,
+        20 * added_success_count,
         (
             gradient_tool.ENTANGLEMENT_GRADIENT_RANDOM_SEED
             + 10_000_000
             + 100_000 * STATES.index(descriptor["state"])
             + int(descriptor["minimum_id"])
+            + 1_000 * PREVIOUS_SUCCESS_COUNT
         ),
         REPLACEMENT_BATCH_SIZE,
+        descriptor["coordinate_system"],
     )
 
 
@@ -326,7 +442,13 @@ def _result_row(descriptor, points, diagnostics, elapsed_seconds):
     status = "insufficient_points"
     if len(points) >= 2:
         covariance = full_covariance_from_contour(
-            descriptor["center"], points,
+            descriptor["center"],
+            points,
+            periodic_coordinates=(
+                (6, 7)
+                if descriptor["coordinate_system"] == "cartesian"
+                else (4, 5, 6, 7)
+            ),
         )
         if np.all(np.isfinite(covariance)):
             eigenvalues = np.linalg.eigvalsh(covariance)
@@ -341,7 +463,7 @@ def _result_row(descriptor, points, diagnostics, elapsed_seconds):
             )
         else:
             status = "nonfinite_covariance"
-    return {
+    row = {
         "state": descriptor["state"],
         "local_minimum_id": descriptor["minimum_id"],
         "status": status,
@@ -351,13 +473,14 @@ def _result_row(descriptor, points, diagnostics, elapsed_seconds):
         "absolute_threshold": DEFAULT_THRESHOLD,
         "contour_delta": DIRECT_DELTA,
         "target_success_count": TARGET_SUCCESS_COUNT,
-        "initial_direction_count": TARGET_SUCCESS_COUNT,
+        "initial_direction_count": diagnostics["added_success_count"],
         "initial_success_count": diagnostics["initial_success_count"],
         "attempted_direction_count": diagnostics["attempted_direction_count"],
         "replacement_direction_count": diagnostics["replacement_direction_count"],
         "contour_point_count": len(points),
         "initial_success_fraction": (
-            diagnostics["initial_success_count"] / TARGET_SUCCESS_COUNT
+            diagnostics["initial_success_count"]
+            / diagnostics["added_success_count"]
         ),
         "overall_success_fraction": (
             diagnostics["total_success_count"]
@@ -378,6 +501,21 @@ def _result_row(descriptor, points, diagnostics, elapsed_seconds):
             for column in range(SCAN_DIMENSION)
         },
     }
+    if INCREMENTAL_MODE:
+        row.update({
+            "previous_success_count": PREVIOUS_SUCCESS_COUNT,
+            "added_success_count": diagnostics["added_success_count"],
+            "previous_output_variant": PREVIOUS_OUTPUT_VARIANT or "",
+        })
+    if descriptor["coordinate_system"] == "cartesian":
+        row["domain_boundary_point_count"] = diagnostics[
+            "domain_boundary_point_count"
+        ]
+        row["domain_boundary_point_fraction"] = (
+            diagnostics["domain_boundary_point_count"] / len(points)
+            if len(points) else np.nan
+        )
+    return row
 
 
 def _write_summary(descriptors, rows_by_key, started, workers):
@@ -428,31 +566,115 @@ def _write_summary(descriptors, rows_by_key, started, workers):
     _write_csv(SUMMARY_PATH, output)
 
 
-def run(states=STATES, threshold=DEFAULT_THRESHOLD, workers=None, limit=None):
+def _stratified_descriptor_subset(descriptors, per_state, round_index=1):
+    """Select deterministic interior quantiles in photon-energy fraction."""
+    if int(round_index) < 1:
+        raise ValueError("round_index must be positive.")
+    selected = []
+    for state_key in STATES:
+        state_descriptors = [
+            item for item in descriptors if item["state"] == state_key
+        ]
+        if not state_descriptors:
+            continue
+        state_descriptors.sort(
+            key=lambda item: (
+                float(item["row"]["qOut"])
+                / gradient_tool.phase_scan._qout_max(
+                    float(item["row"]["s"])
+                ),
+                int(item["minimum_id"]),
+            )
+        )
+        requested_count = (
+            per_state.get(state_key, 0)
+            if isinstance(per_state, dict)
+            else per_state
+        )
+        count = min(int(requested_count), len(state_descriptors))
+        if count == 0:
+            continue
+        first_round_indices = np.rint(
+            np.linspace(0, len(state_descriptors) - 1, count + 2)[1:-1]
+        ).astype(int)
+        if int(round_index) == 1:
+            indices = first_round_indices
+        else:
+            # Later rounds use an interleaved quantile grid and explicitly
+            # avoid the first-round rows.  Choose the closest still-unused
+            # row if rounding lands on a previous selection.
+            target_fractions = (
+                np.arange(count, dtype=float) + 0.5
+            ) / count
+            targets = target_fractions * (len(state_descriptors) - 1)
+            unavailable = set(int(index) for index in first_round_indices)
+            indices = []
+            for target in targets:
+                candidates = sorted(
+                    (
+                        index for index in range(len(state_descriptors))
+                        if index not in unavailable
+                    ),
+                    key=lambda index: (abs(index - target), index),
+                )
+                chosen = candidates[0]
+                indices.append(chosen)
+                unavailable.add(chosen)
+            indices = np.asarray(indices, dtype=int)
+        selected.extend(state_descriptors[index] for index in indices)
+    return selected
+
+
+def run(
+    states=STATES,
+    threshold=DEFAULT_THRESHOLD,
+    workers=None,
+    limit=None,
+    benchmark_per_state=None,
+    benchmark_round=1,
+):
     workers = max(1, int(workers or os.cpu_count() or 1))
     if not np.isclose(threshold, DEFAULT_THRESHOLD, rtol=0.0, atol=1.0e-15):
         raise ValueError(
             "This production output is reserved for absolute threshold 0.01."
         )
-    if TARGET_SUCCESS_COUNT != gradient_tool.PHASE_SPACE_CONFIG_CONTOUR_SAMPLES:
-        raise RuntimeError("The configured contour direction count is not 1536.")
+    if TARGET_SUCCESS_COUNT < 2 * SCAN_DIMENSION:
+        raise RuntimeError("At least 16 direct-contour directions are required.")
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
     started = perf_counter()
     descriptors = _selected_descriptors(states, threshold, workers)
     completed = _completed_rows(descriptors, threshold)
+    requested_descriptors = descriptors
+    if benchmark_per_state is not None:
+        if isinstance(benchmark_per_state, dict):
+            if any(int(value) < 0 for value in benchmark_per_state.values()):
+                raise ValueError("benchmark state counts must be nonnegative.")
+        elif benchmark_per_state < 1:
+            raise ValueError("benchmark_per_state must be positive.")
+        requested_descriptors = _stratified_descriptor_subset(
+            descriptors, benchmark_per_state, round_index=benchmark_round,
+        )
     pending = [
-        item for item in descriptors
+        item for item in requested_descriptors
         if (item["state"], item["minimum_id"]) not in completed
     ]
     if limit is not None:
         if limit < 1:
             raise ValueError("limit must be positive.")
         pending = pending[:limit]
+    predecessor_count = audit_incremental_predecessors(pending)
     print(
-        f"resume audit: {len(completed)}/{len(descriptors)} already complete; "
+        f"resume audit: {len(completed)}/{len(descriptors)} compatible "
+        f"checkpoints; requested {len(requested_descriptors)}; "
         f"processing {len(pending)} with {workers} workers",
         flush=True,
     )
+    if predecessor_count:
+        print(
+            f"incremental predecessor audit: {predecessor_count} contours at "
+            f"{PREVIOUS_SUCCESS_COUNT} points from {PREVIOUS_OUTPUT_VARIANT}",
+            flush=True,
+        )
     if not pending:
         _write_summary(descriptors, completed, started, workers)
         return completed
@@ -486,21 +708,34 @@ def run(states=STATES, threshold=DEFAULT_THRESHOLD, workers=None, limit=None):
                 descriptor, task_started = active.pop(future)
                 (
                     _row_index,
-                    points,
+                    added_points,
                     attempted_count,
                     initial_success_count,
                     total_success_count,
                     evaluation_count,
+                    domain_boundary_point_count,
                 ) = future.result()
                 diagnostics = {
                     "attempted_direction_count": attempted_count,
                     "initial_success_count": initial_success_count,
                     "total_success_count": total_success_count,
                     "replacement_direction_count": (
-                        attempted_count - TARGET_SUCCESS_COUNT
+                        attempted_count
+                        - (TARGET_SUCCESS_COUNT - PREVIOUS_SUCCESS_COUNT)
                     ),
                     "physics_evaluation_count": evaluation_count,
+                    "domain_boundary_point_count": domain_boundary_point_count,
+                    "added_success_count": (
+                        TARGET_SUCCESS_COUNT - PREVIOUS_SUCCESS_COUNT
+                    ),
                 }
+                previous_points, previous_boundary_count = (
+                    _load_previous_contour(descriptor)
+                )
+                points = np.vstack((previous_points, added_points))
+                diagnostics["domain_boundary_point_count"] += (
+                    previous_boundary_count
+                )
                 row = _result_row(
                     descriptor,
                     points,

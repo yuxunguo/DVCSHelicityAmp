@@ -15,15 +15,15 @@ import GradientPhaseSpaceScanTool as gradient_tool
 
 SCANS_TO_RUN = ("CEP", "CPGAMMA", "CEGAMMA")
 LEPTONS_TO_CLUSTER = ("electron", "muon")
-# The objective cut is measured above the global minimum. For concurrence,
-# this is exactly the amount below the global maximum because the minimized
-# objective is 1-C. W uses narrow
+# The objective cut is an absolute distance threshold for every state:
+# retain only minima with D < 0.01.  It is never shifted by the best sampled
+# minimum. W uses narrow
 # alpha_e capture bands around pi/4 and 3pi/4. GHZ instead uses the two
 # alpha_e regions bounded by 0, pi/2, and pi, with two periodic alpha_p
 # clusters in each region.
 # The cluster assignment is the complete selection used by the configuration
 # stage; every retained minimum is configured.
-POLARIZATION_CLUSTER_CUT = 0.05
+POLARIZATION_ABSOLUTE_OBJECTIVE_CUT = 0.01
 POLARIZATION_CLUSTER_SEED = 314159
 W_POLARIZATION_CLUSTER_COUNT = 6
 W_ALPHA_E_LINE_HALF_WIDTH = np.pi / 24.0
@@ -74,7 +74,9 @@ def run_selected_clusters():
         reports[definition.key] = gradient_tool.run_phase_space_clustering(
             definition,
             leptons_to_cluster=leptons,
-            polarization_objective_cut=POLARIZATION_CLUSTER_CUT,
+            polarization_objective_cut=(
+                POLARIZATION_ABSOLUTE_OBJECTIVE_CUT
+            ),
             polarization_cluster_count=cluster_count,
             polarization_cluster_seed=POLARIZATION_CLUSTER_SEED,
             polarization_alpha_e_line_half_width=alpha_e_line_half_width,

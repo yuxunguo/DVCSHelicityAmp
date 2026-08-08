@@ -1,0 +1,16 @@
+Hybrid global gradient D_W search (electron)
+  optimization starts: 2048
+  Latin-hypercube starts: 0
+  Sobol screening: 32768 candidates -> 0 optimized starts
+  best screened D_W: unavailable
+  deterministic physics anchors: 0
+  shared optimization workers: 24
+  L-BFGS-B-converged runs: 1288/2048
+  multiscale-verified runs: 1273/2048
+  distinct finite minima: 1268
+  minimum scan time: 18141.696 s
+  best D_W: 1.603267103e-05
+  optimization runs: Output\CartesianGradientPhaseSpaceScan\electron\Data\W\scan\optimization_runs.csv
+  exact physics reference points: Output\CartesianGradientPhaseSpaceScan\electron\Data\W\scan\physics_reference_points.csv
+  local minima: Output\CartesianGradientPhaseSpaceScan\electron\Data\W\scan\local_minima.csv
+  all-local-minima plot: Output\CartesianGradientPhaseSpaceScan\electron\Plots\W\all_local_minima.pdf

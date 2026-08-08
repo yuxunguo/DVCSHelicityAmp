@@ -27,6 +27,7 @@ from scipy.spatial import ConvexHull, QhullError
 from scipy.stats import qmc
 
 import ConfigGen as config_gen
+import CartesianPhaseSpaceCoordinates as cartesian_coordinates
 from GradientContourWorker import configuration_contour_task
 import PhaseSpaceConfigScan as config_scan
 import PhaseSpaceScan as phase_scan
@@ -78,8 +79,12 @@ PHYSICS_ANCHOR_STARTS = {}
 INVALID_OBJECTIVE = 1.0e3
 SCAN_DIMENSION = 8
 PERIODIC_UNIT_COORDINATES = (4, 5, 6, 7)
+COORDINATE_SYSTEM = "angular"
 CONFIG_CONTOUR_BISECTION_ITERATIONS = 8
 CONFIG_CONTOUR_INITIAL_RADIUS = 0.01
+CARTESIAN_TOTAL_STARTS = 2048
+CARTESIAN_ANGULAR_START_THRESHOLD = 0.01
+ANGULAR_CHECKPOINT_ROOT = Path("Output") / "GradientPhaseSpaceScan"
 PHASE_SPACE_PLOT_PADDING_FRACTION = 0.025
 CONTOUR_AXIS_LABEL_FONTSIZE = 13
 CONTOUR_TICK_FONTSIZE = 12
@@ -190,6 +195,20 @@ class GradientScanDefinition:
     state_file_label: str
     output_root: Path
     physics_anchor_starts: dict
+    coordinate_system: str = "angular"
+
+
+def _set_coordinate_system(coordinate_system):
+    """Set worker-local coordinate semantics explicitly on Windows spawn."""
+    global COORDINATE_SYSTEM, PERIODIC_UNIT_COORDINATES
+    COORDINATE_SYSTEM = str(coordinate_system).lower()
+    if COORDINATE_SYSTEM not in {"angular", "cartesian"}:
+        raise ValueError("coordinate_system must be 'angular' or 'cartesian'.")
+    PERIODIC_UNIT_COORDINATES = (
+        cartesian_coordinates.PERIODIC_UNIT_COORDINATES
+        if COORDINATE_SYSTEM == "cartesian"
+        else (4, 5, 6, 7)
+    )
 
 
 def configure_scan(
@@ -204,7 +223,7 @@ def configure_scan(
 
     global OBJECTIVE_NAME, OBJECTIVE_FILE_TAG, OBJECTIVE_LATEX
     global OBJECTIVE_STATE_FILE_LABEL, TARGET_OBSERVABLE_NAME, SCAN_KEY
-    global OUTPUT_ROOT
+    global OUTPUT_ROOT, COORDINATE_SYSTEM, PERIODIC_UNIT_COORDINATES
     global PHYSICS_ANCHOR_STARTS
     global LEPTONS_TO_PROCESS, GRADIENT_WORKERS
 
@@ -219,6 +238,7 @@ def configure_scan(
         str(lepton_name): tuple(dict(anchor) for anchor in anchors)
         for lepton_name, anchors in definition.physics_anchor_starts.items()
     }
+    _set_coordinate_system(definition.coordinate_system)
     LEPTONS_TO_PROCESS = tuple(leptons_to_process)
     GRADIENT_WORKERS = int(gradient_workers)
 
@@ -324,6 +344,21 @@ def _run_objective_key(stage, objective_name=None):
 
 def _normalized_to_point(unit_point):
     """Map the optimizer's unit box to the eight physical scan coordinates."""
+    if COORDINATE_SYSTEM == "cartesian":
+        values = cartesian_coordinates.reconstructed_coordinates(
+            unit_point,
+            undefined_phi_nan=False,
+        )
+        return np.asarray((
+            values["sqrt_s"] ** 2,
+            values["theta_p_out"],
+            values["theta_gamma_out"],
+            values["qOut"],
+            values["phi_p_out"],
+            values["phi_gamma_out"],
+            values["alpha_e"],
+            values["alpha_p"],
+        ))
     unit_point = np.asarray(unit_point, dtype=float)
     sqrt_s = (
         phase_scan.SQRT_S_RANGE[0]
@@ -371,6 +406,15 @@ def _objective_evaluation(
     objective_name=None,
 ):
     """Evaluate the selected objective and return its coherent-angle row."""
+    if COORDINATE_SYSTEM == "cartesian":
+        value, row = cartesian_coordinates.evaluate_unit_point(
+            unit_point,
+            lepton_name=lepton_name,
+            lepton_mass=GRADIENT_LEPTON_SPECS[lepton_name]["mass"],
+            evaluation_id=evaluation_id,
+            objective_name=objective_name or OBJECTIVE_NAME,
+        )
+        return (INVALID_OBJECTIVE, None) if row is None else (value, row)
     result = phase_scan._evaluate_sample(
         _normalized_to_point(unit_point),
         sample_id=evaluation_id,
@@ -401,7 +445,9 @@ def _optimize_start(task):
         start_source,
         screening_value,
         objective_name,
+        coordinate_system,
     ) = task
+    _set_coordinate_system(coordinate_system)
     phase_scan._configure_lepton(lepton_name)
     cache = {}
     evaluation_count = 0
@@ -495,8 +541,12 @@ def _move_unit_point(point, displacement):
     """Apply a displacement with bounds and periodic-axis wrapping."""
     neighbor = np.asarray(point, dtype=float).copy()
     neighbor += np.asarray(displacement, dtype=float)
-    neighbor[:4] = np.clip(neighbor[:4], 0.0, 1.0)
-    neighbor[4:] %= 1.0
+    bounded = tuple(
+        index for index in range(SCAN_DIMENSION)
+        if index not in PERIODIC_UNIT_COORDINATES
+    )
+    neighbor[list(bounded)] = np.clip(neighbor[list(bounded)], 0.0, 1.0)
+    neighbor[list(PERIODIC_UNIT_COORDINATES)] %= 1.0
     return neighbor
 
 
@@ -684,6 +734,23 @@ def _as_bool(value):
     raise ValueError(f"Cannot interpret {value!r} as a boolean value.")
 
 
+def _scatter_coordinate(row, coordinate):
+    """Return one display coordinate, placing undefined azimuths at zero.
+
+    Cartesian result tables retain the physically faithful ``NaN`` azimuth
+    together with a ``*_defined`` flag.  Scatter plots use zero only as a
+    deterministic display convention so pole points remain visible.
+    """
+    flag_names = {
+        "phi_p_out": "phi_p_out_defined",
+        "phi_gamma_out": "phi_gamma_out_defined",
+    }
+    flag_name = flag_names.get(coordinate)
+    if flag_name is not None and not _as_bool(row.get(flag_name, True)):
+        return 0.0
+    return float(row[coordinate])
+
+
 def _objective_values(rows, lepton_name):
     """Return the local-minimum objective values in row order."""
     key = _objective_key(lepton_name)
@@ -692,6 +759,8 @@ def _objective_values(rows, lepton_name):
 
 def _unit_point_from_minimum_row(row):
     """Map one current-schema physical minimum back to the optimizer box."""
+    if COORDINATE_SYSTEM == "cartesian":
+        return cartesian_coordinates.row_to_unit(row)
     sqrt_s = float(row["sqrt_s"])
     s = sqrt_s**2
     qout_fraction = float(row["qOut"]) / phase_scan._qout_max(s)
@@ -741,6 +810,15 @@ def _unit_point_from_minimum_row(row):
 
 def _plot_coordinate_values(unit_point):
     """Return the named physical coordinates used by the projection panels."""
+    if COORDINATE_SYSTEM == "cartesian":
+        values = cartesian_coordinates.reconstructed_coordinates(unit_point)
+        return {
+            key: values[key]
+            for key in (
+                "sqrt_s", "theta_p_out", "theta_gamma_out", "qOut",
+                "phi_p_out", "phi_gamma_out", "alpha_e", "alpha_p",
+            )
+        }
     point = _normalized_to_point(unit_point)
     return {
         "sqrt_s": float(np.sqrt(point[0])),
@@ -801,6 +879,7 @@ def _configuration_contours(rows, lepton_name):
                 PHASE_SPACE_CONFIG_CONTOUR_DELTA,
                 CONFIG_CONTOUR_INITIAL_RADIUS,
                 CONFIG_CONTOUR_BISECTION_ITERATIONS,
+                COORDINATE_SYSTEM,
             )
             for chunk_index, directions in enumerate(direction_chunks)
             if len(directions)
@@ -1175,8 +1254,8 @@ def _plot_all_local_minima(rows, lepton_name, path, reference_rows=()):
         for ax, (x_name, y_name, x_label, y_label) in zip(
             axes.ravel()[:8], PLOT_PANELS
         ):
-            x = np.asarray([float(row[x_name]) for row in rows])
-            y = np.asarray([float(row[y_name]) for row in rows])
+            x = np.asarray([_scatter_coordinate(row, x_name) for row in rows])
+            y = np.asarray([_scatter_coordinate(row, y_name) for row in rows])
             image = ax.scatter(
                 x, y, c=values, s=42, cmap=cmap, vmin=vmin, vmax=vmax,
                 edgecolors="black", linewidths=0.35,
@@ -1187,8 +1266,8 @@ def _plot_all_local_minima(rows, lepton_name, path, reference_rows=()):
             )
             for reference_index, reference in enumerate(reference_rows):
                 ax.scatter(
-                    [float(reference[x_name])],
-                    [float(reference[y_name])],
+                    [_scatter_coordinate(reference, x_name)],
+                    [_scatter_coordinate(reference, y_name)],
                     marker="D",
                     s=72,
                     facecolors="none",
@@ -1440,12 +1519,10 @@ def _cluster_polarization_minima(
     alpha_e_line_half_width,
     alpha_e_boundaries,
 ):
-    """Classify minima using the active state's alpha_e partition."""
+    """Classify minima satisfying an absolute objective threshold."""
     values = _objective_values(rows, lepton_name)
     optimum = float(np.min(values))
-    eligible_indices = np.flatnonzero(
-        values - optimum <= objective_cut + 1.0e-12
-    )
+    eligible_indices = np.flatnonzero(values < objective_cut)
     if len(eligible_indices) < cluster_count:
         raise RuntimeError(
             f"The {OBJECTIVE_NAME} polarization cut retained "
@@ -1527,8 +1604,9 @@ def _cluster_polarization_minima(
                 raise RuntimeError(
                     f"The alpha_e={stratum_name} stratum retained "
                     f"{len(stratum_positions)} minima, fewer than its requested "
-                    f"{stratum_cluster_count} clusters. Increase the objective "
-                    "cut or revise the state-specific alpha_e partition."
+                    f"{stratum_cluster_count} clusters. Increase the absolute "
+                    "objective cut or revise the state-specific alpha_e "
+                    "partition."
                 )
 
             stratum_angles = angles[stratum_positions]
@@ -1672,7 +1750,7 @@ def _cluster_polarization_minima(
                     representatives[cluster_id],
                 ),
                 "objective_name": OBJECTIVE_NAME,
-                "objective_cut_above_global_minimum": objective_cut,
+                "objective_absolute_cut": objective_cut,
                 "global_minimum": optimum,
                 "best_objective": float(values[members].min()),
                 "mean_objective": float(values[members].mean()),
@@ -1953,8 +2031,8 @@ def _polarization_cluster_plot(
                         zorder=1,
                     )
             image = ax.scatter(
-                [float(row[x_name]) for row in page_rows],
-                [float(row[y_name]) for row in page_rows],
+                [_scatter_coordinate(row, x_name) for row in page_rows],
+                [_scatter_coordinate(row, y_name) for row in page_rows],
                 c=point_colors,
                 cmap=point_cmap,
                 vmin=point_vmin,
@@ -1969,8 +2047,8 @@ def _polarization_cluster_plot(
             )
             if representative is not None:
                 ax.scatter(
-                    [float(representative[x_name])],
-                    [float(representative[y_name])],
+                    [_scatter_coordinate(representative, x_name)],
+                    [_scatter_coordinate(representative, y_name)],
                     marker="*",
                     s=190,
                     color=representative_color,
@@ -2050,7 +2128,7 @@ def _polarization_cluster_plot(
             ),
             f"total raw minima = {len(rows)}",
             f"{OBJECTIVE_NAME} minimum = {optimum:.8g}",
-            f"objective cut above minimum = {objective_cut:.8g}",
+            f"absolute objective cut: {OBJECTIVE_NAME} < {objective_cut:.8g}",
             f"contour delta = {PHASE_SPACE_CONFIG_CONTOUR_DELTA:.8g}",
             f"samples per 8D contour = {PHASE_SPACE_CONFIG_CONTOUR_SAMPLES}",
         ] + (
@@ -2072,7 +2150,7 @@ def _polarization_cluster_plot(
         config_gen.observable_plot_style(OBJECTIVE_NAME)
     )
     cmap = plt.get_cmap(cmap_name)
-    color_upper = optimum + objective_cut
+    color_upper = objective_cut
     if color_upper <= optimum:
         color_upper = optimum + max(1.0e-12, abs(optimum) * 1.0e-12)
     color_span = color_upper - optimum
@@ -2169,6 +2247,9 @@ def _write_polarization_correlation_pdfs(
     output_dir,
     *,
     include_contours=False,
+    example_row_override=None,
+    show_unclustered_example_override=None,
+    unclustered_example_color_override=None,
 ):
     """Export matching summary and individual clustered/unclustered PDFs."""
     plt, _PdfPages = config_gen._require_matplotlib()
@@ -2197,10 +2278,30 @@ def _write_polarization_correlation_pdfs(
             "cluster."
         )
     example_cluster_id = EXAMPLE_POLARIZATION_CLUSTER_IDS[SCAN_KEY]
-    example_row = next(
-        row for row in representative_rows
-        if int(row["polarization_cluster_id"]) == example_cluster_id
+    example_row = (
+        dict(example_row_override)
+        if example_row_override is not None
+        else next(
+            row for row in representative_rows
+            if int(row["polarization_cluster_id"]) == example_cluster_id
+        )
     )
+    show_unclustered_example = (
+        _show_unclustered_example()
+        if show_unclustered_example_override is None
+        else bool(show_unclustered_example_override)
+    )
+    unclustered_example_color = (
+        _unclustered_example_color()
+        if unclustered_example_color_override is None
+        and _show_unclustered_example()
+        else unclustered_example_color_override
+    )
+    if show_unclustered_example and unclustered_example_color is None:
+        raise ValueError(
+            "An unclustered example color is required when forcing the "
+            "example marker for a state without a default example."
+        )
     output_dir = Path(output_dir)
     index_rows = []
     projected_contours = (
@@ -2258,8 +2359,8 @@ def _write_polarization_correlation_pdfs(
                 ]
                 color, marker = POLARIZATION_CORRELATION_STYLES[cluster_id]
                 ax.scatter(
-                    [float(row[x_name]) for row in cluster_rows],
-                    [float(row[y_name]) for row in cluster_rows],
+                    [_scatter_coordinate(row, x_name) for row in cluster_rows],
+                    [_scatter_coordinate(row, y_name) for row in cluster_rows],
                     s=42 if summary_panel else 58,
                     marker=marker,
                     color=color,
@@ -2276,8 +2377,8 @@ def _write_polarization_correlation_pdfs(
         else:
             unclustered_color, unclustered_marker = _unclustered_state_style()
             ax.scatter(
-                [float(row[x_name]) for row in selected_rows],
-                [float(row[y_name]) for row in selected_rows],
+                [_scatter_coordinate(row, x_name) for row in selected_rows],
+                [_scatter_coordinate(row, y_name) for row in selected_rows],
                 s=40 if summary_panel else 52,
                 marker=unclustered_marker,
                 color=unclustered_color,
@@ -2292,14 +2393,14 @@ def _write_polarization_correlation_pdfs(
         displayed_representatives = (
             representative_rows
             if mode == "clustered"
-            else [example_row] if _show_unclustered_example() else []
+            else [example_row] if show_unclustered_example else []
         )
         for representative_index, representative in enumerate(
             displayed_representatives
         ):
             ax.scatter(
-                [float(representative[x_name])],
-                [float(representative[y_name])],
+                [_scatter_coordinate(representative, x_name)],
+                [_scatter_coordinate(representative, y_name)],
                 marker="*",
                 s=(
                     (190 if summary_panel else 230)
@@ -2309,7 +2410,7 @@ def _write_polarization_correlation_pdfs(
                 color=(
                     "gold"
                     if mode == "clustered"
-                    else _unclustered_example_color()
+                    else unclustered_example_color
                 ),
                 edgecolors="black",
                 linewidths=0.9,
@@ -2441,7 +2542,7 @@ def _write_polarization_correlation_pdfs(
         displayed_representatives = (
             representative_rows
             if mode == "clustered"
-            else [example_row] if _show_unclustered_example() else []
+            else [example_row] if show_unclustered_example else []
         )
         index_rows.append(
             {
@@ -2456,11 +2557,11 @@ def _write_polarization_correlation_pdfs(
                 "representative_minima": len(displayed_representatives),
                 "example_polarization_cluster": (
                     f"P{example_cluster_id + 1}"
-                    if mode == "unclustered" and _show_unclustered_example()
+                    if mode == "unclustered" and show_unclustered_example
                     else ""
                 ),
                 "objective_name": OBJECTIVE_NAME,
-                "objective_cut_above_global_minimum": objective_cut,
+                "objective_absolute_cut": objective_cut,
                 "global_minimum": optimum,
                 "plot_path": str(summary_path),
             }
@@ -2537,11 +2638,11 @@ def _write_polarization_correlation_pdfs(
                     "example_polarization_cluster": (
                         f"P{example_cluster_id + 1}"
                         if mode == "unclustered"
-                        and _show_unclustered_example()
+                        and show_unclustered_example
                         else ""
                     ),
                     "objective_name": OBJECTIVE_NAME,
-                    "objective_cut_above_global_minimum": objective_cut,
+                    "objective_absolute_cut": objective_cut,
                     "global_minimum": optimum,
                     "plot_path": str(path),
                 }
@@ -3117,6 +3218,8 @@ def _write_configurations(
 
 def _physical_start_to_unit_point(start):
     """Map a readable physical start dictionary into the optimizer unit box."""
+    if COORDINATE_SYSTEM == "cartesian":
+        return cartesian_coordinates.physical_start_to_unit(start)
     sqrt_s = float(start["sqrt_s"])
     s = sqrt_s**2
     qout_fraction = float(start["qOut"]) / phase_scan._qout_max(s)
@@ -3159,7 +3262,8 @@ def _physical_start_to_unit_point(start):
 
 def _screen_start_task(task):
     """Evaluate one low-discrepancy candidate without optimizing it."""
-    lepton_name, candidate_index, point, objective_name = task
+    lepton_name, candidate_index, point, objective_name, coordinate_system = task
+    _set_coordinate_system(coordinate_system)
     phase_scan._configure_lepton(lepton_name)
     value, _row = _objective_evaluation(
         point,
@@ -3197,8 +3301,13 @@ def _screened_sobol_starts(lepton_name, species_seed):
         scramble=True,
         seed=species_seed + 10_000,
     ).random_base2(exponent)
+    if COORDINATE_SYSTEM == "cartesian":
+        candidates = np.asarray([
+            cartesian_coordinates.angular_unit_to_cartesian_unit(point)
+            for point in candidates
+        ])
     tasks = [
-        (lepton_name, index, point, OBJECTIVE_NAME)
+        (lepton_name, index, point, OBJECTIVE_NAME, COORDINATE_SYSTEM)
         for index, point in enumerate(candidates)
     ]
     evaluated = sorted(
@@ -3237,24 +3346,108 @@ def _species_tasks(lepton_name):
         ENTANGLEMENT_GRADIENT_RANDOM_SEED
         + GRADIENT_LEPTON_NAMES.index(lepton_name)
     )
-    latin_starts = qmc.LatinHypercube(
-        d=SCAN_DIMENSION,
-        seed=species_seed,
-    ).random(
-        ENTANGLEMENT_GRADIENT_RANDOM_STARTS
-    )
-    starts = [
-        (point, "latin_hypercube", np.nan)
-        for point in latin_starts
-    ]
-    starts.extend(
-        (point, "sobol_screened", value)
-        for value, point in _screened_sobol_starts(
-            lepton_name,
-            species_seed,
+    if COORDINATE_SYSTEM == "cartesian":
+        angular_design = qmc.Sobol(
+            d=SCAN_DIMENSION,
+            scramble=True,
+            seed=species_seed,
+        ).random_base2(15)
+        cartesian_design = []
+        for point in angular_design:
+            try:
+                converted = (
+                    cartesian_coordinates.angular_unit_to_cartesian_unit(point)
+                )
+            except ValueError:
+                continue
+            cartesian_design.append(converted)
+            if len(cartesian_design) == CARTESIAN_TOTAL_STARTS:
+                break
+        if len(cartesian_design) < CARTESIAN_TOTAL_STARTS:
+            raise RuntimeError(
+                "Could not construct enough physical Cartesian fill starts "
+                "from the deterministic Sobol design."
+            )
+        latin_starts = np.asarray(cartesian_design)
+    else:
+        latin_starts = qmc.LatinHypercube(
+            d=SCAN_DIMENSION,
+            seed=species_seed,
+        ).random(ENTANGLEMENT_GRADIENT_RANDOM_STARTS)
+    if COORDINATE_SYSTEM == "cartesian":
+        angular_minima_path = (
+            ANGULAR_CHECKPOINT_ROOT / lepton_name / "Data" / SCAN_KEY
+            / "scan" / "local_minima.csv"
         )
-    )
-    for anchor in PHYSICS_ANCHOR_STARTS.get(lepton_name, ()):
+        angular_rows = _read_csv(angular_minima_path)
+        angular_rows = [
+            row for row in angular_rows
+            if float(row[_objective_key(lepton_name)])
+            <= CARTESIAN_ANGULAR_START_THRESHOLD
+        ]
+        crosscheck_path = (
+            OUTPUT_ROOT / lepton_name / "Data" / SCAN_KEY / "scan"
+            / "angular_to_cartesian_crosscheck.csv"
+        )
+        crosscheck_rows = _read_csv(crosscheck_path)
+        crosscheck_by_id = {
+            str(row["local_minimum_id"]): row for row in crosscheck_rows
+        }
+        missing_crosschecks = [
+            row["local_minimum_id"] for row in angular_rows
+            if str(row["local_minimum_id"]) not in crosscheck_by_id
+        ]
+        if missing_crosschecks:
+            raise RuntimeError(
+                f"Cartesian starts are missing {len(missing_crosschecks)} "
+                f"angular cross-check rows in {crosscheck_path}."
+            )
+        angular_rows = [
+            row for row in angular_rows
+            if crosscheck_by_id[str(row["local_minimum_id"])]["status"]
+            == "pass"
+        ]
+        angular_rows.sort(
+            key=lambda row: float(row[_objective_key(lepton_name)])
+        )
+        if len(angular_rows) > CARTESIAN_TOTAL_STARTS:
+            angular_rows = angular_rows[:CARTESIAN_TOTAL_STARTS]
+        starts = [
+            (
+                cartesian_coordinates.row_to_unit(row),
+                f"angular_minimum:{row['local_minimum_id']}",
+                float(row[_objective_key(lepton_name)]),
+            )
+            for row in angular_rows
+        ]
+        fill_count = CARTESIAN_TOTAL_STARTS - len(starts)
+        starts.extend(
+            (point, "sobol_physical_fill", np.nan)
+            for point in latin_starts[:fill_count]
+        )
+    else:
+        starts = [
+            (point, "latin_hypercube", np.nan)
+            for point in latin_starts
+        ]
+    if COORDINATE_SYSTEM == "cartesian":
+        if len(starts) != CARTESIAN_TOTAL_STARTS:
+            raise RuntimeError(
+                f"Cartesian start construction produced {len(starts)} "
+                f"points instead of {CARTESIAN_TOTAL_STARTS}."
+            )
+    else:
+        starts.extend(
+            (point, "sobol_screened", value)
+            for value, point in _screened_sobol_starts(
+                lepton_name,
+                species_seed,
+            )
+        )
+    for anchor in (
+        () if COORDINATE_SYSTEM == "cartesian"
+        else PHYSICS_ANCHOR_STARTS.get(lepton_name, ())
+    ):
         point = _physical_start_to_unit_point(anchor)
         if np.all(np.isfinite(point)) and np.all(
             (0.0 <= point) & (point <= 1.0)
@@ -3274,6 +3467,7 @@ def _species_tasks(lepton_name):
             source,
             screening_value,
             OBJECTIVE_NAME,
+            COORDINATE_SYSTEM,
         )
         for run_index, (point, source, screening_value) in enumerate(starts)
     ]
@@ -3664,8 +3858,8 @@ def cluster_species_minima(
             f"  source minima: {minima_path}",
             f"  local minima loaded: {len(minimum_rows)}",
             (
-                f"  polarization cut: {OBJECTIVE_NAME} - "
-                f"{OBJECTIVE_NAME}_min <= {polarization_objective_cut:g}"
+                f"  absolute polarization cut: {OBJECTIVE_NAME} < "
+                f"{polarization_objective_cut:g}"
             ),
             f"  minima passing polarization cut: {retained}",
             (
